@@ -110,6 +110,44 @@ def fetch_quarterly(ticker: str) -> tuple[pd.DataFrame | None, str]:
             return None, "error"
 
 
+_VALUE_KEYS = ("revenue", "operating_income", "net_income")
+
+
+def _same(a, b) -> bool:
+    """저장값(Turso는 문자열로 돌려줄 수 있다)과 새 값이 같은가. 둘 다 없으면 같다."""
+    if a is None or b is None:
+        return a is None and b is None
+    return abs(float(a) - float(b)) <= max(1.0, abs(float(b)) * 1e-9)
+
+
+def changed_quarters(quarters: dict[tuple[int, int], dict],
+                     latest: dict[tuple[int, int], tuple]) -> dict[tuple[int, int], dict]:
+    """저장할 분기만 남긴다 - 처음 보는 분기이거나, 마지막으로 저장한 값과 하나라도 다른 분기.
+
+    quarterly_financials_raw는 수집일(collected_on)마다 행을 쌓는 이력 표다. 정기 실행이
+    매주 전체 유니버스를 다시 받으면 값이 그대로여도 주당 약 4,500행(900종목 x 5분기)이
+    쌓인다. 값이 바뀐 경우(정정 공시 등)는 새 행으로 남겨 이력 원칙은 그대로 지킨다."""
+    out = {}
+    for key, v in quarters.items():
+        prev = latest.get(key)
+        if prev is None or not all(_same(p, v.get(k)) for p, k in zip(prev, _VALUE_KEYS)):
+            out[key] = v
+    return out
+
+
+def load_latest_values(conn) -> dict[str, dict[tuple[int, int], tuple]]:
+    """종목·분기별 마지막으로 저장된 (매출, 영업이익, 순이익). 한 번의 쿼리로."""
+    rows = conn.execute(
+        "SELECT ticker, fiscal_year, fiscal_quarter, revenue, operating_income, net_income "
+        "FROM quarterly_financials_raw WHERE market = 'US' AND source = 'yfinance' "
+        "ORDER BY collected_on"
+    ).fetchall()
+    out: dict[str, dict[tuple[int, int], tuple]] = {}
+    for t, y, q, rev, op, net in rows:
+        out.setdefault(t, {})[(int(y), int(q))] = (rev, op, net)   # 뒤(최근)가 앞을 덮는다
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", nargs="*", default=None, help="종목코드 몇 개만 (확인용)")
@@ -139,8 +177,10 @@ def main() -> int:
         _log(f"표에 이미 있는 {before - len(tickers)}종목은 건너뜀")
 
     _log(f"대상 {len(tickers)}종목")
+    latest_values = load_latest_values(conn)
     now = datetime.utcnow().isoformat()
-    stats = {"ok": 0, "no_data": 0, "rate_limited": 0, "error": 0, "lt5": 0}
+    stats = {"ok": 0, "no_data": 0, "rate_limited": 0, "error": 0, "lt5": 0, "unchanged": 0}
+    saved_rows = 0
 
     for n, t in enumerate(tickers, 1):
         df, status = fetch_quarterly(t)
@@ -152,16 +192,21 @@ def main() -> int:
         if not quarters:
             stats["no_data"] += 1
             continue
-        for (y, q), v in quarters.items():
+        to_save = changed_quarters(quarters, latest_values.get(t, {}))
+        for (y, q), v in to_save.items():
             insert_quarter(conn, t, "US", y, q, v, "yfinance", "USD", now)
-        conn.commit()
+        if to_save:
+            conn.commit()
+            saved_rows += len(to_save)
+        else:
+            stats["unchanged"] += 1
         stats["ok"] += 1
         if len(quarters) < 5:
             stats["lt5"] += 1
         if n % 50 == 0:
             _log(f"  진행 {n}/{len(tickers)} {stats}")
 
-    _log(f"완료 {stats} (lt5=최근 5분기 미만)")
+    _log(f"완료 {stats} (lt5=최근 5분기 미만, unchanged=받았지만 바뀐 분기 없음) / 저장 {saved_rows}행")
 
     if args.tickers:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

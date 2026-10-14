@@ -3,6 +3,11 @@ name: Collect US Quarterly Financials
 # 분기 재설계(docs/REDESIGN_SPEC.md 4-1). 미국 분기 재무를 yfinance에서 받는다.
 # 한국(collect-dart.yml)과 짝이지만 API가 달라 별도 워크플로다.
 on:
+  # 매주 유니버스 전체를 다시 받는다 - 새 분기 실적(10-Q)이 들어오고, 바뀐 분기만 저장된다.
+  # 토요일 18:00 UTC: 같은 yfinance를 쓰는 backfill-quarterly-financials(21:00)와 겹치지 않게,
+  # 일요일 밤 워치리스트 스크리닝(22:00, PSR 재계산) 전에 끝나게.
+  schedule:
+    - cron: "0 18 * * 6"
   workflow_dispatch:
     inputs:
       mode:
@@ -28,7 +33,7 @@ permissions:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -43,14 +48,15 @@ jobs:
           TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
           PYTHONUNBUFFERED: "1"
         run: |
-          case "${{ inputs.mode }}" in
+          # 정기 실행은 inputs가 비어 있다 - 유니버스 전체(financials)로 돈다.
+          case "${{ inputs.mode || 'financials' }}" in
             sample)
               python scripts/collect_us_quarterly_financials.py --tickers ${{ inputs.tickers }} ;;
             financials)
               if [ -n "${{ inputs.limit }}" ]; then
-                python scripts/collect_us_quarterly_financials.py --offset ${{ inputs.offset }} --limit ${{ inputs.limit }}
+                python scripts/collect_us_quarterly_financials.py --offset ${{ inputs.offset || '0' }} --limit ${{ inputs.limit }}
               else
-                python scripts/collect_us_quarterly_financials.py --offset ${{ inputs.offset }}
+                python scripts/collect_us_quarterly_financials.py --offset ${{ inputs.offset || '0' }}
               fi ;;
             missing)
               python scripts/collect_us_quarterly_financials.py --only-missing ;;
