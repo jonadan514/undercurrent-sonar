@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "sample(몇 종목 표로 확인) / financials(유니버스 구간 실행)"
+        description: "sample(몇 종목 표로 확인) / financials(유니버스 구간 실행) / missing(표에 없는 종목만)"
         required: true
         default: "sample"
       tickers:
@@ -52,5 +52,7 @@ jobs:
               else
                 python scripts/collect_us_quarterly_financials.py --offset ${{ inputs.offset }}
               fi ;;
+            missing)
+              python scripts/collect_us_quarterly_financials.py --only-missing ;;
             *) echo "알 수 없는 mode"; exit 1 ;;
           esac

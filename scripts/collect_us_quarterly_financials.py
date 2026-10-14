@@ -18,6 +18,7 @@ Usage:
   python scripts/collect_us_quarterly_financials.py                    # US 유니버스 전체
   python scripts/collect_us_quarterly_financials.py --tickers AAPL MSFT
   python scripts/collect_us_quarterly_financials.py --offset 250 --limit 250  # 구간 실행
+  python scripts/collect_us_quarterly_financials.py --only-missing     # 표에 아직 없는 종목만
 """
 from __future__ import annotations
 
@@ -114,6 +115,9 @@ def main() -> int:
     ap.add_argument("--tickers", nargs="*", default=None, help="종목코드 몇 개만 (확인용)")
     ap.add_argument("--offset", type=int, default=0, help="유니버스 정렬 순서에서 이만큼 건너뛴다")
     ap.add_argument("--limit", type=int, default=None, help="offset부터 N개만")
+    ap.add_argument("--only-missing", action="store_true",
+                    help="quarterly_financials_raw에 행이 하나도 없는 종목만. 유니버스가 넓어졌을 때 "
+                         "(2026-10 S&P 400 편입 후 중형주 전부가 비어 PSR이 안 나왔다) 새 종목만 채운다")
     args = ap.parse_args()
 
     tickers = args.tickers or sorted(it["symbol"] for it in get_us_universe())
@@ -126,6 +130,13 @@ def main() -> int:
     moved = migrate_legacy_rows(conn)   # 예전 테이블 값을 raw로 옮긴다(여러 번 돌려도 안전)
     if moved:
         _log(f"예전 테이블에서 {moved}행을 원본 테이블로 옮겼다")
+
+    if args.only_missing:
+        have = {r[0] for r in conn.execute(
+            "SELECT DISTINCT ticker FROM quarterly_financials_raw WHERE market = 'US'").fetchall()}
+        before = len(tickers)
+        tickers = [t for t in tickers if t not in have]
+        _log(f"표에 이미 있는 {before - len(tickers)}종목은 건너뜀")
 
     _log(f"대상 {len(tickers)}종목")
     now = datetime.utcnow().isoformat()
