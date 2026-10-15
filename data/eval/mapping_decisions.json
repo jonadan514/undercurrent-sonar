@@ -3721,6 +3721,15 @@
   {
    "market": "US",
    "theme_id": "ai_software",
+   "ticker": "ACN",
+   "decision": "exclude",
+   "reason": "AI 소프트웨어 정의(AI 모델·에이전트를 제품으로 판매) 대비 AI가 기능 일부 - IT 컨설팅·서비스(같은 이유로 CTSH·G·EXLS 제외)",
+   "decided_at": "2026-10-16",
+   "source": "us_v8c_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "ai_software",
    "ticker": "AMZN",
    "decision": "keep",
    "reason": "이전 판정(2026-09-15) 정상 편입인데 이번 run에서 빠짐: 이전 판정(2026-09-15) 정상 편입인데 이번 run에서 빠짐: AWS AI 서비스 - 엔터프라이즈 AI 애플리케이션",
@@ -3807,6 +3816,24 @@
    "reason": "사용자 확인 검토(2026-10-01): 테마 정의의 '편입하지 않음'에 해당 - 비판 패스 지적 동의",
    "decided_at": "2026-10-01",
    "source": "us_v8_review_20261001.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "ai_software",
+   "ticker": "DOCU",
+   "decision": "exclude",
+   "reason": "AI 소프트웨어 정의(AI 모델·에이전트를 제품으로 판매) 대비 AI가 기능 일부 - 전자계약 플랫폼",
+   "decided_at": "2026-10-16",
+   "source": "us_v8c_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "ai_software",
+   "ticker": "DT",
+   "decision": "exclude",
+   "reason": "AI 소프트웨어 정의(AI 모델·에이전트를 제품으로 판매) 대비 AI가 기능 일부 - 모니터링(관찰 가능성) 플랫폼(같은 이유로 DDOG 제외)",
+   "decided_at": "2026-10-16",
+   "source": "us_v8c_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
@@ -3915,6 +3942,15 @@
    "reason": "검토(2026-10-01): 감사가 테마 부적합으로 판정, 테마 정의와 대조해 동의",
    "decided_at": "2026-10-01",
    "source": "us_v8_review_20261001.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "ai_software",
+   "ticker": "TOST",
+   "decision": "exclude",
+   "reason": "AI 소프트웨어 정의(AI 모델·에이전트를 제품으로 판매) 대비 AI가 기능 일부 - 레스토랑 POS",
+   "decided_at": "2026-10-16",
+   "source": "us_v8c_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",

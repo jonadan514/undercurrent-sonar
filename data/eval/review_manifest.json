@@ -40,6 +40,10 @@
   {
    "path": "kr_v7c_gate_review_20261004.json",
    "decided_at": "2026-10-04"
+  },
+  {
+   "path": "us_v8c_manual_review_20261016.json",
+   "decided_at": "2026-10-16"
   }
  ]
 }
