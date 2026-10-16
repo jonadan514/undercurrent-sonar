@@ -3991,6 +3991,15 @@
   {
    "market": "US",
    "theme_id": "autonomous_driving",
+   "ticker": "BWA",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 파워트레인 부품 - 자율주행 부품 근거가 막연함",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "autonomous_driving",
    "ticker": "GM",
    "decision": "exclude",
    "reason": "이전 판정(2026-09-15): Cruise 로보택시 사업 2024년 중단 - 이전 검토와 동일 기준",
@@ -4189,6 +4198,15 @@
   {
    "market": "US",
    "theme_id": "cable_wire",
+   "ticker": "HUBB",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 배선기구·전력기기 제조사 - 정의상 전력망 테마로(거기에는 유지)",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "cable_wire",
    "ticker": "NVT",
    "decision": "exclude",
    "reason": "사용자 확인 검토(2026-10-01): 테마 정의의 '편입하지 않음'에 해당 - 비판 패스 지적 동의",
@@ -4278,6 +4296,15 @@
   },
   {
    "market": "US",
+   "theme_id": "construction_machinery",
+   "ticker": "URI",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 장비 임대업 - 정의는 제조·판매",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
    "theme_id": "copper_metals",
    "ticker": "CMC",
    "decision": "exclude",
@@ -4356,6 +4383,15 @@
    "reason": "데이터센터 운영 리츠 - 판단보류(EQIX와 함께 경계 미정)",
    "decided_at": "2026-09-15",
    "source": "us_v7_manual_review_20260915.json.keep"
+  },
+  {
+   "market": "US",
+   "theme_id": "datacenter_power",
+   "ticker": "EME",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 근거가 송배전 시공이지 데이터센터 전력 설비가 아님(인프라 건설에는 유지)",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
@@ -4486,6 +4522,15 @@
   {
    "market": "US",
    "theme_id": "defense",
+   "ticker": "ST",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 범용 센서 - 방산 매출 근거가 막연함",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "defense",
    "ticker": "TXT",
    "decision": "keep",
    "reason": "Bell 군용 헬기·Textron Systems - 인용 오탐",
@@ -4611,6 +4656,15 @@
   },
   {
    "market": "US",
+   "theme_id": "factory_automation",
+   "ticker": "WCC",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 전기·산업재 유통사 - 자동화 설비 제조 아님",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
    "theme_id": "game",
    "ticker": "EA",
    "decision": "keep",
@@ -4693,6 +4747,15 @@
   {
    "market": "US",
    "theme_id": "lng_gas",
+   "ticker": "APA",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 원유 비중이 큰 E&P - 가스 주력 아님",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "lng_gas",
    "ticker": "APD",
    "decision": "exclude",
    "reason": "산업용가스 회사, LNG 사업 없음(1차 검토에서 확인했으나 기입 누락)",
@@ -4725,6 +4788,15 @@
    "reason": "Dominion - 일반 규제 전력회사 - 에너지 테마 경계(2026-09-15 사용자 결정) (이전 keep 판정 변경)",
    "decided_at": "2026-09-15",
    "source": "us_v7_manual_review_20260915.json.unapprove"
+  },
+  {
+   "market": "US",
+   "theme_id": "lng_gas",
+   "ticker": "EOG",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 원유 비중이 큰 E&P - 정의는 가스 공급이 주력인 기업",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
@@ -4770,6 +4842,15 @@
    "reason": "사용자 확인 검토(2026-10-01): 테마 정의의 '편입하지 않음'에 해당 - 비판 패스 지적 동의",
    "decided_at": "2026-10-01",
    "source": "us_v8_review_20261001.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "lng_gas",
+   "ticker": "OXY",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 원유 비중이 큰 E&P·화학 - 가스 주력 아님",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
@@ -4860,6 +4941,15 @@
    "reason": "이전 판정(2026-09-15) 정상 편입인데 이번 run에서 빠짐: 이전 판정(2026-09-15) 정상 편입인데 이번 run에서 빠짐: Innovative Medicine 외 MedTech 사업부 확인, 프로필 확인",
    "decided_at": "2026-10-01",
    "source": "us_v8_review_20261001.json.restore"
+  },
+  {
+   "market": "US",
+   "theme_id": "medical_device",
+   "ticker": "LH",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 임상검사 서비스 - 의료기기 제조·판매 아님",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
@@ -5368,6 +5458,15 @@
   {
    "market": "US",
    "theme_id": "semi_equipment",
+   "ticker": "AME",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 전자계측기 복합기업(산업자동화에서도 같은 이유로 제외)",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "semi_equipment",
    "ticker": "APH",
    "decision": "exclude",
    "reason": "감사 두 축 모두 실패(근거 모순 + 테마 부적합) - 자동 제외 규칙: 반도체 장비·소재와 관련된 사업이 아님.",
@@ -5386,11 +5485,29 @@
   {
    "market": "US",
    "theme_id": "semi_equipment",
+   "ticker": "GLW",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 유리·광섬유·디스플레이 소재 - 반도체 공정 소재 근거가 막연함",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "semi_equipment",
    "ticker": "INTC",
    "decision": "exclude",
    "reason": "이전 판정(2026-09-15): 이전 판정(2026-09-15): 칩 설계·제조사 - 장비·소재 공급사 아님(KR과 동일 기준, 1차 검토 누락)",
    "decided_at": "2026-10-01",
    "source": "us_v8_review_20261001.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "semi_equipment",
+   "ticker": "IPGP",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 산업용 파이버 레이저 - 반도체 장비 매출 비중이 작음",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
@@ -5553,6 +5670,15 @@
    "reason": "이전 판정(2026-09-15): 반도체 장비 - 특수가스·전자재료 아님",
    "decided_at": "2026-10-01",
    "source": "us_v8_review_20261001.json.exclude"
+  },
+  {
+   "market": "US",
+   "theme_id": "specialty_gas",
+   "ticker": "ONTO",
+   "decision": "exclude",
+   "reason": "정의 대조(2026-10-16): 계측·검사 장비 - 정의의 '반도체 검사장비' 제외 항목",
+   "decided_at": "2026-10-16",
+   "source": "us_v8d_manual_review_20261016.json.exclude"
   },
   {
    "market": "US",
