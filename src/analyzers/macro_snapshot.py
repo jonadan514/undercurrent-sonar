@@ -51,11 +51,36 @@ def _fetch_closes(period: str = "2mo") -> pd.DataFrame:
     return closes
 
 
+FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd={start}"
+# yfinance 2YY=F(2년물 금리 선물)는 1년치를 요청해도 하루만 오는 날이 있다(2026-10-17 확인) -
+# 그러면 10년-2년 금리차도 이력·변화가 없다. 짧으면 FRED 공식 2년물(DGS2, 키 불필요)로 바꾼다.
+FRED_FALLBACK = {"us2y": "DGS2"}
+MIN_POINTS = 20
+
+
+def _fred_series(sid: str, start: str) -> pd.Series | None:
+    try:
+        df = pd.read_csv(FRED_CSV.format(sid=sid, start=start))
+        df.columns = ["date", "value"]
+        s = pd.to_numeric(df["value"], errors="coerce")   # 휴일은 '.'
+        s.index = pd.to_datetime(df["date"])
+        return s.dropna()
+    except Exception as e:  # noqa: BLE001 - FRED 실패 시 yfinance 값 그대로
+        print(f"[macro] FRED {sid} 실패: {type(e).__name__}", flush=True)
+        return None
+
+
 def _series_by_key(closes: pd.DataFrame) -> dict[str, pd.Series]:
     out: dict[str, pd.Series] = {}
     for key, ticker in TICKERS.items():
         if ticker in closes.columns:
             out[key] = closes[ticker].dropna()
+    for key, sid in FRED_FALLBACK.items():
+        if len(out.get(key, [])) < MIN_POINTS:
+            fred = _fred_series(sid, closes.index[0].strftime("%Y-%m-%d"))
+            if fred is not None and len(fred) >= MIN_POINTS:
+                print(f"[macro] {key}: yfinance {len(out.get(key, []))}일 -> FRED {sid} {len(fred)}일", flush=True)
+                out[key] = fred
     # 10년-2년 금리차 - 두 시리즈를 날짜로 정렬해 뺀 새 시리즈(파생값, 뺄셈 그 이상의
     # 해석 없음). pandas가 공통 날짜만 남기고 자동 정렬하므로 거래일이 살짝 다른 상품
     # (국채 vs 선물)이어도 죽지는 않는다. 단, us2y(2YY=F)가 당일 데이터 공백이면
