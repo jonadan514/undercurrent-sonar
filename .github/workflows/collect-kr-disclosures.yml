@@ -1,0 +1,34 @@
+name: Collect KR Disclosures
+
+# 한국 공시 알림 - 단일판매·공급계약, 영업(잠정)실적 (2026-10-17). DART_API_KEY는 Secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: "확인용: 'YYYYMMDD YYYYMMDD' 기간 공시 종류·원문 표 출력(저장 안 함)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          PROBE: ${{ inputs.probe }}
+        run: python scripts/collect_kr_disclosures.py ${PROBE:+--probe $PROBE}

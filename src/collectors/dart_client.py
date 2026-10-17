@@ -236,3 +236,44 @@ def business_overview(rcept_no: str, max_chars: int = 2500) -> str | None:
             if got and (best is None or len(got) > len(best)):
                 best = got
     return best
+
+
+# ── 공시 목록·원문 표 (2026-10-17, 공급계약·잠정실적 알림) ─────────────
+
+def list_disclosures(bgn_de: str, end_de: str, pblntf_ty: str = "I", max_pages: int = 40) -> list[dict]:
+    """기간 안의 전체 공시 목록(기업 지정 없음 - DART는 이때 기간 3개월까지). pblntf_ty I = 거래소공시.
+    항목: corp_code, corp_name, stock_code, corp_cls(Y 코스피/K 코스닥), report_nm, rcept_no, rcept_dt."""
+    out: list[dict] = []
+    page = 1
+    while page <= max_pages:
+        data = _get("list.json", {"bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": pblntf_ty,
+                                  "page_no": str(page), "page_count": "100"})
+        out.extend(data.get("list") or [])
+        total_page = int(data.get("total_page") or 1)
+        if page >= total_page:
+            break
+        page += 1
+    return out
+
+
+_ROW_END_RE = re.compile(r"</\s*TR\s*>", re.I)
+_CELL_END_RE = re.compile(r"</\s*T[DH]\s*>", re.I)
+
+
+def document_rows(rcept_no: str) -> list[str]:
+    """공시 원문을 표 행 단위 텍스트로. 칸은 ' | '로 잇는다(표 구조를 남겨 항목 이름 옆 값을 찾게).
+    원문이 없으면 빈 목록."""
+    raw = _get("document.xml", {"rcept_no": rcept_no}, binary=True)
+    if not raw:
+        return []
+    rows: list[str] = []
+    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+        for name in zf.namelist():
+            text = _decode(zf.read(name))
+            text = _CELL_END_RE.sub(" | ", text)
+            text = _ROW_END_RE.sub("\n", text)
+            for line in _TAG_RE.sub(" ", text).split("\n"):
+                line = re.sub(r"[ \t\xa0]+", " ", line).strip(" |")
+                if line:
+                    rows.append(line)
+    return rows
