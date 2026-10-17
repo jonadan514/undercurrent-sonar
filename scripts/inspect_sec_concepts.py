@@ -41,6 +41,14 @@ def main() -> int:
                     continue
                 items = (body.get("units") or {}).get("USD") or []
                 ser = concept_series(items)
+                if "Revenue" in name and len(ser) < 4:
+                    # 분기 값이 모자란 매출 계정 - 기간 길이 분포와 단위를 보여 준다(원인 확인용)
+                    from collections import Counter
+                    spans = Counter()
+                    for it in items:
+                        if it.get("start") and it.get("end") and it["end"] >= "2024":
+                            spans[(date.fromisoformat(it["end"][:10]) - date.fromisoformat(it["start"][:10])).days // 30] += 1
+                    print(f"  ({ns}:{name} 단위 {list((body.get('units') or {}).keys())}, 2024년 이후 기간(개월) {dict(spans)})")
                 recent = sorted(e for e in ser if e >= SINCE)
                 if len(recent) >= 4:
                     last = recent[-1]
