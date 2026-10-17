@@ -2,6 +2,7 @@
 매크로 스냅샷
 - 미국 10년물·30년물 국채금리, 10-2년 금리차, 원/달러 환율, VIX, 달러인덱스, WTI 유가, 구리
 - 판단(등급·해석) 없이 원자료(현재값 + 전일/전주 대비 변동)만 저장한다.
+- 일별 종가 1년치는 macro_history(date, key, value)에 쌓는다(2026-10-17, 개요 추세선·1년 범위·그래프).
   체제(regime) 판정처럼 가중합산해 등급을 매기는 시스템이 아니다 - 그건
   "단일 종합 점수를 만들지 않는다" 원칙 때문에 이미 삭제됨(0번 기능제거).
 """
@@ -79,8 +80,50 @@ def _snapshot(s: pd.Series | None) -> dict:
     }
 
 
+HISTORY_PERIOD = "1y"   # 개요 카드 추세선·1년 범위·큰 그래프용(2026-10-17)
+SETTLE_DAYS = 5         # 최근 며칠 종가는 아직 바뀔 수 있다(선물·환율은 장중 값이 먼저 잡힘) - 이 기간만 다시 쓴다
+INSERT_CHUNK = 200
+
+
+def history_rows(series: dict[str, pd.Series]) -> list[tuple[str, str, float]]:
+    """{지표: 일별 시리즈} -> [(날짜, 지표, 값)]. NaN은 뺀다."""
+    out = []
+    for key, s in series.items():
+        for idx, v in s.items():
+            if v == v:
+                out.append((pd.Timestamp(idx).strftime("%Y-%m-%d"), key, round(float(v), 4)))
+    return out
+
+
+def split_settled(rows: list[tuple[str, str, float]], as_of: str, settle_days: int = SETTLE_DAYS):
+    """(굳은 행, 최근 행). 굳은 행은 INSERT OR IGNORE(이력, 덮어쓰지 않음 - 원칙 5),
+    최근 settle_days(달력일) 안의 행은 장중 값이 잡혔을 수 있어 INSERT OR REPLACE."""
+    cutoff = (pd.Timestamp(as_of) - pd.Timedelta(days=settle_days)).strftime("%Y-%m-%d")
+    return [r for r in rows if r[0] <= cutoff], [r for r in rows if r[0] > cutoff]
+
+
+def _save_history(rows: list[tuple[str, str, float]], as_of: str) -> None:
+    settled, recent = split_settled(rows, as_of)
+    with get_db() as con:
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS macro_history (
+                date  TEXT NOT NULL,
+                key   TEXT NOT NULL,
+                value REAL NOT NULL,
+                PRIMARY KEY (date, key)
+            )
+        """)
+        for verb, batch in (("INSERT OR IGNORE", settled), ("INSERT OR REPLACE", recent)):
+            # 한 번에 여러 행 - Turso HTTP는 문장마다 왕복이라 1년치(약 2,300행)를 한 행씩 넣으면 느리다
+            for i in range(0, len(batch), INSERT_CHUNK):
+                chunk = batch[i:i + INSERT_CHUNK]
+                con.execute(f"{verb} INTO macro_history (date, key, value) VALUES "
+                            + ",".join(["(?, ?, ?)"] * len(chunk)),
+                            tuple(v for r in chunk for v in r))
+
+
 def analyze() -> dict:
-    closes = _fetch_closes("2mo")
+    closes = _fetch_closes(HISTORY_PERIOD)
     series = _series_by_key(closes)
 
     # 스크립트가 실행된 오늘 날짜가 아니라, 실제로 데이터가 있는 마지막 거래일을
@@ -93,6 +136,7 @@ def analyze() -> dict:
 
     result = {"date": as_of, "items": items}
     _save(result)
+    _save_history(history_rows(series), as_of)
     return result
 
 

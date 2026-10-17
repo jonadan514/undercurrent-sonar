@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import FlagIcon from "@/src/components/FlagIcon";
+import { BigChart, RangeBar, Sparkline, lastN, type Point } from "@/src/components/MacroChart";
 
 // radar/page.tsx의 편집 방침과 같은 순서 (SPEC §6.2) — 페이지별 상수 유지 관행.
 const LABEL_ORDER = ["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment", "Overheated Buzz", "Full Decline"];
@@ -15,13 +16,15 @@ const MACRO_ORDER = ["us10y", "us30y", "spread_10y_2y", "usdkrw", "vix", "dxy", 
 interface MacroItem { value: number | null; chg_1d: number | null; chg_1w: number | null; label: string; unit: string }
 interface MacroSnapshot { date: string; items: Record<string, MacroItem> }
 
+function fmtUnit(v: number, unit: string): string {
+  if (unit === "원") return `₩${Math.round(v).toLocaleString()}`;
+  if (unit === "$") return `$${v.toFixed(2)}`;
+  if (unit === "$/lb") return `$${v.toFixed(2)}/lb`;
+  if (unit === "%p" || unit === "%") return `${v.toFixed(2)}${unit}`;
+  return v.toFixed(2);
+}
 function fmtMacroValue(item: MacroItem): string {
-  if (item.value == null) return "-";
-  if (item.unit === "원") return `₩${Math.round(item.value).toLocaleString()}`;
-  if (item.unit === "$") return `$${item.value.toFixed(2)}`;
-  if (item.unit === "$/lb") return `$${item.value.toFixed(2)}/lb`;
-  if (item.unit === "%p" || item.unit === "%") return `${item.value.toFixed(2)}${item.unit}`;
-  return item.value.toFixed(2);
+  return item.value == null ? "-" : fmtUnit(item.value, item.unit);
 }
 function fmtMacroChg(item: MacroItem): string {
   if (item.chg_1d == null) return "-";
@@ -35,6 +38,9 @@ export default function HomePage() {
   const [candidateCount, setCandidateCount] = useState<number | null>(null);
   const [radarCounts, setRadarCounts] = useState<Record<string, number> | null>(null);
   const [macro, setMacro] = useState<MacroSnapshot | null>(null);
+  // 일별 종가 1년치(2026-10-17) - 없으면 카드는 값만(추세선·범위 없이)
+  const [macroHist, setMacroHist] = useState<Record<string, Point[]>>({});
+  const [openMacro, setOpenMacro] = useState<string | null>(null);
 
   useEffect(() => {
     setCandidateCount(null);
@@ -66,6 +72,10 @@ export default function HomePage() {
       // API가 { error }를 돌려주면(DB 오류 등) items가 없어 화면 전체가 깨졌다 - 모양이 맞을 때만 쓴다(2026-10-04).
       .then(d => setMacro(d && d.items ? d : null))
       .catch(() => setMacro(null));
+    fetch("/api/data/macro/history")
+      .then(r => r.json())
+      .then(d => setMacroHist(d && typeof d === "object" && !Array.isArray(d) ? d : {}))
+      .catch(() => setMacroHist({}));
   }, []);
 
   const isKR = market === "KR";
@@ -172,8 +182,13 @@ export default function HomePage() {
               if (!item) return null;
               const chg = item.chg_1d;
               const chgColor = chg == null ? "var(--text-faint)" : chg > 0 ? "#4ade80" : chg < 0 ? "#f87171" : "var(--text-muted)";
+              const hist = macroHist[key] ?? [];
+              const open = openMacro === key;
               return (
-                <div key={key} className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)" }}>
+                <button key={key} type="button" onClick={() => setOpenMacro(open ? null : key)}
+                  className="rounded-lg p-2.5 text-left transition-colors"
+                  style={{ background: "var(--bg-inset)", border: `1px solid ${open ? "var(--border-ctrl)" : "transparent"}` }}
+                  aria-expanded={open}>
                   <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{item.label}</p>
                   <p className="text-[16px] font-bold mt-0.5" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
                     {fmtMacroValue(item)}
@@ -181,10 +196,27 @@ export default function HomePage() {
                   <p className="text-[11px] mt-0.5" style={{ color: chgColor, fontVariantNumeric: "tabular-nums" }}>
                     {fmtMacroChg(item)} <span style={{ color: "var(--text-faint)" }}>(1일)</span>
                   </p>
-                </div>
+                  {hist.length > 1 && (
+                    <>
+                      <div className="mt-1.5"><Sparkline points={lastN(hist, 63)} /></div>
+                      <RangeBar points={lastN(hist, 260)} fmt={(v) => fmtUnit(v, item.unit)} />
+                    </>
+                  )}
+                </button>
               );
             })}
           </div>
+          {openMacro && macro.items[openMacro] && (
+            <div className="mt-2 rounded-lg p-3" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+              <BigChart key={openMacro} points={macroHist[openMacro] ?? []} title={macro.items[openMacro].label}
+                fmt={(v) => fmtUnit(v, macro.items[openMacro].unit)} />
+            </div>
+          )}
+          {Object.keys(macroHist).length > 0 && (
+            <p className="text-[11px] mt-2" style={{ color: "var(--text-faint)" }}>
+              작은 선은 최근 3개월, 막대는 1년 최저~최고 안에서 지금 위치(판정 아님) · 카드를 누르면 큰 그래프
+            </p>
+          )}
         </div>
       )}
     </div>
