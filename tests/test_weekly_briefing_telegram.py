@@ -150,7 +150,7 @@ def test_kr_notice_overrides_yfinance_date():
     rows = [{"ticker": "128940", "market": "KR", "earnings_date": "2026-10-30", "earnings_date_end": "2026-11-03", "is_estimate": 1},
             {"ticker": "MU", "market": "US", "earnings_date": "2026-10-21", "earnings_date_end": "2026-10-21", "is_estimate": 0}]
     merged = g.merge_kr_notices(rows, [{"ticker": "128940", "announce_date": "2026-10-27"},
-                                       {"ticker": "263750", "announce_date": None}])
+                                       {"ticker": "263750", "announce_date": None}], "2026-10-26")
     ew = g.earnings_week_items(merged, "2026-10-26", {}, {})
     assert [(x["symbol"], x["date"], x["estimate"]) for x in ew["items"]] == [("128940", "2026-10-27", False)]
 
@@ -174,3 +174,10 @@ def test_kr_disclosures_week_scope_and_order():
     assert "관심사 공급계약 20억 (매출 대비 3.0%) · 용역 · 내 관심" in text
     assert text.index("관심사") < text.index("큰계약")
     assert "한국 공시" not in g.build_telegram_summary(_briefing())
+
+
+def test_past_kr_notice_does_not_hide_next_date():
+    # 10/14 잠정실적 예고는 지났다 - yfinance의 10/28(확정 실적)이 그 주에 남아야 한다
+    rows = [{"ticker": "000660", "market": "KR", "earnings_date": "2026-10-28", "earnings_date_end": "2026-10-28", "is_estimate": 1}]
+    merged = g.merge_kr_notices(rows, [{"ticker": "000660", "announce_date": "2026-10-14"}], "2026-10-26")
+    assert [x["date"] for x in g.earnings_week_items(merged, "2026-10-26", {}, {})["items"]] == ["2026-10-28"]

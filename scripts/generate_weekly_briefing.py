@@ -293,12 +293,13 @@ EARNINGS_TG_MAX = 6
 EARNINGS_TAG_KO = {"my": "내 관심", "note": "노트", "turnaround": "실적 반전"}
 
 
-def merge_kr_notices(rows: list[dict], notices: list[dict]) -> list[dict]:
+def merge_kr_notices(rows: list[dict], notices: list[dict], since: str) -> list[dict]:
     """한국 결산실적 공시예고(DART, 회사가 정한 날짜)를 yfinance 날짜보다 우선한다. notices: {ticker, announce_date}.
-    같은 종목에 예고가 여러 건이면 늦게 낸 것(목록 뒤쪽)."""
+    같은 종목에 예고가 여러 건이면 늦게 낸 것(목록 뒤쪽). since(브리핑 주 월요일)보다 이른 예고 날짜는 쓰지 않는다 -
+    이미 지난 잠정실적 예고가 yfinance의 다음 발표일(확정 실적 등)을 덮어 그 주에서 종목이 사라지면 안 된다(10/17 리뷰)."""
     by_key = {(r["market"], r["ticker"]): dict(r) for r in rows}
     for n in notices:
-        if not n.get("announce_date"):
+        if not n.get("announce_date") or n["announce_date"] < since:
             continue
         by_key[("KR", n["ticker"])] = {"ticker": n["ticker"], "market": "KR", "earnings_date": n["announce_date"],
                                        "earnings_date_end": n["announce_date"], "is_estimate": 0, "source": "DART"}
@@ -382,7 +383,7 @@ def get_earnings_week(week: str) -> dict | None:
     # 공시예고는 전체 상장사라 워치리스트 후보·내 관심·노트 종목만 남긴다(yfinance 대상과 같은 범위)
     targets = {f"{c['market']}:{c['symbol']}" for c in cands} | set(tags)
     notices = [n for n in notices if f"KR:{n['ticker']}" in targets]
-    return earnings_week_items(merge_kr_notices(rows, notices), week, tags, names)
+    return earnings_week_items(merge_kr_notices(rows, notices, week), week, tags, names)
 
 
 KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
@@ -408,7 +409,7 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
                           "rcept_no": r["rcept_no"], "tags": tags.get(r["stock_code"], []), "summary": disclosure_summary(kind, p),
                           **({"amount": p.get("amount"), "pct": p.get("pct_of_revenue"), "title": p.get("title"),
                               "withheld": bool(p.get("withheld")) and p.get("amount") is None} if kind == "contract" else
-                             {"quarter": quarter_label(p.get("period_end"), p.get("monthly")),
+                             {"quarter": quarter_label(p.get("period_end"), p.get("monthly"), p.get("annual")),
                               **{k: p.get(k) for k in ("revenue_yoy_pct", "revenue_yoy_turn", "operating_income_yoy_pct",
                                                        "operating_income_yoy_turn", "revenue", "operating_income")}})})
         if kind == "contract":

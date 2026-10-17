@@ -116,3 +116,11 @@ def test_prelim_trillion_unit_and_monthly():
     from src.collectors.kr_disclosures import prelim_has_values, summary
     assert m["monthly"] is True and summary("prelim", m) == "잠정실적 26.9월 전년동기 대비 매출 +11%"
     assert prelim_has_values(m) and not prelim_has_values(parse_prelim(["당기실적 | 2026-09-01 | ~ | 2026-09-30"]))
+
+
+def test_prelim_annual_label():
+    from src.collectors.kr_disclosures import quarter_label
+    p = parse_prelim(["당기실적 | 2026-01-01 | ~ | 2026-12-31"])
+    assert p["annual"] is True and p["monthly"] is False
+    assert quarter_label(p["period_end"], p["monthly"], p["annual"]) == "26년"
+    assert quarter_label("2026-12-31") == "26.4Q"

@@ -119,11 +119,12 @@ def parse_prelim(rows: list[str]) -> dict:
             period_start, period_end = _date(cells[1]), _date(cells[-1])
             break
     # 이마트·오리온 등은 같은 제목으로 월 실적을 낸다 - 기간 길이로 구분(분기 80일 이상)
-    monthly = None
+    # 연간만 내는 회사도 있다(기간 200일 넘음) - 4분기로 읽히면 안 된다
+    monthly = annual = None
     if period_start and period_end:
         days = (date.fromisoformat(period_end) - date.fromisoformat(period_start)).days
-        monthly = days < 80
-    out: dict = {"unit": unit, "period_start": period_start, "period_end": period_end, "monthly": monthly}
+        monthly, annual = days < 80, days > 200
+    out: dict = {"unit": unit, "period_start": period_start, "period_end": period_end, "monthly": monthly, "annual": annual}
     for key, pat in _ROW_LABELS.items():
         out[key] = out[f"{key}_yoy_base"] = out[f"{key}_yoy_pct"] = out[f"{key}_yoy_turn"] = None
         for row in rows:
@@ -181,11 +182,13 @@ def _yoy(p: dict, key: str) -> str | None:
     return None if pct is None else f"{pct:+.0f}%"
 
 
-def quarter_label(period_end: str | None, monthly: bool | None = None) -> str:
-    """'2026-09-30' -> '26.3Q'(분기말 달 기준), 월 실적이면 '26.9월'. 없으면 ''."""
+def quarter_label(period_end: str | None, monthly: bool | None = None, annual: bool | None = None) -> str:
+    """'2026-09-30' -> '26.3Q'(분기말 달 기준), 월 실적이면 '26.9월', 연간이면 '26년'. 없으면 ''."""
     if not period_end:
         return ""
     y, m = int(period_end[:4]), int(period_end[5:7])
+    if annual:
+        return f"{y % 100}년"
     return f"{y % 100}.{m}월" if monthly else f"{y % 100}.{(m - 1) // 3 + 1}Q"
 
 
@@ -204,7 +207,7 @@ def summary(kind: str, p: dict) -> str:
     if kind == "prelim":
         parts = [f"{name} {v}" for name, key in (("매출", "revenue"), ("영업익", "operating_income"))
                  if (v := _yoy(p, key))]
-        q = quarter_label(p.get("period_end"), p.get("monthly"))
+        q = quarter_label(p.get("period_end"), p.get("monthly"), p.get("annual"))
         return f"잠정실적 {q}".rstrip() + (f" 전년동기 대비 {' · '.join(parts)}" if parts else "")
     if kind == "notice":
         return f"실적 발표 예정 {p.get('announce_date') or '-'}"
