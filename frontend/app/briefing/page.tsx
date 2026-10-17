@@ -32,7 +32,11 @@ interface Briefing {
   // dxy·wti는 2026-10-09부터
   macro?: { as_of?: string; us10y?: MacroItem | null; kr3y?: MacroItem | null; usdkrw?: MacroItem | null;
             dxy?: MacroItem | null; wti?: MacroItem | null } | null;
+  // 워치리스트 '실적 반전'(3년 정체·역성장인데 지금 흐름 성장) 주간 변동(2026-10-17부터). 예전 브리핑엔 없다.
+  turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
+                 added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
 }
+interface TurnaroundItem { market: string; symbol: string; name?: string | null; basis: "1년" | "분기"; yoy: number | null }
 interface MacroItem { value: number | null; chg_1w: number | null }
 
 function MacroRow({ label, m, fmt, chgFmt }: { label: string; m?: MacroItem | null; fmt: (v: number) => string; chgFmt: (v: number) => string }) {
@@ -183,6 +187,37 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               </div>
             )}
           </div>
+
+          {/* 실적 반전 - 워치리스트 같은 이름 버튼과 같은 조건 */}
+          {b.turnaround && (
+            <div>
+              <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
+                실적 반전 — {Object.entries(b.turnaround.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}`).join(" · ") || "0"}
+                {b.turnaround.has_prev && <> · 새로 {b.turnaround.added_count} · 빠짐 {b.turnaround.removed_count}</>}
+              </p>
+              {b.turnaround.added.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {b.turnaround.added.map((s) => (
+                    <span key={`${s.market}:${s.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
+                      style={{ background: "#4ade8012", border: "1px solid #4ade8033" }}>
+                      <StockLabel s={s} />
+                      {s.yoy != null && <span style={{ color: "#4ade80" }}> {s.basis} {s.yoy >= 0 ? "+" : ""}{(s.yoy * 100).toFixed(0)}%</span>}
+                    </span>
+                  ))}
+                  {b.turnaround.added_count > b.turnaround.added.length && (
+                    <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>외 {b.turnaround.added_count - b.turnaround.added.length}개</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                  {b.turnaround.has_prev ? "이번 주 새로 들어온 종목 없음" : "새로 들어온 종목 비교는 다음 주부터"}
+                </p>
+              )}
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                매출 3년은 정체·역성장인데 최근 1년(4개 분기 합, 없으면 최근 분기)은 성장 — 워치리스트 &quot;실적 반전&quot; 버튼과 같은 조건
+              </p>
+            </div>
+          )}
 
           {/* 관심도 상승 */}
           {b.sentiment_heating?.length > 0 && (

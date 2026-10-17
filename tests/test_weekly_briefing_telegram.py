@@ -73,3 +73,31 @@ def test_dxy_and_wti_in_rates_line():
     # 유가가 없으면 예전 이름 그대로
     m2 = {k: v for k, v in m.items() if k != "wti"}
     assert "금리·환율 미 10년물" in g.build_telegram_summary(_briefing(macro=m2))
+
+
+# ---- 실적 반전 주간 변동 (2026-10-17) ----
+def _c(m, s, g, ttm=None, q=None, ttm_yoy=None, q_yoy=None, name=None):
+    return {"market": m, "symbol": s, "name": name, "growth_tier": g, "rev_ttm_tier": ttm, "rev_ttm_yoy": ttm_yoy,
+            "rev_q_tier": q, "rev_q_yoy": q_yoy}
+
+
+def test_turnaround_rule_matches_watchlist_button():
+    assert g.is_turnaround(_c("KR", "005930", "정체", ttm="성장", q="성장"))
+    assert not g.is_turnaround(_c("KR", "A", "정체", ttm="정체", q="성장"))   # 1년이 있으면 1년 기준
+    assert g.is_turnaround(_c("US", "MU", "역성장", ttm=None, q="성장"))       # 1년 없으면 분기
+    assert not g.is_turnaround(_c("US", "B", "성장", ttm="성장"))              # 3년도 성장이면 반전 아님
+
+
+def test_turnaround_diff_and_telegram_lines():
+    cur = [_c("KR", "005930", "정체", ttm="성장", ttm_yoy=0.572, name="삼성전자"),
+           _c("US", "MU", "정체", ttm="성장", ttm_yoy=1.1), _c("US", "AAPL", "정체", ttm="정체")]
+    first = g.turnaround_diff(cur, None)
+    assert first["total"] == 2 and first["by_market"] == {"KR": 1, "US": 1} and not first["has_prev"]
+    d = g.turnaround_diff(cur, [{"market": "US", "symbol": "MU"}, {"market": "US", "symbol": "OLD"}])
+    assert d["added_count"] == 1 and d["added"][0]["symbol"] == "005930" and d["removed_count"] == 1
+    d.pop("items")
+    text = g.build_telegram_summary(_briefing(turnaround=d))
+    assert "🔄 실적 반전</b> 🇺🇸 1 · 🇰🇷 1 · 새로 1 · 빠짐 1" in text and "삼성전자 1년 +57%" in text
+    first.pop("items")
+    assert "다음 주부터" in g.build_telegram_summary(_briefing(turnaround=first))
+    assert "실적 반전" not in g.build_telegram_summary(_briefing())

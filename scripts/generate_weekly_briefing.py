@@ -187,6 +187,66 @@ def get_watchlist_changes() -> dict:
     }
 
 
+TURNAROUND_LIST_MAX = 10
+
+
+def is_turnaround(c: dict) -> bool:
+    """워치리스트 '실적 반전'과 같은 조건(frontend/app/watchlist/page.tsx isTurnaround) - 매출 3년 판정은 정체·역성장인데
+    지금 흐름은 성장. 지금 흐름 = 최근 4개 분기 합 비교(rev_ttm_tier)가 있으면 그것, 없으면 최근 분기 전년동기(rev_q_tier)."""
+    if c.get("growth_tier") not in ("정체", "역성장"):
+        return False
+    now = c.get("rev_ttm_tier") if c.get("rev_ttm_tier") is not None else c.get("rev_q_tier")
+    return now == "성장"
+
+
+def _turnaround_item(c: dict) -> dict:
+    ttm = c.get("rev_ttm_tier") is not None
+    return {"market": c["market"], "symbol": c["symbol"], "name": c.get("name"),
+            "basis": "1년" if ttm else "분기", "yoy": c.get("rev_ttm_yoy") if ttm else c.get("rev_q_yoy")}
+
+
+def turnaround_diff(current: list[dict], prev: list[dict] | None) -> dict:
+    """이번 주 실적 반전 목록 vs 직전 스냅샷. 순위 없이 시장·종목코드 순(원칙 1)."""
+    cur = sorted((_turnaround_item(c) for c in current if is_turnaround(c)), key=lambda x: (x["market"], x["symbol"]))
+    by_market: dict[str, int] = {}
+    for x in cur:
+        by_market[x["market"]] = by_market.get(x["market"], 0) + 1
+    out = {"total": len(cur), "by_market": by_market, "has_prev": prev is not None,
+           "added": [], "added_count": 0, "removed": [], "removed_count": 0, "items": cur}
+    if prev is not None:
+        prev_keys = {f"{p['market']}:{p['symbol']}" for p in prev}
+        cur_keys = {f"{x['market']}:{x['symbol']}" for x in cur}
+        added = [x for x in cur if f"{x['market']}:{x['symbol']}" not in prev_keys]
+        removed = [p for p in prev if f"{p['market']}:{p['symbol']}" not in cur_keys]
+        out.update(added=added[:TURNAROUND_LIST_MAX], added_count=len(added),
+                   removed=removed[:TURNAROUND_LIST_MAX], removed_count=len(removed))
+    return out
+
+
+def get_turnaround_changes(week: str) -> dict | None:
+    """워치리스트 '실적 반전' 종목의 주간 변동(2026-10-17). 이번 주 목록은 스냅샷으로 남기고(덮어쓰지 않음, 원칙 5)
+    직전 주 스냅샷과 비교한다. 성장 열이 아직 없으면 None - 브리핑은 그 칸만 뺀다."""
+    try:
+        current = turso_exec(
+            "SELECT market, symbol, name, growth_tier, rev_ttm_tier, rev_ttm_yoy, rev_q_tier, rev_q_yoy "
+            "FROM watchlist_candidates ORDER BY market, symbol")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("실적 반전 조회 실패(열 없음?) - 건너뜀: %s", e)
+        return None
+    turso_exec(
+        "CREATE TABLE IF NOT EXISTS turnaround_weekly_snapshots ("
+        "  week TEXT PRIMARY KEY, payload TEXT NOT NULL,"
+        "  created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+    )
+    prev_rows = _payload(turso_exec(
+        "SELECT week, payload FROM turnaround_weekly_snapshots WHERE week < ? ORDER BY week DESC LIMIT 1", [week]))
+    result = turnaround_diff(current, prev_rows[0]["_data"] if prev_rows else None)
+    turso_exec("INSERT OR IGNORE INTO turnaround_weekly_snapshots (week, payload) VALUES (?, ?)",
+               [week, json.dumps(result["items"], ensure_ascii=False)])
+    result.pop("items")
+    return result
+
+
 def get_sentiment_week() -> list[dict]:
     """최근 7일 관심도 이력에서 상승 전환 종목."""
     rows = turso_exec(
@@ -431,6 +491,22 @@ def build_telegram_summary(b: dict) -> str:
     else:
         lines.append(f"<b>🔖 워치리스트</b> {wl['total']}종목")
 
+    ta = b.get("turnaround")
+    if ta:
+        counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ta["by_market"].items(), reverse=True))
+        lines.append("")
+        head = f"<b>🔄 실적 반전</b> {counts or '0'}"
+        if ta["has_prev"]:
+            head += f" · 새로 {ta['added_count']} · 빠짐 {ta['removed_count']}"
+        lines.append(head)
+        for a in ta["added"][:3]:
+            yoy = f" {a['basis']} {a['yoy'] * 100:+.0f}%" if a.get("yoy") is not None else ""
+            lines.append(f"  + {disp(a)}{yoy}")
+        if ta["added_count"] > 3:
+            lines.append(f"  외 {ta['added_count'] - 3}개")
+        if not ta["has_prev"]:
+            lines.append("  (새로 들어온 종목 비교는 다음 주부터)")
+
     reviews = b.get("observation_reviews") or []
     if reviews:
         names = load_theme_names()
@@ -500,6 +576,7 @@ def main() -> None:
         "kr": get_market_week("KR"),
         "macro": get_macro_week(),
         "watchlist": get_watchlist_changes(),
+        "turnaround": get_turnaround_changes(week),
         "sentiment_heating": get_sentiment_week(),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),
