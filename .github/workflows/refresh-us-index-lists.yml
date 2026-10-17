@@ -1,0 +1,53 @@
+name: Refresh US Index Lists
+
+# S&P 500·400 구성종목 목록을 위키백과에서 받아 data/sp500_list.csv·sp400_list.csv를 갱신한다(2026-10-17).
+# 일요일 밤 워치리스트 스크리닝 전에 돈다 - 지수에서 빠진 종목(비상장 전환 등)이 후보로 남지 않게.
+on:
+  schedule:
+    - cron: "0 8 * * 6"   # 토요일 08:00 UTC (17:00 KST)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true면 비교만 하고 저장하지 않는다"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Refresh
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/refresh_us_index_lists.py ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/sp500_list.csv data/sp400_list.csv
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "data: S&P 500·400 구성종목 목록 갱신(위키백과)"
+          git pull --rebase --autostash
+          git push
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
