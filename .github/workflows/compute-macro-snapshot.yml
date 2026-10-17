@@ -34,6 +34,16 @@ jobs:
           python -m venv /tmp/krxenv
           /tmp/krxenv/bin/pip install --quiet "pandas<3.0" "pykrx==1.2.8"
           /tmp/krxenv/bin/python scripts/fetch_kr_treasury_pykrx.py --out data/kr_treasury.json
+      # 코스피·코스닥 투자자별 순매수(2026-10-17, 주간 브리핑 수급) - 같은 격리 환경을 그대로 쓴다.
+      - name: Fetch KR investor flows (isolated pykrx)
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          [ -x /tmp/krxenv/bin/python ] || { python -m venv /tmp/krxenv && /tmp/krxenv/bin/pip install --quiet "pandas<3.0" "pykrx==1.2.8"; }
+          /tmp/krxenv/bin/python scripts/fetch_kr_investor_flows_pykrx.py --out data/kr_investor_flows.json
       - name: Save KR treasury yields
         if: always()
         continue-on-error: true
@@ -43,6 +53,15 @@ jobs:
         run: |
           pip install --quiet requests
           python scripts/save_kr_treasury.py --in data/kr_treasury.json
+      - name: Save KR investor flows
+        if: always()
+        continue-on-error: true
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+        run: |
+          pip install --quiet requests
+          python scripts/save_kr_investor_flows.py --in data/kr_investor_flows.json
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'
