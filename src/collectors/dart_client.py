@@ -256,6 +256,7 @@ def list_disclosures(bgn_de: str, end_de: str, pblntf_ty: str = "I", max_pages: 
     return out
 
 
+_STYLE_RE = re.compile(r"<\s*(style|script)[^>]*>.*?<\s*/\s*\1\s*>", re.I | re.S)
 _ROW_END_RE = re.compile(r"</\s*TR\s*>", re.I)
 _CELL_END_RE = re.compile(r"</\s*T[DH]\s*>", re.I)
 
@@ -269,7 +270,7 @@ def document_rows(rcept_no: str) -> list[str]:
     rows: list[str] = []
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
         for name in zf.namelist():
-            text = _decode(zf.read(name))
+            text = _STYLE_RE.sub(" ", _decode(zf.read(name)))
             text = _CELL_END_RE.sub(" | ", text)
             text = _ROW_END_RE.sub("\n", text)
             for line in _TAG_RE.sub(" ", text).split("\n"):

@@ -23,11 +23,11 @@ def main() -> int:
     names = Counter(i["report_nm"].strip() for i in items)
     for n, c in names.most_common(40):
         print(f"  {c:4d} {n}")
-    for kw in ("공급계약", "잠정)실적", "기업설명회"):
+    for kw in ("공급계약", "잠정)실적", "결산실적공시예고", "기업설명회(IR)개최(안내"):
         hits = [i for i in items if kw in i["report_nm"] and i.get("stock_code")][:args.show]
         for h in hits:
             print(f"\n===== {h['corp_name']} {h['stock_code']} {h['corp_cls']} {h['report_nm']} {h['rcept_no']}")
-            for r in dart.document_rows(h["rcept_no"])[:70]:
+            for r in dart.document_rows(h["rcept_no"])[:60]:
                 print("  " + r[:220])
     return 0
 
