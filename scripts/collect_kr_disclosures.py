@@ -132,7 +132,10 @@ def log_quality(conn, since: str) -> None:
         ps = [(json.loads(r[1]), r[2]) for r in rows if r[0] == kind]
         miss = {}
         for k in keys:
-            bad = [n for p, n in ps if p.get(k) is None and not (k.endswith("_yoy_pct") and p.get(k.replace("_pct", "_turn")))]
+            # 정상적인 빈칸은 세지 않는다: 증감률은 흑자·적자전환일 때, 금액·비율은 공시유보일 때
+            bad = [n for p, n in ps if p.get(k) is None
+                   and not (k.endswith("_yoy_pct") and p.get(k.replace("_pct", "_turn")))
+                   and not (k in ("amount", "pct_of_revenue") and p.get("withheld"))]
             if bad:
                 miss[k] = f"{len(bad)} ({', '.join(b or '?' for b in bad[:4])})"
         _log(f"  {kind} {len(ps)}건 빈칸: {miss or '없음'}")

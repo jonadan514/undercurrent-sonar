@@ -14,13 +14,14 @@ DART 거래소공시 목록(list.json, pblntf_ty=I)에서 세 종류만 골라 �
 from __future__ import annotations
 
 import re
+from datetime import date
 
 KIND_PATTERNS = (
     ("contract", re.compile(r"단일판매\s*[ㆍ·]?\s*공급계약체결")),
     ("prelim", re.compile(r"영업\s*\(\s*잠정\s*\)\s*실적")),
     ("notice", re.compile(r"결산실적공시\s*예고")),
 )
-UNIT = {"원": 1, "천원": 1e3, "백만원": 1e6, "억원": 1e8}
+UNIT = {"원": 1, "천원": 1e3, "백만원": 1e6, "억원": 1e8, "조원": 1e12}   # 삼성전자는 조원
 _NUM_RE = re.compile(r"^\(?-?[\d,]+(?:\.\d+)?\)?$")
 _DATE_RE = re.compile(r"(\d{4})[-.](\d{2})[-.](\d{2})")
 
@@ -53,14 +54,15 @@ def _cells(row: str) -> list[str]:
 
 
 def _after(rows: list[str], label: re.Pattern, *, skip_dash_prefix: bool = False) -> str | None:
-    """label에 맞는 칸 바로 다음 칸 값(첫 행)."""
+    """label에 맞는 칸 바로 다음 칸 값(첫 행). '-'는 빈칸."""
     for row in rows:
         cells = _cells(row)
         for i, c in enumerate(cells[:-1]):
             if skip_dash_prefix and c.startswith("-"):
                 continue
             if label.search(c):
-                return cells[i + 1] or None
+                v = cells[i + 1]
+                return None if not v or v == "-" else v
     return None
 
 
@@ -76,7 +78,7 @@ def parse_contract(rows: list[str]) -> dict:
     if amount is None:
         amount = num(_after(rows, re.compile(r"계약금액\s*\(원\)")))
     return {
-        "title": _after(rows, re.compile(r"판매\s*[ㆍ·]?\s*공급계약\s*내용|체결계약명")),
+        "title": _after(rows, re.compile(r"판매\s*[ㆍ·]?\s*공급계약\s*내용|체결계약명|세부내용")),
         "amount": amount,
         # 계약상대방의 최근 매출액("- 최근 매출액")은 건너뛴다 - 첫 번째가 공시 회사 것
         "recent_revenue": num(_after(rows, re.compile(r"최근\s*매출액\s*\(원\)"), skip_dash_prefix=True)),
@@ -84,6 +86,8 @@ def parse_contract(rows: list[str]) -> dict:
         "counterparty": _after(rows, re.compile(r"계약상대(?:방)?$|^\d+\.\s*계약상대(?:방)?$")),
         "start": _date(_after(rows, re.compile(r"시작일"))),
         "end": _date(_after(rows, re.compile(r"종료일"))),
+        # 금액 비공개(영업비밀 등으로 공시유보) - 금액이 빈칸인 이유를 남긴다
+        "withheld": _after(rows, re.compile(r"유보사유")),
     }
 
 
@@ -108,13 +112,18 @@ def parse_prelim(rows: list[str]) -> dict:
         if m:
             unit = UNIT[m.group(1)]
             break
-    period_end = None
+    period_start = period_end = None
     for row in rows:
         cells = _cells(row)
         if cells and cells[0].startswith("당기실적") and len(cells) >= 4:
-            period_end = _date(cells[-1])
+            period_start, period_end = _date(cells[1]), _date(cells[-1])
             break
-    out: dict = {"unit": unit, "period_end": period_end}
+    # 이마트·오리온 등은 같은 제목으로 월 실적을 낸다 - 기간 길이로 구분(분기 80일 이상)
+    monthly = None
+    if period_start and period_end:
+        days = (date.fromisoformat(period_end) - date.fromisoformat(period_start)).days
+        monthly = days < 80
+    out: dict = {"unit": unit, "period_start": period_start, "period_end": period_end, "monthly": monthly}
     for key, pat in _ROW_LABELS.items():
         out[key] = out[f"{key}_yoy_base"] = out[f"{key}_yoy_pct"] = out[f"{key}_yoy_turn"] = None
         for row in rows:
@@ -172,12 +181,17 @@ def _yoy(p: dict, key: str) -> str | None:
     return None if pct is None else f"{pct:+.0f}%"
 
 
-def quarter_label(period_end: str | None) -> str:
-    """'2026-09-30' -> '26.3Q'(분기말 달 기준). 없으면 ''."""
+def quarter_label(period_end: str | None, monthly: bool | None = None) -> str:
+    """'2026-09-30' -> '26.3Q'(분기말 달 기준), 월 실적이면 '26.9월'. 없으면 ''."""
     if not period_end:
         return ""
     y, m = int(period_end[:4]), int(period_end[5:7])
-    return f"{y % 100}.{(m - 1) // 3 + 1}Q"
+    return f"{y % 100}.{m}월" if monthly else f"{y % 100}.{(m - 1) // 3 + 1}Q"
+
+
+def prelim_has_values(p: dict) -> bool:
+    """본 표에 매출·영업이익이 하나라도 있나 - 오리온처럼 본 표를 비우고 국가별 표에만 적는 회사는 표시하지 않는다."""
+    return any(p.get(k) is not None for k in ("revenue", "operating_income"))
 
 
 def summary(kind: str, p: dict) -> str:
@@ -185,11 +199,12 @@ def summary(kind: str, p: dict) -> str:
     if kind == "contract":
         pct = f" (매출 대비 {p['pct_of_revenue']:.1f}%)" if p.get("pct_of_revenue") is not None else ""
         title = f" · {p['title'][:30]}" if p.get("title") else ""
-        return f"공급계약 {fmt_eok(p.get('amount'))}{pct}{title}"
+        amount = "금액 비공개" if p.get("amount") is None and p.get("withheld") else fmt_eok(p.get("amount"))
+        return f"공급계약 {amount}{pct}{title}"
     if kind == "prelim":
         parts = [f"{name} {v}" for name, key in (("매출", "revenue"), ("영업익", "operating_income"))
                  if (v := _yoy(p, key))]
-        q = quarter_label(p.get("period_end"))
+        q = quarter_label(p.get("period_end"), p.get("monthly"))
         return f"잠정실적 {q}".rstrip() + (f" 전년동기 대비 {' · '.join(parts)}" if parts else "")
     if kind == "notice":
         return f"실적 발표 예정 {p.get('announce_date') or '-'}"

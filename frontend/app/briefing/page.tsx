@@ -41,7 +41,7 @@ interface Briefing {
 }
 // 한국 공시 지난 7일(2026-10-17부터, DART 원문 표 값 그대로). 유니버스(시총 3000억+) 또는 관심 표시 종목만.
 interface DisclosureItem { symbol: string; name?: string | null; date: string; rcept_no: string; tags: string[]; summary: string;
-  amount?: number | null; pct?: number | null; title?: string | null; quarter?: string;
+  amount?: number | null; pct?: number | null; title?: string | null; withheld?: boolean; quarter?: string;
   revenue_yoy_pct?: number | null; revenue_yoy_turn?: string | null; operating_income_yoy_pct?: number | null; operating_income_yoy_turn?: string | null }
 const DISC_TAG: Record<string, string> = { my: "내 관심", note: "노트", cand: "워치", theme: "테마" };
 const eok = (v?: number | null) => v == null ? "-" : Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(1)}조` : Math.abs(v) >= 1e8 ? `${Math.round(v / 1e8).toLocaleString()}억` : `${(v / 1e8).toFixed(1)}억`;
@@ -325,7 +325,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                         style={d.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
                         <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
                         <DiscName d={d} />
-                        <span className="text-white">{eok(d.amount)}</span>
+                        <span className="text-white">{d.withheld ? "금액 비공개" : eok(d.amount)}</span>
                         {d.pct != null && <span style={{ color: d.pct >= 10 ? "#4ade80" : "var(--text-secondary)" }}>매출 대비 {d.pct.toFixed(1)}%</span>}
                         {d.title && <span className="truncate max-w-[16rem]" style={{ color: "var(--text-secondary)" }}>{d.title}</span>}
                         <DiscTags tags={d.tags} />

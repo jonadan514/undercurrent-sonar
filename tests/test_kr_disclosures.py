@@ -89,3 +89,30 @@ def test_alert_only_tagged():
     assert m.alert_text(new, {}) is None
     text = m.alert_text(new, {"007690": ["my", "cand"]})
     assert "관심 종목 1건" in text and "국도화학&amp;Co" in text and "내 관심 · 워치" in text and "씨이랩" not in text
+
+
+def test_contract_withheld_and_detail_title():
+    rows = ["1. 판매ㆍ공급계약 구분 | 기타 판매ㆍ공급계약", "- 체결계약명 | -", "2. 계약내역 | 계약금액(원) | -",
+            "최근매출액(원) | 3,664,150,568,020", "매출액대비(%) | -", "8. 공시유보 관련내용 | 유보사유 | 경영상 비밀유지"]
+    c = parse_contract(rows)
+    assert c["amount"] is None and c["title"] is None and c["withheld"] == "경영상 비밀유지"
+    from src.collectors.kr_disclosures import summary
+    assert summary("contract", c) == "공급계약 금액 비공개"
+    d = parse_contract(["1. 판매ㆍ공급계약 구분 | 기타 판매ㆍ공급계약", "- 세부내용 | AI 반도체 기판 장비 수주",
+                        "2. 계약내역 | 계약금액(원) | 24,480,000,000", "8. 공시유보 관련내용 | 유보사유 | -"])
+    assert d["title"] == "AI 반도체 기판 장비 수주" and d["amount"] == 24_480_000_000 and d["withheld"] is None
+
+
+def test_prelim_trillion_unit_and_monthly():
+    rows = ["당기실적 | 2026-07-01 | ~ | 2026-09-30", "1. 연결실적내용 | 단위 : 조원, %",
+            "매출액 | 당해실적 | 195.00 | 171.50 | 13.70 | - | 86.06 | 126.59 | -",
+            "영업이익 | 당해실적 | 107.40 | 89.49 | 20.01 | - | 12.17 | 782.50 | -"]
+    p = parse_prelim(rows)
+    assert p["revenue"] == 195e12 and p["revenue_yoy_pct"] == 126.59 and p["operating_income_yoy_pct"] == 782.5
+    assert p["monthly"] is False
+    m = parse_prelim(["당기실적 | 2026-09-01 | ~ | 2026-09-30", "1. 실적내용 | 단위 : 억원, %",
+                      "매출액 | 당해실적 | 16,476 | 15,738 | 4.7 | - | 14,812 | 11.2 | -",
+                      "영업이익 | 당해실적 | - | - | - | - | - | - | -"])
+    from src.collectors.kr_disclosures import prelim_has_values, summary
+    assert m["monthly"] is True and summary("prelim", m) == "잠정실적 26.9월 전년동기 대비 매출 +11%"
+    assert prelim_has_values(m) and not prelim_has_values(parse_prelim(["당기실적 | 2026-09-01 | ~ | 2026-09-30"]))

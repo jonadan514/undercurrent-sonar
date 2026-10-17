@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.db.turso_http import get_credentials, query as _turso_query
-from src.collectors.kr_disclosures import quarter_label, summary as disclosure_summary
+from src.collectors.kr_disclosures import prelim_has_values, quarter_label, summary as disclosure_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -402,10 +402,13 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
             if r["kind"] != kind or not (r["stock_code"] in universe or tags.get(r["stock_code"])):
                 continue
             p = r["payload"] if isinstance(r["payload"], dict) else json.loads(r["payload"] or "{}")
+            if kind == "prelim" and not prelim_has_values(p):
+                continue
             items.append({"symbol": r["stock_code"], "name": r.get("corp_name"), "date": r["rcept_dt"],
                           "rcept_no": r["rcept_no"], "tags": tags.get(r["stock_code"], []), "summary": disclosure_summary(kind, p),
-                          **({"amount": p.get("amount"), "pct": p.get("pct_of_revenue"), "title": p.get("title")} if kind == "contract" else
-                             {"quarter": quarter_label(p.get("period_end")),
+                          **({"amount": p.get("amount"), "pct": p.get("pct_of_revenue"), "title": p.get("title"),
+                              "withheld": bool(p.get("withheld")) and p.get("amount") is None} if kind == "contract" else
+                             {"quarter": quarter_label(p.get("period_end"), p.get("monthly")),
                               **{k: p.get(k) for k in ("revenue_yoy_pct", "revenue_yoy_turn", "operating_income_yoy_pct",
                                                        "operating_income_yoy_turn", "revenue", "operating_income")}})})
         if kind == "contract":
