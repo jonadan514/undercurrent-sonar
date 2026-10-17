@@ -77,12 +77,21 @@ const isInterimFlow = (t: ThemeRef) =>
   (t.earn_arrow === "up1" || t.earn_arrow === "up2") && (t.price_arrow === "flat" || t.price_arrow === "down");
 
 // 조합 보기 - 기존 토글 여러 개를 한 번에 거는 지름길. 순위가 아니라 "이 조합만" 보는 것.
-type PresetKey = "cheap_growth" | "new_growth" | "cheap_decline";
+type PresetKey = "cheap_growth" | "new_growth" | "cheap_decline" | "turnaround";
+// 실적 반전(2026-10-17): 3년 판정은 정체·역성장인데 지금 흐름은 성장. 지금 흐름은 최근 4개 분기 합 비교("1년")가 있으면 그것,
+// 없으면(지금 미국 전부 - 분기 데이터 5개) 최근 분기 전년동기 비교로 대신한다. 세 판정을 합친 점수가 아니라 두 판정의 조합만 본다.
+const isTurnaround = (c: Candidate) =>
+  (c.growth_tier === "정체" || c.growth_tier === "역성장") &&
+  (c.rev_ttm_tier != null ? c.rev_ttm_tier === "성장" : c.rev_q_tier === "성장");
 const PRESETS: { key: PresetKey; label: string; note: string; test: (c: Candidate) => boolean }[] = [
   { key: "cheap_growth", label: "싸면서 성장", note: "밸류 싼 편 + 매출 3년 성장",
     test: (c) => c.valuation_tier === "싼 편" && c.growth_tier === "성장" },
   { key: "new_growth", label: "이번 주 신규 + 성장", note: "이번 회차에 처음 통과 + 매출 3년 성장",
     test: (c) => c.is_new === true && c.growth_tier === "성장" },
+  { key: "turnaround", label: "실적 반전",
+    note: "매출 3년은 정체·역성장인데 최근 1년(4개 분기 합)은 성장 - 업황이 막 돌아선 종목 후보. "
+        + "1년 판정이 없는 종목(지금 미국 전부)은 최근 분기 전년동기 성장으로 대신합니다(한 분기라 더 흔들림)",
+    test: isTurnaround },
   { key: "cheap_decline", label: "싸지만 역성장", note: "싼 이유가 있을 수 있는 종목 - 가치 함정 점검용",
     test: (c) => c.valuation_tier === "싼 편" && c.growth_tier === "역성장" },
 ];
