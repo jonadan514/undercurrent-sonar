@@ -11,7 +11,7 @@ const LABEL_ORDER = ["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Ali
 interface RadarSignal { label: string | null }
 
 // 매크로 패널 — 등급·판정 없이 원자료만 (src/analyzers/macro_snapshot.py의 items 키와 동일 순서)
-const MACRO_ORDER = ["us10y", "us30y", "spread_10y_2y", "usdkrw", "vix", "dxy", "wti"];
+const MACRO_ORDER = ["us10y", "us30y", "spread_10y_2y", "usdkrw", "vix", "dxy", "wti", "copper"];   // copper 2026-10-17
 interface MacroItem { value: number | null; chg_1d: number | null; chg_1w: number | null; label: string; unit: string }
 interface MacroSnapshot { date: string; items: Record<string, MacroItem> }
 
@@ -19,6 +19,7 @@ function fmtMacroValue(item: MacroItem): string {
   if (item.value == null) return "-";
   if (item.unit === "원") return `₩${Math.round(item.value).toLocaleString()}`;
   if (item.unit === "$") return `$${item.value.toFixed(2)}`;
+  if (item.unit === "$/lb") return `$${item.value.toFixed(2)}/lb`;
   if (item.unit === "%p" || item.unit === "%") return `${item.value.toFixed(2)}${item.unit}`;
   return item.value.toFixed(2);
 }

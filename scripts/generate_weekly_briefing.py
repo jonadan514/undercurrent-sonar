@@ -113,7 +113,8 @@ def get_macro_week() -> dict | None:
         return None
     items = rows[0]["_data"].get("items") or {}
     # dxy(달러인덱스)·wti(유가)는 2026-10-09 추가 - 원/달러가 달러 강세 탓인지, 에너지 테마 해석용
-    pick = {k: items.get(k) for k in ("us10y", "usdkrw", "dxy", "wti")}
+    # copper(구리)는 2026-10-17 추가 - 웹 브리핑에만 표시(텔레그램 지표 줄은 늘리지 않는다)
+    pick = {k: items.get(k) for k in ("us10y", "usdkrw", "dxy", "wti", "copper")}
     pick["kr3y"] = get_kr_rate_week("kr3y")
     if not any(v and v.get("value") is not None for v in pick.values()):
         return None

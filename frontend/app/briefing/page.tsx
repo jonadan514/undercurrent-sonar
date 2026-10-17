@@ -31,7 +31,7 @@ interface Briefing {
   // 금리·환율 1주 변화(2026-10-05부터, macro_snapshot 그대로). 예전 브리핑엔 없다.
   // dxy·wti는 2026-10-09부터
   macro?: { as_of?: string; us10y?: MacroItem | null; kr3y?: MacroItem | null; usdkrw?: MacroItem | null;
-            dxy?: MacroItem | null; wti?: MacroItem | null } | null;
+            dxy?: MacroItem | null; wti?: MacroItem | null; copper?: MacroItem | null } | null;   // copper는 2026-10-17부터
   // 워치리스트 '실적 반전'(3년 정체·역성장인데 지금 흐름 성장) 주간 변동(2026-10-17부터). 예전 브리핑엔 없다.
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
                  added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
@@ -107,6 +107,13 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               fmt={(v) => `$${v.toFixed(1)}`}
               chgFmt={(v) => {
                 const base = (b.macro?.wti?.value ?? 0) - v;
+                const pct = base ? ` (${v / base >= 0 ? "+" : ""}${(v / base * 100).toFixed(1)}%)` : "";
+                return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}${pct}`;
+              }} />
+            <MacroRow label="구리" m={b.macro?.copper}
+              fmt={(v) => `$${v.toFixed(2)}/lb`}
+              chgFmt={(v) => {
+                const base = (b.macro?.copper?.value ?? 0) - v;
                 const pct = base ? ` (${v / base >= 0 ? "+" : ""}${(v / base * 100).toFixed(1)}%)` : "";
                 return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}${pct}`;
               }} />
