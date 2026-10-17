@@ -1,0 +1,30 @@
+name: Inspect SEC Concepts
+
+# 읽기 전용 - SEC 분기 수집에서 빠진 종목의 계정 확인(2026-10-17).
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "종목코드 공백 구분"
+        required: true
+        default: "APA EWBC FFIN SYF EA"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Inspect
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/inspect_sec_concepts.py ${{ inputs.tickers }}
