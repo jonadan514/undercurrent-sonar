@@ -101,3 +101,18 @@ def test_turnaround_diff_and_telegram_lines():
     first.pop("items")
     assert "다음 주부터" in g.build_telegram_summary(_briefing(turnaround=first))
     assert "실적 반전" not in g.build_telegram_summary(_briefing())
+
+
+# ---- 코스피 투자자별 순매수 (2026-10-17) ----
+def test_krw_flow_format_and_weekly_sum():
+    assert g.fmt_krw_flow(3204e8) == "+3,204억" and g.fmt_krw_flow(-1.23e12) == "-1.2조" and g.fmt_krw_flow(None) == "-"
+    rows = [{"date": f"2026-10-{d:02d}", "market": "KOSPI", "investor": "foreign", "value": 1e11} for d in range(6, 17)]
+    s = g.sum_flows(rows)
+    assert s["KOSPI"]["days"] == 5 and abs(s["KOSPI"]["foreign"] - 5e11) < 1 and s["KOSPI"]["to"] == "2026-10-16"
+    assert g.sum_flows([]) is None
+
+
+def test_foreign_flow_next_to_kospi():
+    text = g.build_telegram_summary(_briefing(kr_flows={"KOSPI": {"foreign": 1.2e12, "days": 5}}))
+    assert "🇰🇷 KOSPI -0.5% (외국인 +1.2조)" in text
+    assert "외국인" not in g.build_telegram_summary(_briefing())

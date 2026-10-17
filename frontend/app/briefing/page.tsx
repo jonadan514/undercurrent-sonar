@@ -33,8 +33,28 @@ interface Briefing {
   macro?: { as_of?: string; us10y?: MacroItem | null; kr3y?: MacroItem | null; usdkrw?: MacroItem | null;
             dxy?: MacroItem | null; wti?: MacroItem | null; copper?: MacroItem | null } | null;   // copper는 2026-10-17부터
   // 워치리스트 '실적 반전'(3년 정체·역성장인데 지금 흐름 성장) 주간 변동(2026-10-17부터). 예전 브리핑엔 없다.
+  kr_flows?: Record<string, FlowSum> | null;
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
                  added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
+}
+// 코스피·코스닥 투자자별 순매수 최근 5거래일 합(원, 2026-10-17부터). 예전 브리핑엔 없다.
+interface FlowSum { foreign?: number; institution?: number; individual?: number; days: number; from: string; to: string }
+const fmtFlow = (v?: number) => v == null ? "-" : Math.abs(v) >= 1e12
+  ? `${v >= 0 ? "+" : ""}${(v / 1e12).toFixed(1)}조` : `${v >= 0 ? "+" : ""}${Math.round(v / 1e8).toLocaleString()}억`;
+function FlowRow({ label, f }: { label: string; f?: FlowSum | null }) {
+  if (!f) return null;
+  const part = (name: string, v?: number) => (
+    <span>{name} <span style={{ color: v == null ? "var(--text-muted)" : v >= 0 ? "#4ade80" : "#f87171" }}>{fmtFlow(v)}</span></span>
+  );
+  return (
+    <div className="flex items-center gap-3 flex-wrap rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      <span className="text-[13px] font-bold text-white w-24 shrink-0">{label}</span>
+      <span className="text-[12px] flex gap-3 flex-wrap" style={{ color: "var(--text-secondary)" }}>
+        {part("외국인", f.foreign)}{part("기관", f.institution)}{part("개인", f.individual)}
+      </span>
+      <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>최근 {f.days}거래일 순매수</span>
+    </div>
+  );
 }
 interface TurnaroundItem { market: string; symbol: string; name?: string | null; basis: "1년" | "분기"; yoy: number | null }
 interface MacroItem { value: number | null; chg_1w: number | null }
@@ -95,6 +115,8 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
             <p className="text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>지난주 시장</p>
             <MarketRow label="🇺🇸 S&P 500" m={b.us} />
             <MarketRow label="🇰🇷 KOSPI" m={b.kr} />
+            <FlowRow label="코스피 수급" f={b.kr_flows?.KOSPI} />
+            <FlowRow label="코스닥 수급" f={b.kr_flows?.KOSDAQ} />
             <MacroRow label="미 10년물" m={b.macro?.us10y}
               fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
             <MacroRow label="국고채 3년" m={b.macro?.kr3y}

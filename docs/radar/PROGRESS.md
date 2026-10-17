@@ -3012,3 +3012,11 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
 ### 2026-10-17 구리 시세 (백로그 B)
 - `macro_snapshot.TICKERS`에 `copper: HG=F`($/lb). 주간 브리핑 `get_macro_week()`에 포함, 웹 브리핑 "지난주 시장"에 구리 줄(1주 $ 변화·%),
   개요 화면 거시 지표 칸에도 추가. 텔레그램 지표 줄은 늘리지 않는다(백로그 규칙: 최대 2줄).
+
+### 2026-10-17 코스피·코스닥 투자자별 순매수 (백로그 C, 사용자 결정: 3번)
+- 수집: `scripts/fetch_kr_investor_flows_pykrx.py`(격리 pykrx, `get_market_trading_value_by_date`) → `scripts/save_kr_investor_flows.py`
+  → `kr_investor_flows(date, market, investor, value)`(외국인·기관·개인 순매수, 원). `compute-macro-snapshot.yml` 매일 단계 추가(8b78673).
+  첫 실행 78행 - 10/16 코스피 외국인 +3,204억·기관 -6,403억·개인 -5,103억.
+- 브리핑: `get_kr_flows_week()`가 지난주 거래일 합을 `kr_flows`로 넣는다. 텔레그램은 줄을 늘리지 않고 KOSPI 칸에
+  "(외국인 +X억/조)"만 덧붙임. 웹 브리핑은 KOSPI 줄 아래 "코스피 수급"·"코스닥 수급"(외국인·기관·개인, 이 화면의 오름=초록·내림=빨강).
+  테스트 2개(금액 표시·합계). 다음 브리핑(10/19)부터 표시 - 데이터가 없으면 칸이 생략된다.

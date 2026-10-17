@@ -129,6 +129,44 @@ def _pct_chg(item: dict) -> str:
     return f" ({c / (v - c) * 100:+.1f}%)"
 
 
+def fmt_krw_flow(v: float | None) -> str:
+    """순매수 금액(원) -> '+1.2조' / '-3,204억'. 숫자는 저장값 그대로, 단위만 바꾼다."""
+    if v is None:
+        return "-"
+    if abs(v) >= 1e12:
+        return f"{v / 1e12:+.1f}조"
+    return f"{v / 1e8:+,.0f}억"
+
+
+def sum_flows(rows: list[dict], days: int = 5) -> dict | None:
+    """kr_investor_flows 행들 -> 시장별 최근 days 거래일 투자자별 합계. 거래일은 시장마다 그 시장 날짜로 센다."""
+    by_market: dict[str, dict[str, dict[str, float]]] = {}
+    for r in rows:
+        by_market.setdefault(r["market"], {}).setdefault(r["date"], {})[r["investor"]] = float(r["value"])
+    out: dict = {}
+    for market, by_date in by_market.items():
+        dates = sorted(by_date, reverse=True)[:days]
+        if not dates:
+            continue
+        sums: dict[str, float] = {}
+        for d in dates:
+            for inv, v in by_date[d].items():
+                sums[inv] = sums.get(inv, 0.0) + v
+        out[market] = {**sums, "days": len(dates), "from": dates[-1], "to": dates[0]}
+    return out or None
+
+
+def get_kr_flows_week() -> dict | None:
+    """코스피·코스닥 투자자별 순매수 최근 5거래일 합계(kr_investor_flows, scripts/save_kr_investor_flows.py).
+    표가 없거나 비면 None - 브리핑은 그 부분만 뺀다."""
+    try:
+        rows = turso_exec("SELECT date, market, investor, value FROM kr_investor_flows "
+                          "WHERE date >= date('now', '-20 days') ORDER BY date DESC")
+    except Exception:
+        return None
+    return sum_flows(rows)
+
+
 def get_kr_rate_week(key: str) -> dict | None:
     """국고채 금리(kr_rates, scripts/save_kr_treasury.py - pykrx) 최신 값과 5거래일 전 대비 차이(%p).
     macro_snapshot의 chg_1w와 같은 '5거래일 전' 기준. 표가 없거나 비면 None."""
@@ -433,7 +471,12 @@ def build_telegram_summary(b: dict) -> str:
     if b["us"].get("index_chg_1w") is not None:
         idx.append(f"🇺🇸 SPY {b['us']['index_chg_1w']:+.1f}%")
     if b["kr"].get("index_chg_1w") is not None:
-        idx.append(f"🇰🇷 KOSPI {b['kr']['index_chg_1w']:+.1f}%")
+        kospi = f"🇰🇷 KOSPI {b['kr']['index_chg_1w']:+.1f}%"
+        # 외국인 순매수(5거래일 합) - 지표 줄을 늘리지 않고 지수 옆에 붙인다(2026-10-17)
+        fk = ((b.get("kr_flows") or {}).get("KOSPI") or {}).get("foreign")
+        if fk is not None:
+            kospi += f" (외국인 {fmt_krw_flow(fk)})"
+        idx.append(kospi)
     if idx:
         lines.append("지난 1주 " + " · ".join(idx))
 
@@ -576,6 +619,7 @@ def main() -> None:
         "us": get_market_week("US"),
         "kr": get_market_week("KR"),
         "macro": get_macro_week(),
+        "kr_flows": get_kr_flows_week(),
         "watchlist": get_watchlist_changes(),
         "turnaround": get_turnaround_changes(week),
         "sentiment_heating": get_sentiment_week(),
