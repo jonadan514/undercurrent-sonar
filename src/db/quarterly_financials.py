@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS quarterly_financials_raw (
   revenue          REAL,
   operating_income REAL,
   net_income       REAL,
-  derived          TEXT,            -- 'reported' | 'annual_minus_9m'
+  derived          TEXT,            -- 'reported' | 'annual_minus_9m' | 'bank_nii_plus_noninterest(_q4)'(SEC 은행)
   currency         TEXT,
   collected_at     TEXT NOT NULL,   -- 수집 시각(전체)
   PRIMARY KEY (ticker, market, fiscal_year, fiscal_quarter, fs_div, source, collected_on)

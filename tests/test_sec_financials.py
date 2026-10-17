@@ -43,3 +43,15 @@ def test_non_calendar_fiscal_quarters_and_other_lines():
     v = quarterly_values(_facts(Revenues=items, OperatingIncomeLoss=op))
     assert v[(2025, 2)]["revenue"] == 9301 and v[(2025, 2)]["operating_income"] == 2169
     assert v[(2025, 3)]["operating_income"] is None
+
+
+def test_bank_revenue_is_net_interest_plus_noninterest_income():
+    nii = [_f("2025-01-01", "2025-03-31", 600), _f("2025-04-01", "2025-06-30", 650)]
+    nonint = [_f("2025-01-01", "2025-03-31", 100), _f("2025-04-01", "2025-06-30", 110)]
+    ni = [_f("2025-04-01", "2025-06-30", 300)]
+    v = quarterly_values(_facts(InterestIncomeExpenseNet=nii, NoninterestIncome=nonint, NetIncomeLoss=ni))
+    assert v[(2025, 2)]["revenue"] == 760 and v[(2025, 2)]["net_income"] == 300
+    assert v[(2025, 2)]["derived"] == "bank_nii_plus_noninterest"
+    # 일반 매출 계정이 있으면 은행식 합산은 쓰지 않는다
+    v2 = quarterly_values(_facts(Revenues=CAL_2025, InterestIncomeExpenseNet=nii, NoninterestIncome=nonint))
+    assert v2[(2025, 2)]["revenue"] == 110

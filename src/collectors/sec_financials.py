@@ -26,6 +26,10 @@ REVENUE_CONCEPTS = (
 )
 OPERATING_INCOME_CONCEPTS = ("OperatingIncomeLoss",)
 NET_INCOME_CONCEPTS = ("NetIncomeLoss", "ProfitLoss")
+# 은행은 매출 계정이 없다(2026-10-17 EWBC·FFIN·SYF 확인) - 순이자이익 + 비이자이익을 매출로 쓴다
+# (yfinance 은행 Total Revenue와 같은 정의). 위 매출 계정이 하나도 없을 때만 쓰고, derived에 표시한다.
+BANK_NII_CONCEPTS = ("InterestIncomeExpenseNet",)
+BANK_NONINTEREST_CONCEPTS = ("NoninterestIncome",)
 
 QUARTER_DAYS = (80, 100)
 ANNUAL_DAYS = (350, 380)
@@ -93,6 +97,13 @@ def quarterly_values(companyfacts: dict) -> dict[tuple[int, int], dict]:
     매출이 없는 분기는 넣지 않는다(4분기 합 비교·PSR이 매출을 쓴다)."""
     us_gaap = (companyfacts.get("facts") or {}).get("us-gaap") or {}
     rev = pick_series(us_gaap, REVENUE_CONCEPTS)
+    bank = False
+    if not any(e >= SINCE for e in rev):
+        nii = pick_series(us_gaap, BANK_NII_CONCEPTS)
+        nonint = pick_series(us_gaap, BANK_NONINTEREST_CONCEPTS)
+        rev = {e: (nii[e][0] + nonint[e][0], "annual_minus_9m" if "annual_minus_9m" in (nii[e][1], nonint[e][1]) else "reported")
+               for e in nii if e in nonint}
+        bank = bool(rev)
     op = pick_series(us_gaap, OPERATING_INCOME_CONCEPTS)
     net = pick_series(us_gaap, NET_INCOME_CONCEPTS)
     out: dict[tuple[int, int], dict] = {}
@@ -103,6 +114,8 @@ def quarterly_values(companyfacts: dict) -> dict[tuple[int, int], dict]:
         # 52/53주 회계연도에서 두 분기말이 같은 달력 분기에 떨어지면 늦은 쪽(sorted라 덮어씀)
         r_val, r_how = rev[end]
         derived = "annual_minus_9m" if r_how == "annual_minus_9m" else "reported"
+        if bank:
+            derived = "bank_nii_plus_noninterest" + ("_q4" if r_how == "annual_minus_9m" else "")
         out[key] = {
             "revenue": r_val,
             "operating_income": (op.get(end) or (None,))[0],
