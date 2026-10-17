@@ -41,9 +41,17 @@ export function Sparkline({ points, height = 28 }: { points: Point[]; height?: n
   );
 }
 
+// 실제 데이터 기간 이름 - 1년치가 안 쌓인 지표(국고채 등)를 "1년"이라 부르지 않는다
+export function spanLabel(points: Point[]): string {
+  if (points.length < 2) return "";
+  const days = (Date.parse(points[points.length - 1][0]) - Date.parse(points[0][0])) / 86400000;
+  return days >= 330 ? "1년" : `${Math.max(1, Math.round(days / 30.4))}개월`;
+}
+
 export function RangeBar({ points, fmt }: { points: Point[]; fmt: (v: number) => string }) {
   const r = rangePosition(points);
   if (!r || r.pos == null) return null;
+  const span = spanLabel(points);
   return (
     <div className="mt-1">
       <div className="relative h-1 rounded-full" style={{ background: "var(--border)" }}>
@@ -53,7 +61,7 @@ export function RangeBar({ points, fmt }: { points: Point[]; fmt: (v: number) =>
       {/* 좁은 화면에선 최저·최고 숫자를 빼고 위치(%)만 - 세 칸이 겹친다 */}
       <div className="flex justify-center sm:justify-between text-[10px] mt-0.5" style={{ color: "var(--text-faint)", fontVariantNumeric: "tabular-nums" }}>
         <span className="hidden sm:inline">{fmt(r.min)}</span>
-        <span>1년 범위 {Math.round(r.pos * 100)}%</span>
+        <span>{span} 범위 {Math.round(r.pos * 100)}%</span>
         <span className="hidden sm:inline">{fmt(r.max)}</span>
       </div>
     </div>
