@@ -258,7 +258,7 @@ def list_disclosures(bgn_de: str, end_de: str, pblntf_ty: str = "I", max_pages: 
 
 _STYLE_RE = re.compile(r"<\s*(style|script)[^>]*>.*?<\s*/\s*\1\s*>", re.I | re.S)
 _ROW_END_RE = re.compile(r"</\s*TR\s*>", re.I)
-_CELL_END_RE = re.compile(r"</\s*T[DH]\s*>", re.I)
+_CELL_END_RE = re.compile(r"</\s*T[DHEU]\s*>", re.I)   # DART 문서는 TD 외에 TE·TU 칸도 쓴다
 
 
 def document_rows(rcept_no: str) -> list[str]:
@@ -271,6 +271,7 @@ def document_rows(rcept_no: str) -> list[str]:
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
         for name in zf.namelist():
             text = _STYLE_RE.sub(" ", _decode(zf.read(name)))
+            text = re.sub(r"[\r\n]+", " ", text)   # 원문 줄바꿈은 의미 없다 - 행 구분은 </TR>로만
             text = _CELL_END_RE.sub(" | ", text)
             text = _ROW_END_RE.sub("\n", text)
             for line in _TAG_RE.sub(" ", text).split("\n"):
