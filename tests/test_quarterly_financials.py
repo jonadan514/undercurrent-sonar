@@ -96,6 +96,25 @@ def test_구분이_없는_출처도_저장된다(memory_db):
     assert row["fs_div"] == "NA" and row["revenue"] == 900
 
 
+def test_공시_원본이_있으면_나중에_받은_yfinance보다_공시를_쓴다(memory_db):
+    """2026-10-17: 같은 분기에 SEC·yfinance 행이 둘 다 있으면 수집 순서와 상관없이 SEC."""
+    ensure_schema(memory_db)
+    put(memory_db, ticker="MU", market="US", fs=None, source="SEC", revenue=11315, op=3654, on="2026-10-17")
+    put(memory_db, ticker="MU", market="US", fs=None, source="yfinance", revenue=11315, op=3693, on="2026-10-24")
+    row = select_quarters(memory_db, "MU", "US")[0]
+    assert row["source"] == "SEC" and row["operating_income"] == 3654
+
+
+def test_공시_원본이_없는_분기는_yfinance를_쓰고_공시끼리는_늦은_값(memory_db):
+    ensure_schema(memory_db)
+    put(memory_db, ticker="MU", market="US", fs=None, source="yfinance", year=2026, quarter=3, revenue=54000)
+    put(memory_db, ticker="MU", market="US", fs=None, source="SEC", year=2026, quarter=2, revenue=41000, on="2026-10-01")
+    put(memory_db, ticker="MU", market="US", fs=None, source="SEC", year=2026, quarter=2, revenue=41456, on="2026-10-17")
+    rows = select_quarters(memory_db, "MU", "US")
+    assert (rows[0]["fiscal_quarter"], rows[0]["source"]) == (3, "yfinance")
+    assert (rows[1]["source"], rows[1]["revenue"]) == ("SEC", 41456)   # 정정 반영
+
+
 # ── 예전 테이블 이전 ──────────────────────────────────────────
 
 def _legacy_row(conn, **kw):

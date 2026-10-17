@@ -146,7 +146,7 @@ def _coerce(rec: dict) -> dict:
 
 
 def select_quarters(conn, ticker: str, market: str) -> list[dict]:
-    """분기마다 쓸 값 하나씩. 연결재무 우선, 같은 구분이면 최근 수집분. 최신 분기부터."""
+    """분기마다 쓸 값 하나씩. 연결재무 우선, 같은 구분이면 공시 원본(DART·SEC) 우선, 그다음 최근 수집분. 최신 분기부터."""
     rows = conn.execute(
         f"SELECT {', '.join(_RAW_COLS)} FROM quarterly_financials_raw "
         "WHERE ticker = ? AND market = ?",
@@ -198,13 +198,20 @@ def _best_per_quarter(records) -> dict[tuple[int, int], dict]:
     return best
 
 
-def _rank(rec: dict) -> tuple[int, str]:
-    """고르기 우선순위. 연결재무가 먼저, 그다음 늦게 수집한 것."""
+# 공시 원본(DART·SEC)을 yfinance보다 먼저 고른다(2026-10-17). 예전엔 구분이 같으면 늦게 수집한 쪽이라, 미국은
+# 같은 분기에 SEC·yfinance 행이 둘 다 있으면 수집 순서에 따라 출처가 분기마다 섞였다(영업이익은 계정 차이로 소폭 다름).
+# 공시 원본이 아직 없는 분기(막 발표돼 SEC 반영 전)는 yfinance를 그대로 쓴다.
+SOURCE_PREFERENCE = ("DART", "SEC")
+
+
+def _rank(rec: dict) -> tuple[int, int, str]:
+    """고르기 우선순위. 연결재무가 먼저, 그다음 공시 원본 출처, 그다음 늦게 수집한 것(정정 반영)."""
     try:
         pref = len(FS_PREFERENCE) - FS_PREFERENCE.index(rec.get("fs_div") or "NA")
     except ValueError:
         pref = 0
-    return (pref, str(rec.get("collected_at") or ""))
+    src = 1 if rec.get("source") in SOURCE_PREFERENCE else 0
+    return (pref, src, str(rec.get("collected_at") or ""))
 
 
 # 예전 이름을 쓰던 호출부를 위해 남겨둔다.
