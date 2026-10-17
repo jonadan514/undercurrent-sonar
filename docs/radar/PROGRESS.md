@@ -2968,3 +2968,13 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
 - 텔레그램: 워치리스트 줄 다음에 "🔄 실적 반전 🇺🇸 46 · 🇰🇷 29 · 새로 N · 빠짐 M" + 새로 들어온 3개(1년/분기 성장률) + 외 N개.
   첫 주(10/19)는 비교 대상이 없어 건수만, "새로 들어온 종목 비교는 다음 주부터" - 첫 변동은 10/26 브리핑.
 - 웹 브리핑: 같은 내용 칸(새로 들어온 종목 최대 10개 칩, 기준 설명). 테스트 2개.
+
+### 2026-10-17 SEC 수집 빈칸 정리 (사용자 결정: 다음 할 일 2번)
+- 점검 도구 `inspect-sec-concepts.yml`(종목별 분기 값이 있는 매출·이익 계정, 읽기 전용)로 원인 확인.
+- 은행 3곳(EWBC·FFIN·SYF): 매출 계정 없음 → 일반 매출 계정이 하나도 없을 때만 순이자이익(InterestIncomeExpenseNet) +
+  비이자이익(NoninterestIncome)을 매출로(yfinance 은행 Total Revenue와 같은 정의). derived='bank_nii_plus_noninterest(_q4)'.
+  재수집 결과 세 곳 모두 10개 분기(EWBC 26Q2 791 = 685 + 106). 테스트 1개.
+- APA: 매출(RevenueFromContractWithCustomerIncludingAssessedTax)을 2024년 이후 사업부문별로만 공시해 companyfacts에
+  전사 합계가 없다 → SEC로는 못 받음. yfinance 5분기로 "분기" 판정 유지.
+- EA: SEC 티커 목록에 없음 - 비상장 전환(인수)으로 등록이 빠진 것으로 보인다. 그런데 `data/sp500_list.csv`(정적 목록)에 남아
+  워치리스트 후보로 계속 나온다 → 유니버스 목록 갱신이 별도 과제.
