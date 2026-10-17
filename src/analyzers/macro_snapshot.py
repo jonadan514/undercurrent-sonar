@@ -136,7 +136,9 @@ def analyze() -> dict:
 
     result = {"date": as_of, "items": items}
     _save(result)
-    _save_history(history_rows(series), as_of)
+    rows = history_rows(series)
+    _save_history(rows, as_of)
+    print("[macro] 이력 " + f"{len(rows)}행 · " + ", ".join(f"{k} {len(v)}일" for k, v in series.items()), flush=True)
     return result
 
 
