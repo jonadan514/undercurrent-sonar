@@ -4,7 +4,7 @@ import { getClient } from "@/src/lib/db";
 export const dynamic = "force-dynamic";
 
 // 매크로 지표 일별 종가 1년치(macro_history, src/analyzers/macro_snapshot.py - 2026-10-17).
-// { 지표키: [[날짜, 값], ...] } 날짜 오름차순. 표가 없으면 빈 객체 - 화면은 추세선 없이 값만 보여준다.
+// { 지표키: [[날짜, 값], ...] } 날짜 오름차순. 국고채 3년은 kr_rates에서(키 kr3y). 표가 없으면 빈 객체 - 화면은 추세선 없이 값만 보여준다.
 export async function GET() {
   try {
     const client = getClient();
@@ -16,6 +16,12 @@ export async function GET() {
       const key = r[1] as string;
       (out[key] ??= []).push([r[0] as string, Number(r[2])]);
     }
+    try {
+      const kr = await client.execute(
+        "SELECT date, value FROM kr_rates WHERE key = 'kr3y' AND date >= date('now', '-370 days') ORDER BY date"
+      );
+      if (kr.rows.length) out.kr3y = kr.rows.map((r) => [r[0] as string, Number(r[1])] as [string, number]);
+    } catch { /* kr_rates 없음 */ }
     return NextResponse.json(out);
   } catch {
     return NextResponse.json({});

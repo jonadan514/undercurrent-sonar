@@ -5,11 +5,16 @@ on:
     # 매일 22:30 UTC (미국 정규장 마감 이후) - 주말엔 그냥 금요일 종가가 그대로 나옴
     - cron: "30 22 * * *"
   workflow_dispatch:
+    inputs:
+      kr_lookback_days:
+        description: "국고채 금리 조회 기간(달력일). 비우면 21 - 개요 1년 그래프를 처음 채울 때 370"
+        required: false
+        default: ""
 
 jobs:
   compute:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -27,13 +32,14 @@ jobs:
       - name: Fetch KR treasury yields (isolated pykrx)
         continue-on-error: true
         env:
+          KR_LOOKBACK: ${{ inputs.kr_lookback_days }}
           KRX_ID: ${{ secrets.KRX_ID }}
           KRX_PW: ${{ secrets.KRX_PW }}
           PYTHONUNBUFFERED: "1"
         run: |
           python -m venv /tmp/krxenv
           /tmp/krxenv/bin/pip install --quiet "pandas<3.0" "pykrx==1.2.8"
-          /tmp/krxenv/bin/python scripts/fetch_kr_treasury_pykrx.py --out data/kr_treasury.json
+          /tmp/krxenv/bin/python scripts/fetch_kr_treasury_pykrx.py --out data/kr_treasury.json --lookback-days "${KR_LOOKBACK:-21}"
       # 코스피·코스닥 투자자별 순매수(2026-10-17, 주간 브리핑 수급) - 같은 격리 환경을 그대로 쓴다.
       - name: Fetch KR investor flows (isolated pykrx)
         continue-on-error: true

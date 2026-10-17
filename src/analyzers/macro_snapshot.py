@@ -1,6 +1,7 @@
 """
 매크로 스냅샷
-- 미국 10년물·30년물 국채금리, 10-2년 금리차, 원/달러 환율, VIX, 달러인덱스, WTI 유가, 구리
+- 미국 10년물·30년물 국채금리, 10-2년 금리차, 원/달러 환율, VIX, 달러인덱스, WTI 유가, 구리, 천연가스
+- FRED: 미 하이일드 스프레드, 미 10년 실질금리(2026-10-17)
 - 판단(등급·해석) 없이 원자료(현재값 + 전일/전주 대비 변동)만 저장한다.
 - 일별 종가 1년치는 macro_history(date, key, value)에 쌓는다(2026-10-17, 개요 추세선·1년 범위·그래프).
   체제(regime) 판정처럼 가중합산해 등급을 매기는 시스템이 아니다 - 그건
@@ -22,6 +23,12 @@ TICKERS = {
     "dxy":    "DX-Y.NYB",
     "wti":    "CL=F",
     "copper": "HG=F",   # 2026-10-17 - 구리·전력망·케이블 테마 해석용(달러/파운드)
+    "natgas": "NG=F",   # 2026-10-17 - 천연가스 테마·관찰 노트(CNX)용(달러/MMBtu)
+}
+# yfinance에 없는 지표는 FRED 공식 시리즈(공개 CSV, 키 불필요)로 받는다(2026-10-17).
+FRED_SERIES = {
+    "hy_spread": "BAMLH0A0HYM2",   # 미 하이일드 회사채 스프레드(%p) - 신용시장 스트레스
+    "real10y":   "DFII10",         # 미 10년 물가연동국채(TIPS) 실질금리(%)
 }
 
 # 프론트에서 쓸 한글 라벨·단위 (us2y는 스프레드 계산용 원자재라 화면엔 안 보여줘도 되지만
@@ -36,10 +43,14 @@ LABELS = {
     "dxy":            "달러인덱스",
     "wti":            "WTI 유가",
     "copper":         "구리",
+    "natgas":         "천연가스",
+    "hy_spread":      "미 하이일드 스프레드",
+    "real10y":        "미 10년 실질금리",
 }
 UNITS = {
     "us10y": "%", "us30y": "%", "us2y": "%", "spread_10y_2y": "%p",
     "usdkrw": "원", "vix": "", "dxy": "", "wti": "$", "copper": "$/lb",
+    "natgas": "$/MMBtu", "hy_spread": "%p", "real10y": "%",
 }
 
 
@@ -75,12 +86,17 @@ def _series_by_key(closes: pd.DataFrame) -> dict[str, pd.Series]:
     for key, ticker in TICKERS.items():
         if ticker in closes.columns:
             out[key] = closes[ticker].dropna()
+    start = closes.index[0].strftime("%Y-%m-%d")
     for key, sid in FRED_FALLBACK.items():
         if len(out.get(key, [])) < MIN_POINTS:
-            fred = _fred_series(sid, closes.index[0].strftime("%Y-%m-%d"))
+            fred = _fred_series(sid, start)
             if fred is not None and len(fred) >= MIN_POINTS:
                 print(f"[macro] {key}: yfinance {len(out.get(key, []))}일 -> FRED {sid} {len(fred)}일", flush=True)
                 out[key] = fred
+    for key, sid in FRED_SERIES.items():
+        fred = _fred_series(sid, start)
+        if fred is not None and len(fred):
+            out[key] = fred
     # 10년-2년 금리차 - 두 시리즈를 날짜로 정렬해 뺀 새 시리즈(파생값, 뺄셈 그 이상의
     # 해석 없음). pandas가 공통 날짜만 남기고 자동 정렬하므로 거래일이 살짝 다른 상품
     # (국채 vs 선물)이어도 죽지는 않는다. 단, us2y(2YY=F)가 당일 데이터 공백이면
@@ -156,7 +172,7 @@ def analyze() -> dict:
     # 잘못 붙이지 않기 위함(주간 브리핑의 week_start 처리와 같은 원칙).
     as_of = closes.index[-1].strftime("%Y-%m-%d")
 
-    keys = list(TICKERS.keys()) + ["spread_10y_2y"]
+    keys = list(TICKERS.keys()) + list(FRED_SERIES) + ["spread_10y_2y"]
     items = {key: {**_snapshot(series.get(key)), "label": LABELS[key], "unit": UNITS[key]} for key in keys}
 
     result = {"date": as_of, "items": items}

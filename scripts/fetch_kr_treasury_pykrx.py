@@ -25,14 +25,14 @@ def _norm(name: str) -> str:
     return str(name).replace(" ", "")
 
 
-def fetch() -> dict:
+def fetch(lookback_days: int = LOOKBACK_DAYS) -> dict:
     from pykrx import bond
     out: dict[str, list[dict]] = {k: [] for k in TENORS}
     end = datetime.utcnow() + timedelta(hours=9)          # KST
     day = end
     seen = 0
     # 날짜별 스냅샷(그날의 전 만기 수익률)으로 받는다 - 기간 조회 형식은 버전마다 인자가 달라서.
-    while (end - day).days <= LOOKBACK_DAYS:
+    while (end - day).days <= lookback_days:
         if day.weekday() < 5:
             ymd = day.strftime("%Y%m%d")
             try:
@@ -78,8 +78,10 @@ def drop_holiday_repeats(data: dict[str, list[dict]]) -> dict[str, list[dict]]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/kr_treasury.json")
+    # 개요 1년 그래프용 처음 채우기(2026-10-17) - 하루씩 조회라 1년이면 수 분 걸린다
+    ap.add_argument("--lookback-days", type=int, default=LOOKBACK_DAYS)
     args = ap.parse_args()
-    data = fetch()
+    data = fetch(args.lookback_days)
     if not any(data.values()):
         _log("받은 값이 없음 - 파일을 쓰지 않는다")
         return 1

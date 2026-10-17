@@ -31,7 +31,8 @@ interface Briefing {
   // 금리·환율 1주 변화(2026-10-05부터, macro_snapshot 그대로). 예전 브리핑엔 없다.
   // dxy·wti는 2026-10-09부터
   macro?: { as_of?: string; us10y?: MacroItem | null; kr3y?: MacroItem | null; usdkrw?: MacroItem | null;
-            dxy?: MacroItem | null; wti?: MacroItem | null; copper?: MacroItem | null } | null;   // copper는 2026-10-17부터
+            dxy?: MacroItem | null; wti?: MacroItem | null; copper?: MacroItem | null;   // copper는 2026-10-17부터
+            natgas?: MacroItem | null; hy_spread?: MacroItem | null; real10y?: MacroItem | null } | null;   // 2026-10-17 밤부터
   // 워치리스트 '실적 반전'(3년 정체·역성장인데 지금 흐름 성장) 주간 변동(2026-10-17부터). 예전 브리핑엔 없다.
   kr_flows?: Record<string, FlowSum> | null;
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
@@ -148,6 +149,10 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
             <FlowRow label="코스닥 수급" f={b.kr_flows?.KOSDAQ} />
             <MacroRow label="미 10년물" m={b.macro?.us10y}
               fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
+            <MacroRow label="미 실질금리" m={b.macro?.real10y}
+              fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
+            <MacroRow label="하이일드 스프레드" m={b.macro?.hy_spread}
+              fmt={(v) => `${v.toFixed(2)}%p`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
             <MacroRow label="국고채 3년" m={b.macro?.kr3y}
               fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
             <MacroRow label="원/달러" m={b.macro?.usdkrw}
@@ -165,6 +170,13 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               fmt={(v) => `$${v.toFixed(2)}/lb`}
               chgFmt={(v) => {
                 const base = (b.macro?.copper?.value ?? 0) - v;
+                const pct = base ? ` (${v / base >= 0 ? "+" : ""}${(v / base * 100).toFixed(1)}%)` : "";
+                return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}${pct}`;
+              }} />
+            <MacroRow label="천연가스" m={b.macro?.natgas}
+              fmt={(v) => `$${v.toFixed(2)}`}
+              chgFmt={(v) => {
+                const base = (b.macro?.natgas?.value ?? 0) - v;
                 const pct = base ? ` (${v / base >= 0 ? "+" : ""}${(v / base * 100).toFixed(1)}%)` : "";
                 return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}${pct}`;
               }} />

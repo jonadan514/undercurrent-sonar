@@ -12,14 +12,15 @@ const LABEL_ORDER = ["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Ali
 interface RadarSignal { label: string | null }
 
 // 매크로 패널 — 등급·판정 없이 원자료만 (src/analyzers/macro_snapshot.py의 items 키와 동일 순서)
-const MACRO_ORDER = ["us10y", "us30y", "spread_10y_2y", "usdkrw", "vix", "dxy", "wti", "copper"];   // copper 2026-10-17
+// 줄마다: 미국 금리 / 한국 금리·환율·변동성 / 신용·원자재 (2026-10-17 밤 real10y·kr3y·hy_spread·natgas 추가)
+const MACRO_ORDER = ["us10y", "us30y", "spread_10y_2y", "real10y", "kr3y", "usdkrw", "dxy", "vix", "hy_spread", "wti", "natgas", "copper"];
 interface MacroItem { value: number | null; chg_1d: number | null; chg_1w: number | null; label: string; unit: string }
 interface MacroSnapshot { date: string; items: Record<string, MacroItem> }
 
 function fmtUnit(v: number, unit: string): string {
   if (unit === "원") return `₩${Math.round(v).toLocaleString()}`;
   if (unit === "$") return `$${v.toFixed(2)}`;
-  if (unit === "$/lb") return `$${v.toFixed(2)}/lb`;
+  if (unit.startsWith("$/")) return `$${v.toFixed(2)}${unit.slice(1)}`;   // $/lb, $/MMBtu
   if (unit === "%p" || unit === "%") return `${v.toFixed(2)}${unit}`;
   return v.toFixed(2);
 }
