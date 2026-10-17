@@ -37,6 +37,29 @@ interface Briefing {
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
                  added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
   earnings_week?: { total: number; by_market: Record<string, number>; tagged_count: number; items: EarningsItem[] } | null;
+  kr_disclosures?: { contract: { count: number; items: DisclosureItem[] }; prelim: { count: number; items: DisclosureItem[] } } | null;
+}
+// 한국 공시 지난 7일(2026-10-17부터, DART 원문 표 값 그대로). 유니버스(시총 3000억+) 또는 관심 표시 종목만.
+interface DisclosureItem { symbol: string; name?: string | null; date: string; rcept_no: string; tags: string[]; summary: string;
+  amount?: number | null; pct?: number | null; title?: string | null; quarter?: string;
+  revenue_yoy_pct?: number | null; revenue_yoy_turn?: string | null; operating_income_yoy_pct?: number | null; operating_income_yoy_turn?: string | null }
+const DISC_TAG: Record<string, string> = { my: "내 관심", note: "노트", cand: "워치", theme: "테마" };
+const eok = (v?: number | null) => v == null ? "-" : Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(1)}조` : Math.abs(v) >= 1e8 ? `${Math.round(v / 1e8).toLocaleString()}억` : `${(v / 1e8).toFixed(1)}억`;
+function YoY({ label, pct, turn }: { label: string; pct?: number | null; turn?: string | null }) {
+  if (turn) return <span>{label} <span style={{ color: turn.startsWith("흑자") ? "#4ade80" : "#f87171" }}>{turn}</span></span>;
+  if (pct == null) return <span style={{ color: "var(--text-muted)" }}>{label} -</span>;
+  return <span>{label} <span style={{ color: pct >= 0 ? "#4ade80" : "#f87171" }}>{pct >= 0 ? "+" : ""}{pct.toFixed(0)}%</span></span>;
+}
+function DiscName({ d }: { d: DisclosureItem }) {
+  return (
+    <a href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`} target="_blank" rel="noreferrer"
+      className="font-bold text-white hover:underline inline-flex items-center gap-1">
+      <FlagIcon market="KR" size={11} />{d.name || d.symbol}
+    </a>
+  );
+}
+function DiscTags({ tags }: { tags: string[] }) {
+  return tags.length > 0 ? <span className="text-[11px]" style={{ color: "#fbbf24" }}>{tags.map((t) => DISC_TAG[t] ?? t).join(" · ")}</span> : null;
 }
 // 코스피·코스닥 투자자별 순매수 최근 5거래일 합(원, 2026-10-17부터). 예전 브리핑엔 없다.
 interface FlowSum { foreign?: number; institution?: number; individual?: number; days: number; from: string; to: string }
@@ -282,7 +305,58 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 ))}
               </div>
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;) · 노란 칸이 내 관심·노트·실적 반전
+                워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;), 한국은 결산실적 공시예고가 있으면 그 날짜 · 노란 칸이 내 관심·노트·실적 반전
+              </p>
+            </div>
+          )}
+
+          {/* 한국 공시 지난 7일 - 공급계약·잠정실적 */}
+          {b.kr_disclosures && (b.kr_disclosures.contract.count > 0 || b.kr_disclosures.prelim.count > 0) && (
+            <div>
+              <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
+                한국 공시 (지난 7일) — 공급계약 {b.kr_disclosures.contract.count} · 잠정실적 {b.kr_disclosures.prelim.count}
+              </p>
+              {b.kr_disclosures.contract.items.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>공급계약 · 관심 종목 먼저, 그다음 매출 대비 큰 순</p>
+                  <div className="space-y-1">
+                    {b.kr_disclosures.contract.items.map((d) => (
+                      <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
+                        style={d.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                        <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
+                        <DiscName d={d} />
+                        <span className="text-white">{eok(d.amount)}</span>
+                        {d.pct != null && <span style={{ color: d.pct >= 10 ? "#4ade80" : "var(--text-secondary)" }}>매출 대비 {d.pct.toFixed(1)}%</span>}
+                        {d.title && <span className="truncate max-w-[16rem]" style={{ color: "var(--text-secondary)" }}>{d.title}</span>}
+                        <DiscTags tags={d.tags} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {b.kr_disclosures.prelim.items.length > 0 && (
+                <div>
+                  <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>잠정실적 · 전년 같은 분기 대비, 회사가 공시한 증감률</p>
+                  <div className="space-y-1">
+                    {b.kr_disclosures.prelim.items.map((d) => (
+                      <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
+                        style={d.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                        <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
+                        <DiscName d={d} />
+                        {d.quarter && <span style={{ color: "var(--text-muted)" }}>{d.quarter}</span>}
+                        <YoY label="매출" pct={d.revenue_yoy_pct} turn={d.revenue_yoy_turn} />
+                        <YoY label="영업익" pct={d.operating_income_yoy_pct} turn={d.operating_income_yoy_turn} />
+                        <DiscTags tags={d.tags} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(b.kr_disclosures.contract.count > b.kr_disclosures.contract.items.length || b.kr_disclosures.prelim.count > b.kr_disclosures.prelim.items.length) && (
+                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 종류별 30건까지</p>
+              )}
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 DART 원문
               </p>
             </div>
           )}

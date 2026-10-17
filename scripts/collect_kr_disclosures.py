@@ -112,6 +112,25 @@ def alert_text(new: list[dict], tags: dict[str, list[str]]) -> str | None:
     return "\n".join(lines)
 
 
+QUALITY_KEYS = {"contract": ("amount", "pct_of_revenue", "title"),
+                "prelim": ("period_end", "revenue", "revenue_yoy_pct", "operating_income_yoy_pct"),
+                "notice": ("announce_date",)}
+
+
+def log_quality(conn, since: str) -> None:
+    """기간 안에 저장된 공시의 칸별 빈칸 수 - 양식이 달라 못 읽는 칸이 늘면 여기서 보인다.
+    잠정실적 증감률은 흑자·적자전환이면 비어 있는 게 정상이라 전환 표시가 없는 것만 센다."""
+    rows = conn.execute("SELECT kind, payload, corp_name FROM kr_disclosures WHERE rcept_dt >= ?", (since,)).fetchall()
+    for kind, keys in QUALITY_KEYS.items():
+        ps = [(json.loads(r[1]), r[2]) for r in rows if r[0] == kind]
+        miss = {}
+        for k in keys:
+            bad = [n for p, n in ps if p.get(k) is None and not (k.endswith("_yoy_pct") and p.get(k.replace("_pct", "_turn")))]
+            if bad:
+                miss[k] = f"{len(bad)} ({', '.join(b or '?' for b in bad[:4])})"
+        _log(f"  {kind} {len(ps)}건 빈칸: {miss or '없음'}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=3, help="오늘(KST)부터 며칠 전까지 (DART 전체 검색은 3개월까지)")
@@ -159,6 +178,8 @@ def main() -> int:
     conn.commit()
     empty = Counter(d["kind"] for d in new if all(v is None for v in d["payload"].values()))
     _log(f"새로 저장 {len(new)}건 {dict(Counter(d['kind'] for d in new))} / 원문 실패 {failed} / 못 읽은 공시 {dict(empty)}")
+
+    log_quality(conn, (today - timedelta(days=args.days)).isoformat())
 
     if args.notify and new:
         text = alert_text(new, tags_by_code(conn))
