@@ -164,7 +164,7 @@ def test_kr_disclosures_week_scope_and_order():
             _disc("2", "222222", "큰계약", "contract", {"amount": 9e10, "pct_of_revenue": 35.0, "title": "선박"}),
             _disc("3", "333333", "작은계약", "contract", {"amount": 1e9, "pct_of_revenue": 5.0, "title": "부품"}),
             _disc("4", "444444", "관심사", "contract", {"amount": 2e9, "pct_of_revenue": 3.0, "title": "용역"}),
-            _disc("5", "222222", "큰계약", "prelim", {"period_end": "2026-09-30", "revenue_yoy_pct": 25.8,
+            _disc("5", "222222", "큰계약", "prelim", {"period_end": "2026-09-30", "revenue": 5.04e12, "revenue_yoy_pct": 25.8,
                                                    "operating_income_yoy_pct": None, "operating_income_yoy_turn": "흑자전환"})]
     kd = g.kr_disclosures_week(rows, {"222222", "333333"}, {"444444": ["my"]})
     assert [x["symbol"] for x in kd["contract"]["items"]] == ["444444", "222222", "333333"]   # 유니버스 밖 소형사 제외

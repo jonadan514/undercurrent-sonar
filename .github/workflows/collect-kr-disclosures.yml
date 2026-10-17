@@ -15,6 +15,10 @@ on:
         description: "확인용: 'YYYYMMDD YYYYMMDD' 기간 공시 종류·파싱 결과 출력(저장 안 함)"
         required: false
         default: ""
+      reparse:
+        description: "true면 days 기간에 저장된 공시 payload를 원문에서 다시 읽는다(파서 수정 후)"
+        required: false
+        default: ""
       names:
         description: "probe와 함께: 원문 표를 볼 회사 이름(공백 구분)"
         required: false
@@ -45,6 +49,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
           PROBE: ${{ inputs.probe }}
           NAMES: ${{ inputs.names }}
+          REPARSE: ${{ inputs.reparse == 'true' && '--reparse' || '' }}
           DAYS: ${{ inputs.days || '3' }}
           # 정기 실행만 알림 - 수동 채우기에서 지난 공시가 한꺼번에 알림으로 가지 않게
           NOTIFY: ${{ github.event_name == 'schedule' && '--notify' || '' }}
@@ -52,7 +57,7 @@ jobs:
           if [ -n "$PROBE" ]; then
             python scripts/collect_kr_disclosures.py --probe $PROBE ${NAMES:+--names $NAMES}
           else
-            python scripts/collect_kr_disclosures.py --days "$DAYS" $NOTIFY
+            python scripts/collect_kr_disclosures.py --days "$DAYS" $NOTIFY $REPARSE
           fi
       # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure

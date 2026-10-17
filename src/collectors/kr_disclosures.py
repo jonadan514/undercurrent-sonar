@@ -108,7 +108,7 @@ def _yoy_ok(cur: float | None, base: float | None, pct: float | None) -> bool:
 def parse_prelim(rows: list[str]) -> dict:
     unit = None
     for row in rows:
-        m = re.search(r"단위\s*:\s*(백만원|억원|천원|원)", row)
+        m = re.search(r"단위\s*:\s*(백만원|억원|천원|조원|원)", row)
         if m:
             unit = UNIT[m.group(1)]
             break

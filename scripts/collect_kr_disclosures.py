@@ -3,6 +3,8 @@
 DART 거래소공시 목록에서 상장사 공시 중 세 종류만 골라 원문 표를 읽는다(규칙은 src/collectors/kr_disclosures.py).
 전체 상장사를 받는다 - 주간 브리핑에서 유니버스(시총 3000억+)·관심 종목으로 거른다(새 종목 아이디어용).
 이력 표라 덮어쓰지 않는다(원칙 5): 접수번호(rcept_no)가 키, 이미 있으면 원문을 다시 받지 않는다.
+예외 --reparse: 파서를 고친 뒤 저장된 공시의 payload(원문 표를 읽은 결과)만 다시 만든다. 공시 원문은 DART에 그대로
+있고 바뀌지 않으므로 잃는 이력이 없다 - 접수일·종류 등 다른 칸은 건드리지 않는다.
 
 --notify면 새로 들어온 공시 중 내 관심·관찰 노트·워치리스트 후보 종목만 텔레그램으로 바로 알린다(없으면 안 보낸다).
 
@@ -141,17 +143,37 @@ def log_quality(conn, since: str) -> None:
         _log(f"  {kind} {len(ps)}건 빈칸: {miss or '없음'}")
 
 
+def reparse(conn, since: str) -> int:
+    rows = conn.execute("SELECT rcept_no, kind FROM kr_disclosures WHERE rcept_dt >= ?", (since,)).fetchall()
+    changed = 0
+    for rcept_no, kind in rows:
+        payload = json.dumps(PARSERS[kind](dart.document_rows(rcept_no)), ensure_ascii=False)
+        time.sleep(DOC_SLEEP)
+        cur = conn.execute("SELECT payload FROM kr_disclosures WHERE rcept_no = ?", (rcept_no,)).fetchone()[0]
+        if cur != payload:
+            conn.execute("UPDATE kr_disclosures SET payload = ? WHERE rcept_no = ?", (payload, rcept_no))
+            changed += 1
+    conn.commit()
+    _log(f"다시 읽음 {len(rows)}건 / 바뀐 payload {changed}건")
+    log_quality(conn, since)
+    conn.close()
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=3, help="오늘(KST)부터 며칠 전까지 (DART 전체 검색은 3개월까지)")
     ap.add_argument("--notify", action="store_true")
     ap.add_argument("--probe", nargs=2, metavar=("BGN", "END"))
     ap.add_argument("--names", nargs="*", default=None, help="--probe와 함께: 이 회사들 원문 표 출력")
+    ap.add_argument("--reparse", action="store_true", help="--days 기간에 저장된 공시를 원문에서 다시 읽어 payload만 갱신")
     args = ap.parse_args()
     if args.probe:
         return probe(*args.probe, names=args.names)
 
     today = datetime.now(KST).date()
+    if args.reparse:
+        return reparse(get_db(), (today - timedelta(days=args.days)).isoformat())
     bgn = (today - timedelta(days=args.days)).strftime("%Y%m%d")
     items = dart.list_disclosures(bgn, today.strftime("%Y%m%d"))
     targets = [(i, k) for i in items if i.get("stock_code") and (k := classify(i.get("report_nm", "")))]
