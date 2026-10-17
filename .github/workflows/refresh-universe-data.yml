@@ -7,7 +7,12 @@ name: Refresh Universe Data
 # 코스닥 중소형은 yfinance 조회가 실패하는 경우가 많아, 매번 처음부터 받으면 그 종목들이
 # 계속 "사업정보 없음"으로 남아 매핑이 이름만으로 판단하게 된다(사명 기반 추측 오류의 원천).
 # 한 번 받아둔 것을 저장소에 쌓아두면 커버리지가 실행마다 올라간다.
+#
+# 2026-10-17: 매주 토요일 자동 실행 추가(그 전엔 수동 전용이라 10/4 이후 그대로였다). 받은 유니버스가 이상하면
+# (빈 목록, 종목 수 15% 넘게 변화 등) check_kr_universe_change.py가 이전 것으로 되돌리고 실패 처리, 정상이면 바뀐 종목을 텔레그램으로.
 on:
+  schedule:
+    - cron: "15 8 * * 6"   # 토요일 08:15 UTC (17:15 KST) - 미국 목록 갱신 직후, 일요일 밤 스크리닝 전
   workflow_dispatch:
     inputs:
       kr_min_cap:
@@ -35,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Keep previous KR universe
+        run: cp data/kr_universe.json /tmp/kr_universe_old.json
+
       - name: Fetch KR universe (isolated pykrx)
         env:
           KRX_ID: ${{ secrets.KRX_ID }}
@@ -46,6 +54,12 @@ jobs:
           MINCAP="${{ inputs.kr_min_cap }}"
           /tmp/krxenv/bin/python scripts/fetch_kr_universe_pykrx.py \
             --out data/kr_universe.json ${MINCAP:+--min-cap "$MINCAP"}
+
+      - name: Check KR universe change
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/check_kr_universe_change.py --old /tmp/kr_universe_old.json --new data/kr_universe.json --notify
 
       # 사업정보가 없는 종목만 조회한다. 실패해도 계속 진행 - 다음 실행에서 다시 시도된다.
       - name: Fill missing profiles
@@ -83,3 +97,13 @@ jobs:
           git commit -m "data: 유니버스·사업정보 갱신 (Refresh Universe Data)"
           git pull --rebase --autostash
           git push
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
