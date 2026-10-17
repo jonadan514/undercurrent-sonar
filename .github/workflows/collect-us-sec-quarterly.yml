@@ -1,0 +1,47 @@
+name: Collect US SEC Quarterly
+
+# 미국 워치리스트 종목 분기 재무를 SEC EDGAR(companyfacts)에서 받는다(2026-10-17).
+# 최근 4개 분기 합 비교(연속 8분기)용 - yfinance는 5분기뿐이다. SEC_USER_AGENT(연락처)는 Secrets에 둔다.
+on:
+  schedule:
+    - cron: "30 9 * * 6"   # 토요일 09:30 UTC (18:30 KST) - 일요일 밤 워치리스트 계산 전
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "몇 종목만 확인(공백 구분). 비우면 미국 워치리스트 전체"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          TICKERS: ${{ inputs.tickers }}
+        run: python scripts/collect_us_sec_quarterly.py ${TICKERS:+--tickers $TICKERS}
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
