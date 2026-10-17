@@ -67,7 +67,15 @@ def _get(path: str, params: dict, *, binary: bool = False):
                     time.sleep(min(2 ** (attempt + 1), 30))
                     continue
                 return r.content
-            data = r.json()
+            try:
+                data = r.json()
+            except ValueError:
+                # 2026-10-11 정기 실행: 121종목 전부 JSONDecodeError - 점검 안내 같은 비JSON 응답으로 보인다.
+                # 재시도하고, 끝내 안 되면 응답 앞부분을 남겨 원인을 볼 수 있게 한다.
+                snippet = " ".join(r.text[:200].split())
+                last = f"비JSON 응답(HTTP {r.status_code}, {r.headers.get('content-type', '')}): {snippet}"
+                time.sleep(min(2 ** (attempt + 1), 30))
+                continue
             status = str(data.get("status", ""))
             if status == "000":
                 return data

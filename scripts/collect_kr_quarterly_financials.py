@@ -114,6 +114,7 @@ def main() -> int:
     today = date.today()
     now = datetime.utcnow().isoformat()
     stats = {"ok": 0, "no_corp": 0, "no_data": 0, "lt5": 0, "error": 0, "ofs": 0}
+    first_error = ""
 
     for n, t in enumerate(tickers, 1):
         cc = corp.get(t)
@@ -127,7 +128,13 @@ def main() -> int:
             raise
         except Exception as e:  # noqa: BLE001 - 한 종목 실패로 전체를 멈추지 않는다
             stats["error"] += 1
+            first_error = first_error or f"{type(e).__name__}: {str(e)[:300]}"
             _log(f"  {t}: 실패 {type(e).__name__}: {str(e)[:120]}")
+            # 처음 5종목이 전부 실패하면 DART 쪽 문제(점검 등) - 나머지를 돌려도 같은 결과라 멈춘다
+            if stats["ok"] == 0 and stats["error"] >= 5 and n == stats["error"] + stats["no_corp"]:
+                _log(f"처음 {n}종목이 전부 실패 - DART 응답 문제로 보고 중단. 첫 오류: {first_error}")
+                conn.close()
+                return 1
             continue
         if not values:
             stats["no_data"] += 1
@@ -145,6 +152,11 @@ def main() -> int:
             _log(f"  진행 {n}/{len(tickers)} {stats}")
 
     _log(f"완료 {stats} (lt5=최근 5분기 미만, ofs=최신 분기가 별도재무)")
+    if stats["ok"] == 0 and stats["error"] > 0:
+        # 전부 실패인데 성공으로 끝나면 아무도 모른다(2026-10-11 정기 실행이 그랬다) - 실패로 끝내 알림이 가게 한다
+        _log(f"성공 0종목 - 실패로 끝낸다. 첫 오류: {first_error}")
+        conn.close()
+        return 1
 
     if args.tickers:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
