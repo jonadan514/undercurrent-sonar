@@ -9,7 +9,8 @@
   - 워치리스트 변동 (신규 진입/탈락 — watchlist_weekly_snapshots 비교)
   - 관심도 흐름 (한 주간 sentiment 상승 종목)
   - 다가오는 촉매 (내 워치리스트 종목의 네러티브 촉매 모음)
-  - 이번 주 실적 발표 (워치리스트·내 관심·관찰 노트 종목, earnings_calendar - 2026-10-17)
+  - 이번 주 실적 발표 (워치리스트·내 관심·관찰 노트 종목, earnings_calendar + 한국 결산실적 공시예고 - 2026-10-17)
+  - 한국 공시 지난 7일 (공급계약·잠정실적, kr_disclosures - 2026-10-17)
   - GPT 총평 · 다음 주 관전 포인트 (웹에만 - 텔레그램은 DB·시세 숫자만, 2026-10-05)
   - 테마 레이더 라벨 변동 (미국·한국)
 
@@ -33,6 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.db.turso_http import get_credentials, query as _turso_query
+from src.collectors.kr_disclosures import quarter_label, summary as disclosure_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -291,6 +293,18 @@ EARNINGS_TG_MAX = 6
 EARNINGS_TAG_KO = {"my": "내 관심", "note": "노트", "turnaround": "실적 반전"}
 
 
+def merge_kr_notices(rows: list[dict], notices: list[dict]) -> list[dict]:
+    """한국 결산실적 공시예고(DART, 회사가 정한 날짜)를 yfinance 날짜보다 우선한다. notices: {ticker, announce_date}.
+    같은 종목에 예고가 여러 건이면 늦게 낸 것(목록 뒤쪽)."""
+    by_key = {(r["market"], r["ticker"]): dict(r) for r in rows}
+    for n in notices:
+        if not n.get("announce_date"):
+            continue
+        by_key[("KR", n["ticker"])] = {"ticker": n["ticker"], "market": "KR", "earnings_date": n["announce_date"],
+                                       "earnings_date_end": n["announce_date"], "is_estimate": 0, "source": "DART"}
+    return list(by_key.values())
+
+
 def earnings_week_items(rows: list[dict], week: str, tags: dict[str, list[str]], names: dict[str, str]) -> dict:
     """이번 주(week 월요일~일요일)에 발표 예정인 종목. 예상 범위는 시작일이 이번 주에 들면 넣는다.
     tags: {"KR:005930": ["my", ...]} - 표시 순서만 정할 뿐 점수가 아니다(원칙 1). 날짜·시장·종목코드 순."""
@@ -327,8 +341,15 @@ def get_earnings_week(week: str) -> dict | None:
             "WHERE e.fetched_on >= date('now', '-14 days')")
     except Exception as e:  # noqa: BLE001
         logger.warning("실적 발표일 조회 실패(표 없음?) - 건너뜀: %s", e)
-        return None
-    if not rows:
+        rows = []
+    try:
+        # 한국 결산실적 공시예고(2026-10-17) - 유니버스 밖 상장사도 관심 종목이면 표시된다(아래 tags 기준으로 거른다)
+        notices = [{"ticker": r["stock_code"], "announce_date": json.loads(r["payload"]).get("announce_date")}
+                   for r in turso_exec("SELECT stock_code, payload FROM kr_disclosures WHERE kind = 'notice' "
+                                       "AND rcept_dt >= date('now', '-60 days') ORDER BY rcept_dt, rcept_no")]
+    except Exception:  # noqa: BLE001 - 공시 표가 아직 없으면 yfinance만
+        notices = []
+    if not rows and not notices:
         return None
     tags: dict[str, list[str]] = {}
     names: dict[str, str] = {}
@@ -358,7 +379,71 @@ def get_earnings_week(week: str) -> dict | None:
             names.setdefault(key, c["name"])
         if is_turnaround(c):
             tag(key, "turnaround")
-    return earnings_week_items(rows, week, tags, names)
+    # 공시예고는 전체 상장사라 워치리스트 후보·내 관심·노트 종목만 남긴다(yfinance 대상과 같은 범위)
+    targets = {f"{c['market']}:{c['symbol']}" for c in cands} | set(tags)
+    notices = [n for n in notices if f"KR:{n['ticker']}" in targets]
+    return earnings_week_items(merge_kr_notices(rows, notices), week, tags, names)
+
+
+KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
+DISC_TG_MAX = 5
+DISC_WEB_MAX = 30
+DISC_TAG_KO = {"my": "내 관심", "note": "노트", "cand": "워치", "theme": "테마"}
+
+
+def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, list[str]]) -> dict:
+    """지난 7일 한국 공시(공급계약·잠정실적) - 유니버스(시총 3000억+) 또는 관심 표시가 붙은 종목만.
+    공급계약은 관심 종목 먼저, 그다음 매출 대비 큰 순 - 공시에 적힌 비율 그대로 정렬할 뿐 점수가 아니다(원칙 1).
+    잠정실적은 관심 종목 먼저, 그다음 접수일 순."""
+    out: dict = {}
+    for kind in ("contract", "prelim"):
+        items = []
+        for r in rows:
+            if r["kind"] != kind or not (r["stock_code"] in universe or tags.get(r["stock_code"])):
+                continue
+            p = r["payload"] if isinstance(r["payload"], dict) else json.loads(r["payload"] or "{}")
+            items.append({"symbol": r["stock_code"], "name": r.get("corp_name"), "date": r["rcept_dt"],
+                          "rcept_no": r["rcept_no"], "tags": tags.get(r["stock_code"], []), "summary": disclosure_summary(kind, p),
+                          **({"amount": p.get("amount"), "pct": p.get("pct_of_revenue"), "title": p.get("title")} if kind == "contract" else
+                             {"quarter": quarter_label(p.get("period_end")),
+                              **{k: p.get(k) for k in ("revenue_yoy_pct", "revenue_yoy_turn", "operating_income_yoy_pct",
+                                                       "operating_income_yoy_turn", "revenue", "operating_income")}})})
+        if kind == "contract":
+            items.sort(key=lambda x: (not x["tags"], -(x["pct"] if x["pct"] is not None else -1), x["date"]))
+        else:
+            items.sort(key=lambda x: (not x["tags"], x["date"], x["symbol"]))
+        out[kind] = {"count": len(items), "items": items[:DISC_WEB_MAX]}
+    return out
+
+
+def get_kr_disclosures_week() -> dict | None:
+    """한국 공시 지난 7일(kr_disclosures, scripts/collect_kr_disclosures.py - 2026-10-17). 표가 없으면 None."""
+    try:
+        rows = turso_exec("SELECT rcept_no, rcept_dt, stock_code, corp_name, kind, payload FROM kr_disclosures "
+                          "WHERE kind IN ('contract', 'prelim') AND rcept_dt >= date('now', '+9 hours', '-7 days')")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("한국 공시 조회 실패(표 없음?) - 건너뜀: %s", e)
+        return None
+    try:
+        universe = {i["symbol"] for i in json.loads(KR_UNIVERSE.read_text(encoding="utf-8")).get("items", [])}
+    except Exception:  # noqa: BLE001 - 유니버스 파일이 없으면 관심 종목만
+        universe = set()
+    tags: dict[str, list[str]] = {}
+    for sql, t in (("SELECT symbol FROM my_watchlist WHERE market = 'KR'", "my"),
+                   ("SELECT DISTINCT ticker AS symbol FROM observations WHERE kind = 'stock' AND market = 'KR' "
+                    "AND ticker IS NOT NULL", "note"),
+                   ("SELECT symbol FROM watchlist_candidates WHERE market = 'KR'", "cand"),
+                   # 테마 소속 - 테마마다 가장 최근 승인 run(get_approved_theme_members와 같은 기준)
+                   ("SELECT DISTINCT m.ticker AS symbol FROM theme_members m WHERE m.market = 'KR' AND m.approved = 1 "
+                    "AND m.run_id = (SELECT MAX(run_id) FROM theme_members t WHERE t.theme_id = m.theme_id "
+                    "AND t.market = 'KR' AND t.approved = 1)", "theme")):
+        try:
+            for r in turso_exec(sql):
+                if r.get("symbol") and t not in tags.setdefault(r["symbol"], []):
+                    tags[r["symbol"]].append(t)
+        except Exception:  # noqa: BLE001
+            pass
+    return kr_disclosures_week(rows, universe, tags)
 
 
 def get_sentiment_week() -> list[dict]:
@@ -639,6 +724,18 @@ def build_telegram_summary(b: dict) -> str:
         if ew["total"] > min(len(shown), EARNINGS_TG_MAX):
             lines.append(f"  외 {ew['total'] - min(len(shown), EARNINGS_TG_MAX)}개")
 
+    kd = b.get("kr_disclosures")
+    if kd and (kd["contract"]["count"] or kd["prelim"]["count"]):
+        lines.append("")
+        lines.append(f"<b>📝 한국 공시</b> 지난 7일 공급계약 {kd['contract']['count']} · 잠정실적 {kd['prelim']['count']}")
+        # 관심 표시 붙은 공시 먼저(공급계약 → 잠정실적), 남는 칸은 매출 대비 큰 공급계약
+        tagged = [x for k in ("contract", "prelim") for x in kd[k]["items"] if x["tags"]]
+        rest = [x for x in kd["contract"]["items"] if not x["tags"]]
+        for x in (tagged + rest)[:DISC_TG_MAX]:
+            tag = " · ".join(DISC_TAG_KO.get(t, t) for t in x["tags"])
+            lines.append(f"  {_md(x['date'])} {disp({'market': 'KR', 'symbol': x['symbol'], 'name': x['name']})} "
+                         f"{html.escape(x['summary'])}" + (f" · {tag}" if tag else ""))
+
     reviews = b.get("observation_reviews") or []
     if reviews:
         names = load_theme_names()
@@ -711,6 +808,7 @@ def main() -> None:
         "watchlist": get_watchlist_changes(),
         "turnaround": get_turnaround_changes(week),
         "earnings_week": get_earnings_week(week),
+        "kr_disclosures": get_kr_disclosures_week(),
         "sentiment_heating": get_sentiment_week(),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),

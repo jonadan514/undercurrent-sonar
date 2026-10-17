@@ -144,3 +144,33 @@ def test_earnings_week_telegram():
     ew2 = {**ew, "items": items[:10], "total": 10, "tagged_count": 0}
     assert "외 4개" in g.build_telegram_summary(_briefing(earnings_week=ew2))   # 표시 종목이 없으면 날짜 순 6개
     assert "실적 발표" not in g.build_telegram_summary(_briefing())
+
+
+def test_kr_notice_overrides_yfinance_date():
+    rows = [{"ticker": "128940", "market": "KR", "earnings_date": "2026-10-30", "earnings_date_end": "2026-11-03", "is_estimate": 1},
+            {"ticker": "MU", "market": "US", "earnings_date": "2026-10-21", "earnings_date_end": "2026-10-21", "is_estimate": 0}]
+    merged = g.merge_kr_notices(rows, [{"ticker": "128940", "announce_date": "2026-10-27"},
+                                       {"ticker": "263750", "announce_date": None}])
+    ew = g.earnings_week_items(merged, "2026-10-26", {}, {})
+    assert [(x["symbol"], x["date"], x["estimate"]) for x in ew["items"]] == [("128940", "2026-10-27", False)]
+
+
+def _disc(no, code, name, kind, payload, dt="2026-10-16"):
+    return {"rcept_no": no, "rcept_dt": dt, "stock_code": code, "corp_name": name, "kind": kind, "payload": payload}
+
+
+def test_kr_disclosures_week_scope_and_order():
+    rows = [_disc("1", "111111", "소형사", "contract", {"amount": 5e9, "pct_of_revenue": 80.0, "title": "장비"}),
+            _disc("2", "222222", "큰계약", "contract", {"amount": 9e10, "pct_of_revenue": 35.0, "title": "선박"}),
+            _disc("3", "333333", "작은계약", "contract", {"amount": 1e9, "pct_of_revenue": 5.0, "title": "부품"}),
+            _disc("4", "444444", "관심사", "contract", {"amount": 2e9, "pct_of_revenue": 3.0, "title": "용역"}),
+            _disc("5", "222222", "큰계약", "prelim", {"period_end": "2026-09-30", "revenue_yoy_pct": 25.8,
+                                                   "operating_income_yoy_pct": None, "operating_income_yoy_turn": "흑자전환"})]
+    kd = g.kr_disclosures_week(rows, {"222222", "333333"}, {"444444": ["my"]})
+    assert [x["symbol"] for x in kd["contract"]["items"]] == ["444444", "222222", "333333"]   # 유니버스 밖 소형사 제외
+    assert kd["prelim"]["items"][0]["summary"] == "잠정실적 26.3Q 전년동기 대비 매출 +26% · 영업익 흑자전환"
+    text = g.build_telegram_summary(_briefing(kr_disclosures=kd))
+    assert "한국 공시</b> 지난 7일 공급계약 3 · 잠정실적 1" in text
+    assert "관심사 공급계약 20억 (매출 대비 3.0%) · 용역 · 내 관심" in text
+    assert text.index("관심사") < text.index("큰계약")
+    assert "한국 공시" not in g.build_telegram_summary(_briefing())
