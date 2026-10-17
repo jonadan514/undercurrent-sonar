@@ -1,11 +1,18 @@
 name: Collect KR Disclosures
 
-# 한국 공시 알림 - 단일판매·공급계약, 영업(잠정)실적 (2026-10-17). DART_API_KEY는 Secrets.
+# 한국 공시 알림 - 공급계약·잠정실적·결산실적 공시예고 (2026-10-17). DART_API_KEY는 Secrets.
+# 매일 20:30 KST - 장 마감 후 공시가 대부분 올라온 뒤. 최근 3일을 다시 훑어 늦게 뜬 공시도 잡는다(이미 받은 건 건너뜀).
 on:
+  schedule:
+    - cron: "30 11 * * *"
   workflow_dispatch:
     inputs:
+      days:
+        description: "오늘부터 며칠 전까지 (처음 채우기는 30, 알림은 안 보냄)"
+        required: false
+        default: "3"
       probe:
-        description: "확인용: 'YYYYMMDD YYYYMMDD' 기간 공시 종류·원문 표 출력(저장 안 함)"
+        description: "확인용: 'YYYYMMDD YYYYMMDD' 기간 공시 종류·파싱 결과 출력(저장 안 함)"
         required: false
         default: ""
 
@@ -29,6 +36,26 @@ jobs:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
           TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONUNBUFFERED: "1"
           PROBE: ${{ inputs.probe }}
-        run: python scripts/collect_kr_disclosures.py ${PROBE:+--probe $PROBE}
+          DAYS: ${{ inputs.days || '3' }}
+          # 정기 실행만 알림 - 수동 채우기에서 지난 공시가 한꺼번에 알림으로 가지 않게
+          NOTIFY: ${{ github.event_name == 'schedule' && '--notify' || '' }}
+        run: |
+          if [ -n "$PROBE" ]; then
+            python scripts/collect_kr_disclosures.py --probe $PROBE
+          else
+            python scripts/collect_kr_disclosures.py --days "$DAYS" $NOTIFY
+          fi
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
