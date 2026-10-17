@@ -36,6 +36,7 @@ interface Briefing {
   kr_flows?: Record<string, FlowSum> | null;
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
                  added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
+  earnings_week?: { total: number; by_market: Record<string, number>; tagged_count: number; items: EarningsItem[] } | null;
 }
 // 코스피·코스닥 투자자별 순매수 최근 5거래일 합(원, 2026-10-17부터). 예전 브리핑엔 없다.
 interface FlowSum { foreign?: number; institution?: number; individual?: number; days: number; from: string; to: string }
@@ -56,6 +57,11 @@ function FlowRow({ label, f }: { label: string; f?: FlowSum | null }) {
     </div>
   );
 }
+// 이번 주 실적 발표 예정(2026-10-17부터, earnings_calendar - yfinance). 예상이면 date~date_end 범위.
+interface EarningsItem { market: string; symbol: string; name?: string | null; date: string; date_end: string; estimate: boolean; tags: string[] }
+const EARN_TAG: Record<string, string> = { my: "내 관심", note: "노트", turnaround: "실적 반전" };
+const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
+const mdw = (d: string) => { const [y, m, dd] = d.split("-").map(Number); return `${m}/${dd}(${WEEKDAY[new Date(y, m - 1, dd).getDay()]})`; };
 interface TurnaroundItem { market: string; symbol: string; name?: string | null; basis: "1년" | "분기"; yoy: number | null }
 interface MacroItem { value: number | null; chg_1w: number | null }
 
@@ -244,6 +250,39 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               )}
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
                 매출 3년은 정체·역성장인데 최근 1년(4개 분기 합, 없으면 최근 분기)은 성장 — 워치리스트 &quot;실적 반전&quot; 버튼과 같은 조건
+              </p>
+            </div>
+          )}
+
+          {/* 이번 주 실적 발표 - 워치리스트·내 관심·관찰 노트 종목 */}
+          {b.earnings_week && b.earnings_week.total > 0 && (
+            <div>
+              <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
+                이번 주 실적 발표 — {Object.entries(b.earnings_week.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}`).join(" · ")}
+              </p>
+              <div className="space-y-1.5">
+                {Array.from(new Set(b.earnings_week.items.map((x) => x.date))).map((d) => (
+                  <div key={d} className="flex items-start gap-2">
+                    <span className="text-[12px] font-bold text-white w-20 shrink-0 pt-1 whitespace-nowrap">{mdw(d)}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {b.earnings_week!.items.filter((x) => x.date === d)
+                        .sort((x, y) => Number(y.tags.length > 0) - Number(x.tags.length > 0))
+                        .map((x) => (
+                          <span key={`${x.market}:${x.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
+                            style={x.tags.length > 0
+                              ? { background: "#f59e0b14", border: "1px solid #f59e0b55" }
+                              : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                            <StockLabel s={x} />
+                            {x.tags.length > 0 && <span style={{ color: "#fbbf24" }}> {x.tags.map((t) => EARN_TAG[t] ?? t).join(" · ")}</span>}
+                            {x.estimate && <span style={{ color: "var(--text-muted)" }}> 예상{x.date_end !== x.date ? `~${mdw(x.date_end)}` : ""}</span>}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;) · 노란 칸이 내 관심·노트·실적 반전
               </p>
             </div>
           )}

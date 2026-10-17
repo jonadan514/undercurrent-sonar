@@ -9,6 +9,7 @@
   - 워치리스트 변동 (신규 진입/탈락 — watchlist_weekly_snapshots 비교)
   - 관심도 흐름 (한 주간 sentiment 상승 종목)
   - 다가오는 촉매 (내 워치리스트 종목의 네러티브 촉매 모음)
+  - 이번 주 실적 발표 (워치리스트·내 관심·관찰 노트 종목, earnings_calendar - 2026-10-17)
   - GPT 총평 · 다음 주 관전 포인트 (웹에만 - 텔레그램은 DB·시세 숫자만, 2026-10-05)
   - 테마 레이더 라벨 변동 (미국·한국)
 
@@ -286,6 +287,80 @@ def get_turnaround_changes(week: str) -> dict | None:
     return result
 
 
+EARNINGS_TG_MAX = 6
+EARNINGS_TAG_KO = {"my": "내 관심", "note": "노트", "turnaround": "실적 반전"}
+
+
+def earnings_week_items(rows: list[dict], week: str, tags: dict[str, list[str]], names: dict[str, str]) -> dict:
+    """이번 주(week 월요일~일요일)에 발표 예정인 종목. 예상 범위는 시작일이 이번 주에 들면 넣는다.
+    tags: {"KR:005930": ["my", ...]} - 표시 순서만 정할 뿐 점수가 아니다(원칙 1). 날짜·시장·종목코드 순."""
+    mon = datetime.strptime(week, "%Y-%m-%d").date()
+    sun = mon + timedelta(days=6)
+    items = []
+    for r in rows:
+        try:
+            d = datetime.strptime(str(r["earnings_date"])[:10], "%Y-%m-%d").date()
+        except (KeyError, ValueError):
+            continue
+        if not (mon <= d <= sun):
+            continue
+        key = f"{r['market']}:{r['ticker']}"
+        items.append({"market": r["market"], "symbol": r["ticker"], "name": names.get(key),
+                      "date": d.isoformat(), "date_end": str(r.get("earnings_date_end") or d.isoformat())[:10],
+                      "estimate": bool(r.get("is_estimate")), "tags": tags.get(key, [])})
+    items.sort(key=lambda x: (x["date"], x["market"], x["symbol"]))
+    by_market: dict[str, int] = {}
+    for x in items:
+        by_market[x["market"]] = by_market.get(x["market"], 0) + 1
+    return {"total": len(items), "by_market": by_market, "tagged_count": sum(1 for x in items if x["tags"]),
+            "items": items}
+
+
+def get_earnings_week(week: str) -> dict | None:
+    """이번 주 실적 발표 예정(2026-10-17) - earnings_calendar(scripts/collect_earnings_calendar.py)의 종목별 최근 수집 행.
+    2주 넘게 갱신 안 된 행은 쓰지 않는다. 표가 없거나 비면 None - 브리핑은 그 칸만 뺀다."""
+    try:
+        rows = turso_exec(
+            "SELECT e.ticker, e.market, e.earnings_date, e.earnings_date_end, e.is_estimate FROM earnings_calendar e "
+            "JOIN (SELECT ticker, market, MAX(fetched_on) AS f FROM earnings_calendar GROUP BY ticker, market) l "
+            "ON e.ticker = l.ticker AND e.market = l.market AND e.fetched_on = l.f "
+            "WHERE e.fetched_on >= date('now', '-14 days')")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("실적 발표일 조회 실패(표 없음?) - 건너뜀: %s", e)
+        return None
+    if not rows:
+        return None
+    tags: dict[str, list[str]] = {}
+    names: dict[str, str] = {}
+
+    def tag(key: str, t: str) -> None:
+        if t not in tags.setdefault(key, []):
+            tags[key].append(t)
+
+    for sql, kind in (("SELECT market, symbol, name FROM my_watchlist", "my"),
+                      ("SELECT DISTINCT market, ticker AS symbol, NULL AS name FROM observations "
+                       "WHERE kind = 'stock' AND ticker IS NOT NULL", "note")):
+        try:
+            for r in turso_exec(sql):
+                key = f"{r['market']}:{r['symbol']}"
+                tag(key, kind)
+                if r.get("name"):
+                    names[key] = r["name"]
+        except Exception:  # noqa: BLE001 - 표가 없으면 그 표시만 빠진다
+            pass
+    try:
+        cands = turso_exec("SELECT market, symbol, name, growth_tier, rev_ttm_tier, rev_q_tier FROM watchlist_candidates")
+    except Exception:  # noqa: BLE001 - 성장 열이 없으면 이름만
+        cands = turso_exec("SELECT market, symbol, name FROM watchlist_candidates")
+    for c in cands:
+        key = f"{c['market']}:{c['symbol']}"
+        if c.get("name"):
+            names.setdefault(key, c["name"])
+        if is_turnaround(c):
+            tag(key, "turnaround")
+    return earnings_week_items(rows, week, tags, names)
+
+
 def get_sentiment_week() -> list[dict]:
     """최근 7일 관심도 이력에서 상승 전환 종목."""
     rows = turso_exec(
@@ -551,6 +626,19 @@ def build_telegram_summary(b: dict) -> str:
         if not ta["has_prev"]:
             lines.append("  (새로 들어온 종목 비교는 다음 주부터)")
 
+    ew = b.get("earnings_week")
+    if ew and ew.get("total"):
+        counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ew["by_market"].items(), reverse=True))
+        lines.append("")
+        lines.append(f"<b>📅 이번 주 실적 발표</b> {counts}")
+        # 내 관심·관찰 노트·실적 반전 종목을 먼저 - 없으면 날짜 빠른 순
+        shown = [x for x in ew["items"] if x.get("tags")] or ew["items"]
+        for x in shown[:EARNINGS_TG_MAX]:
+            tag = " · ".join(EARNINGS_TAG_KO.get(t, t) for t in x.get("tags") or [])
+            lines.append(f"  {_md(x['date'])}{'(예상)' if x.get('estimate') else ''} {disp(x)}" + (f" · {tag}" if tag else ""))
+        if ew["total"] > min(len(shown), EARNINGS_TG_MAX):
+            lines.append(f"  외 {ew['total'] - min(len(shown), EARNINGS_TG_MAX)}개")
+
     reviews = b.get("observation_reviews") or []
     if reviews:
         names = load_theme_names()
@@ -622,6 +710,7 @@ def main() -> None:
         "kr_flows": get_kr_flows_week(),
         "watchlist": get_watchlist_changes(),
         "turnaround": get_turnaround_changes(week),
+        "earnings_week": get_earnings_week(week),
         "sentiment_heating": get_sentiment_week(),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),

@@ -116,3 +116,31 @@ def test_foreign_flow_next_to_kospi():
     text = g.build_telegram_summary(_briefing(kr_flows={"KOSPI": {"foreign": 1.2e12, "days": 5}}))
     assert "🇰🇷 KOSPI -0.5% (외국인 +1.2조)" in text
     assert "외국인" not in g.build_telegram_summary(_briefing())
+
+
+def test_earnings_week_window_and_tags():
+    rows = [{"ticker": "MU", "market": "US", "earnings_date": "2026-10-21", "earnings_date_end": "2026-10-21", "is_estimate": 0},
+            {"ticker": "005930", "market": "KR", "earnings_date": "2026-10-19", "earnings_date_end": "2026-10-23", "is_estimate": 1},
+            {"ticker": "AAPL", "market": "US", "earnings_date": "2026-10-26", "earnings_date_end": "2026-10-26", "is_estimate": 0},
+            {"ticker": "CNX", "market": "US", "earnings_date": "2026-10-18", "earnings_date_end": "2026-10-18", "is_estimate": 0}]
+    ew = g.earnings_week_items(rows, "2026-10-19", {"US:MU": ["my", "turnaround"]}, {"KR:005930": "삼성전자"})
+    assert [x["symbol"] for x in ew["items"]] == ["005930", "MU"]     # 다음 주(AAPL)·지난 일요일(CNX) 제외, 날짜순
+    assert ew["by_market"] == {"KR": 1, "US": 1} and ew["tagged_count"] == 1
+    assert ew["items"][0]["estimate"] and ew["items"][0]["name"] == "삼성전자"
+
+
+def test_earnings_week_telegram():
+    items = [{"market": "US", "symbol": f"T{i}", "name": None, "date": "2026-10-20", "date_end": "2026-10-20",
+              "estimate": False, "tags": []} for i in range(10)]
+    items.append({"market": "US", "symbol": "MU", "name": None, "date": "2026-10-21", "date_end": "2026-10-21",
+                  "estimate": False, "tags": ["my", "turnaround"]})
+    items.append({"market": "KR", "symbol": "005930", "name": "삼성전자", "date": "2026-10-22", "date_end": "2026-10-24",
+                  "estimate": True, "tags": ["note"]})
+    ew = {"total": 12, "by_market": {"US": 11, "KR": 1}, "tagged_count": 2, "items": items}
+    text = g.build_telegram_summary(_briefing(earnings_week=ew))
+    assert "이번 주 실적 발표</b> 🇺🇸 11 · 🇰🇷 1" in text
+    assert "10/21 🇺🇸 MU · 내 관심 · 실적 반전" in text and "10/22(예상) 🇰🇷 삼성전자 · 노트" in text
+    assert "T0" not in text and "외 10개" in text                     # 표시 종목만 먼저, 나머지는 건수
+    ew2 = {**ew, "items": items[:10], "total": 10, "tagged_count": 0}
+    assert "외 4개" in g.build_telegram_summary(_briefing(earnings_week=ew2))   # 표시 종목이 없으면 날짜 순 6개
+    assert "실적 발표" not in g.build_telegram_summary(_briefing())
