@@ -207,6 +207,10 @@ def main() -> int:
             _log(f"  진행 {n}/{len(tickers)} {stats}")
 
     _log(f"완료 {stats} (lt5=최근 5분기 미만, unchanged=받았지만 바뀐 분기 없음) / 저장 {saved_rows}행")
+    if len(tickers) >= 20 and stats["ok"] == 0:
+        # 전부 실패인데 성공으로 끝나면 아무도 모른다(2026-10-17, DART 정기 수집에서 실제로 있었다)
+        _log(f"{len(tickers)}종목 시도, 성공 0 - 실패로 끝낸다")
+        return 1
 
     if args.tickers:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

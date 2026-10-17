@@ -136,7 +136,7 @@ def fetch_quarterly_financials(yf_symbol: str, retries: int = 2):
                 return None, "no_data"
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--market", choices=["US", "KR"], default=None,
                          help="비우면 US+KR 둘 다")
@@ -185,7 +185,14 @@ def main() -> None:
 
     conn.close()
     _log(f"전체 완료 - {overall}")
+    # 20종목 넘게 시도했는데 하나도 못 받았으면 출처(야후) 쪽 문제 - 성공으로 끝나면 아무도 모른다(2026-10-17).
+    # 몇 종목만 남은 주(실적 시즌 밖, 늘 비는 신형 코드 6개 등)는 0건이어도 정상이라 문턱을 둔다.
+    attempted = sum(overall.values())
+    if attempted >= 20 and overall["ok"] == 0:
+        _log(f"{attempted}종목 시도, 성공 0 - 실패로 끝낸다")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
