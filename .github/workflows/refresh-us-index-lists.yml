@@ -11,6 +11,10 @@ on:
         description: "true면 비교만 하고 저장하지 않는다"
         required: false
         default: "false"
+      allow_large:
+        description: "true면 한 번 변경 수 상한을 무시(정기 재조정 주 - dry_run으로 목록 확인 후)"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -31,7 +35,10 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONUNBUFFERED: "1"
-        run: python scripts/refresh_us_index_lists.py ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+        run: >
+          python scripts/refresh_us_index_lists.py
+          ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+          ${{ inputs.allow_large == 'true' && '--allow-large' || '' }}
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"

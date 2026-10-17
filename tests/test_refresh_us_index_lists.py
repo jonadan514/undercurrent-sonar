@@ -21,3 +21,9 @@ def test_guards_block_broken_or_vandalized_lists():
     assert "중복" in m.check("sp400", [f"T{i}" for i in range(399)] + ["T1"], [], [])
     big = [f"N{i}" for i in range(20)]
     assert "허용" in m.check("sp500", [f"T{i}" for i in range(500)], big, big)
+
+
+def test_allow_large_only_skips_change_cap():
+    big = [f"N{i}" for i in range(20)]
+    assert m.check("sp500", [f"T{i}" for i in range(500)], big, big, allow_large=True) is None
+    assert "정상 범위" in m.check("sp500", [f"T{i}" for i in range(100)], [], [], allow_large=True)

@@ -41,14 +41,14 @@ def diff_lists(old: list[str], new: list[str]) -> tuple[list[str], list[str]]:
     return sorted(n - o), sorted(o - n)
 
 
-def check(name: str, new: list[str], added: list[str], removed: list[str]) -> str | None:
+def check(name: str, new: list[str], added: list[str], removed: list[str], allow_large: bool = False) -> str | None:
     """이상하면 이유, 정상이면 None."""
     _, (lo, hi), max_change = LISTS[name]
     if not lo <= len(new) <= hi:
         return f"{name} 종목 수 {len(new)}개 - 정상 범위 {lo}-{hi} 밖(위키백과 표 구조 변경 의심)"
     if len(set(new)) != len(new):
         return f"{name} 중복 티커가 있다"
-    if len(added) + len(removed) > max_change:
+    if not allow_large and len(added) + len(removed) > max_change:
         return f"{name} 한 번에 {len(added) + len(removed)}개 변경 - 허용 {max_change}개 초과(문서 훼손 의심)"
     return None
 
@@ -78,6 +78,9 @@ def _telegram(text: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--allow-large", action="store_true",
+                    help="변경 수 상한만 무시한다(정기 재조정으로 실제로 많이 바뀐 주 - 로그로 목록을 확인한 뒤 수동 실행). "
+                         "종목 수 범위·중복 검사는 그대로")
     args = ap.parse_args()
 
     fetched, changes, problems = {}, {}, []
@@ -88,7 +91,7 @@ def main() -> int:
         names = {**dict(zip(old_df["Symbol"].astype(str), old_df["Security"])),
                  **dict(zip(new_df["Symbol"].astype(str), new_df["Security"]))}
         _log(f"{name}: {len(old_df)} -> {len(new_df)}종목, 편입 {len(added)} {added}, 제외 {len(removed)} {removed}")
-        problem = check(name, new_df["Symbol"].astype(str).tolist(), added, removed)
+        problem = check(name, new_df["Symbol"].astype(str).tolist(), added, removed, args.allow_large)
         if problem:
             problems.append(problem)
         fetched[name], changes[name] = new_df, (added, removed, names)
