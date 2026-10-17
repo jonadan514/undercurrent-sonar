@@ -1,0 +1,46 @@
+name: Collect Earnings Calendar
+
+# 워치리스트·내 관심·관찰 노트 종목의 다음 실적 발표일(yfinance, 2026-10-17).
+# 주간 브리핑 "이번 주 실적 발표"용 - 일요일 22:00 UTC 브리핑 직전에 돈다.
+on:
+  schedule:
+    - cron: "0 20 * * 0"   # 일요일 20:00 UTC (월요일 05:00 KST)
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "몇 종목만 확인(공백 구분, 저장 안 함). 비우면 전체 수집"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          TICKERS: ${{ inputs.tickers }}
+        run: python scripts/collect_earnings_calendar.py ${TICKERS:+--tickers $TICKERS}
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
