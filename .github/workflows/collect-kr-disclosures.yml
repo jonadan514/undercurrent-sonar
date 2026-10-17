@@ -15,6 +15,10 @@ on:
         description: "확인용: 'YYYYMMDD YYYYMMDD' 기간 공시 종류·파싱 결과 출력(저장 안 함)"
         required: false
         default: ""
+      names:
+        description: "probe와 함께: 원문 표를 볼 회사 이름(공백 구분)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -40,12 +44,13 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONUNBUFFERED: "1"
           PROBE: ${{ inputs.probe }}
+          NAMES: ${{ inputs.names }}
           DAYS: ${{ inputs.days || '3' }}
           # 정기 실행만 알림 - 수동 채우기에서 지난 공시가 한꺼번에 알림으로 가지 않게
           NOTIFY: ${{ github.event_name == 'schedule' && '--notify' || '' }}
         run: |
           if [ -n "$PROBE" ]; then
-            python scripts/collect_kr_disclosures.py --probe $PROBE
+            python scripts/collect_kr_disclosures.py --probe $PROBE ${NAMES:+--names $NAMES}
           else
             python scripts/collect_kr_disclosures.py --days "$DAYS" $NOTIFY
           fi

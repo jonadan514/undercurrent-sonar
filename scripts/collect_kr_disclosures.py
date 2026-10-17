@@ -53,8 +53,15 @@ def _log(msg: str) -> None:
     print(f"[kr-disc] {msg}", flush=True)
 
 
-def probe(bgn: str, end: str) -> int:
+def probe(bgn: str, end: str, names: list[str] | None = None) -> int:
     items = dart.list_disclosures(bgn, end)
+    if names:   # 이 회사들의 대상 공시 원문 표를 그대로 출력(양식 확인용)
+        for i in items:
+            if i.get("corp_name") in names and classify(i["report_nm"]):
+                print(f"\n===== {i['corp_name']} {i['report_nm'].strip()} {i['rcept_no']}")
+                for r in dart.document_rows(i["rcept_no"])[:40]:
+                    print("  " + r[:200])
+        return 0
     print(f"공시 {len(items)}건")
     for n, c in Counter(i["report_nm"].strip() for i in items).most_common(40):
         print(f"  {c:4d} {n}")
@@ -136,9 +143,10 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=3, help="오늘(KST)부터 며칠 전까지 (DART 전체 검색은 3개월까지)")
     ap.add_argument("--notify", action="store_true")
     ap.add_argument("--probe", nargs=2, metavar=("BGN", "END"))
+    ap.add_argument("--names", nargs="*", default=None, help="--probe와 함께: 이 회사들 원문 표 출력")
     args = ap.parse_args()
     if args.probe:
-        return probe(*args.probe)
+        return probe(*args.probe, names=args.names)
 
     today = datetime.now(KST).date()
     bgn = (today - timedelta(days=args.days)).strftime("%Y%m%d")
