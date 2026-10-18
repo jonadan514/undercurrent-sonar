@@ -10,6 +10,10 @@ on:
         description: "국고채 금리 조회 기간(달력일). 비우면 21 - 개요 1년 그래프를 처음 채울 때 370"
         required: false
         default: ""
+      kr_skip_days:
+        description: "국고채 - 최근 며칠(달력일)은 건너뛴다. 이미 채운 구간을 빼고 옛 구간만 채울 때"
+        required: false
+        default: ""
 
 jobs:
   compute:
@@ -33,13 +37,17 @@ jobs:
         continue-on-error: true
         env:
           KR_LOOKBACK: ${{ inputs.kr_lookback_days }}
+          KR_SKIP: ${{ inputs.kr_skip_days }}
           KRX_ID: ${{ secrets.KRX_ID }}
           KRX_PW: ${{ secrets.KRX_PW }}
           PYTHONUNBUFFERED: "1"
         run: |
           python -m venv /tmp/krxenv
           /tmp/krxenv/bin/pip install --quiet "pandas<3.0" "pykrx==1.2.8"
-          /tmp/krxenv/bin/python scripts/fetch_kr_treasury_pykrx.py --out data/kr_treasury.json --lookback-days "${KR_LOOKBACK:-21}"
+          # 긴 채우기(수동)는 조회 사이 1초 쉰다 - 10/17에 연속 조회로 KRX가 막혔다
+          SLEEP=0; [ "${KR_LOOKBACK:-21}" -gt 60 ] && SLEEP=1
+          /tmp/krxenv/bin/python scripts/fetch_kr_treasury_pykrx.py --out data/kr_treasury.json \
+            --lookback-days "${KR_LOOKBACK:-21}" --skip-days "${KR_SKIP:-0}" --sleep "$SLEEP"
       # 코스피·코스닥 투자자별 순매수(2026-10-17, 주간 브리핑 수급) - 같은 격리 환경을 그대로 쓴다.
       - name: Fetch KR investor flows (isolated pykrx)
         continue-on-error: true

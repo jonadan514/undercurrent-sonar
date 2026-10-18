@@ -25,12 +25,16 @@ def _norm(name: str) -> str:
     return str(name).replace(" ", "")
 
 
-def fetch(lookback_days: int = LOOKBACK_DAYS) -> dict:
+MAX_CONSECUTIVE_FAILS = 10   # 연속 실패면 KRX가 막은 것 - 더 두드리지 않고 멈춘다(2026-10-17: 1년 채우기 중 차단)
+
+
+def fetch(lookback_days: int = LOOKBACK_DAYS, skip_days: int = 0, sleep_sec: float = 0.0) -> dict:
+    import time
     from pykrx import bond
     out: dict[str, list[dict]] = {k: [] for k in TENORS}
     end = datetime.utcnow() + timedelta(hours=9)          # KST
-    day = end
-    seen = 0
+    day = end - timedelta(days=skip_days)                 # 이미 채운 최근 구간은 건너뛴다(빈 구간만 채우기)
+    seen = fails = 0
     # 날짜별 스냅샷(그날의 전 만기 수익률)으로 받는다 - 기간 조회 형식은 버전마다 인자가 달라서.
     while (end - day).days <= lookback_days:
         if day.weekday() < 5:
@@ -40,7 +44,15 @@ def fetch(lookback_days: int = LOOKBACK_DAYS) -> dict:
             except Exception as e:  # noqa: BLE001
                 _log(f"{ymd} 조회 실패 {type(e).__name__}: {str(e)[:120]}")
                 df = None
-            if df is not None and not df.empty:
+            if sleep_sec:
+                time.sleep(sleep_sec)
+            if df is None or df.empty:
+                fails += 1
+                if fails >= MAX_CONSECUTIVE_FAILS:
+                    _log(f"{MAX_CONSECUTIVE_FAILS}일 연속 실패 - KRX 차단으로 보고 멈춘다({ymd}까지 조회)")
+                    break
+            else:
+                fails = 0
                 col = "수익률" if "수익률" in df.columns else df.columns[0]
                 idx = {_norm(i): i for i in df.index}
                 for key, name in TENORS.items():
@@ -80,8 +92,10 @@ def main() -> int:
     ap.add_argument("--out", default="data/kr_treasury.json")
     # 개요 1년 그래프용 처음 채우기(2026-10-17) - 하루씩 조회라 1년이면 수 분 걸린다
     ap.add_argument("--lookback-days", type=int, default=LOOKBACK_DAYS)
+    ap.add_argument("--skip-days", type=int, default=0, help="최근 며칠(달력일)은 건너뛴다 - 빈 옛 구간만 채울 때")
+    ap.add_argument("--sleep", type=float, default=0.0, help="조회 사이 쉬는 초 - 긴 채우기에서 차단 피하기")
     args = ap.parse_args()
-    data = fetch(args.lookback_days)
+    data = fetch(args.lookback_days, args.skip_days, args.sleep)
     if not any(data.values()):
         _log("받은 값이 없음 - 파일을 쓰지 않는다")
         return 1
