@@ -62,6 +62,7 @@ from src.analyzers.company_growth import (quarterly_margin_change, quarterly_rev
                                            revenue_cagr, revenue_yoy)
 from src.analyzers.company_valuation import per as calc_per, psr as calc_psr, theme_valuation_tiers
 from src.analyzers.company_cashflow import fcf_yield
+from src.analyzers.trap_filter import FINANCIAL_SECTORS
 from src.db.data_store import get_db
 from src.db.fundamentals_cache import get_cached_financials_bulk
 from src.db.quarterly_financials import select_quarters_bulk
@@ -112,11 +113,11 @@ def ensure_columns(conn) -> None:
 
 def load_candidates(conn, market: str) -> list[dict]:
     rows = conn.execute(
-        "SELECT symbol, market_cap FROM watchlist_candidates WHERE market = ?", (market,)
+        "SELECT symbol, market_cap, sector FROM watchlist_candidates WHERE market = ?", (market,)
     ).fetchall()
     # Turso는 REAL도 문자열로 돌려준다 - 문자열을 시가총액으로 나누면 죽는다.
     return [
-        {"symbol": r[0], "market_cap": float(r[1]) if r[1] is not None else None}
+        {"symbol": r[0], "market_cap": float(r[1]) if r[1] is not None else None, "sector": r[2] or ""}
         for r in rows
     ]
 
@@ -197,8 +198,13 @@ def run(conn, markets: list[str]) -> None:
             om_by_ticker[sym] = (quarterly_margin_change(cached.get("financials_quarterly")) if cached else None) or {}
             rq_by_ticker[sym] = (quarterly_revenue_yoy(cached.get("financials_quarterly")) if cached else None) or {}
             # 현금흐름표도 손익과 같은 모양(컬럼=회계기간)이라 같은 변환을 쓴다.
-            fcf_by_ticker[sym] = fcf_yield(income_periods(cached.get("cashflow")) if cached else [],
-                                           c["market_cap"])
+            # 금융업은 계산하지 않는다 - 예금·보험료 흐름이 영업현금흐름에 섞여 FCF가 사업의
+            # 현금 창출을 뜻하지 않는다(실측: 현대해상 62%, Synchrony 37%가 상위를 차지).
+            # trap_filter가 부채비율에서 금융업을 빼는 것과 같은 기준.
+            is_financial = any(s in c["sector"] for s in FINANCIAL_SECTORS)
+            fcf_by_ticker[sym] = fcf_yield(
+                income_periods(cached.get("cashflow")) if cached and not is_financial else [],
+                c["market_cap"])
 
         # 밸류: 같은 시장 후보 전체 안에서 3등분(위 모듈 설명 참고 - 분기 화면은 테마 안에서 나눈다).
         tiers = theme_valuation_tiers(psr_by_ticker)

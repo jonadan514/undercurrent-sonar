@@ -29,7 +29,7 @@ from src.db.quarterly_financials import ensure_schema as ensure_raw_schema, inse
 # 컬럼이 훨씬 많지만 여기서 쓰는 건 market/symbol/market_cap뿐이다).
 CANDIDATES_DDL = """CREATE TABLE watchlist_candidates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  market TEXT NOT NULL, symbol TEXT NOT NULL, name TEXT, market_cap REAL
+  market TEXT NOT NULL, symbol TEXT NOT NULL, name TEXT, market_cap REAL, sector TEXT
 )"""
 
 # 최근 4분기: 2026Q3, Q2, Q1, 2025Q4
@@ -112,7 +112,7 @@ def test_market_cap_as_string_does_not_crash(db):
     _seed(db, "AAA", "KR", 4000, revenue_per_q=100.0)   # INTEGER로 들어가 문자열로 돌아온다
 
     loaded = load_candidates(db, "KR")
-    assert loaded == [{"symbol": "AAA", "market_cap": 4000.0}]
+    assert loaded == [{"symbol": "AAA", "market_cap": 4000.0, "sector": ""}]
 
     run(db, ["KR"])
     assert _read(db)["AAA"][0] == pytest.approx(10.0)
@@ -290,3 +290,16 @@ def test_no_cashflow_leaves_fcf_null(db):
     _seed(db, "AAA", "KR", 1000.0, revenue_per_q=100.0)
     run(db, ["KR"])
     assert _read_fcf(db)["AAA"] == (None, None, None, None)
+
+
+def test_financial_sector_gets_no_fcf(db):
+    """금융업은 예금·보험료가 영업현금흐름에 섞여 FCF가 의미 없다 - 계산하지 않는다."""
+    _seed(db, "INS", "KR", 1000.0, revenue_per_q=100.0)
+    db.execute("UPDATE watchlist_candidates SET sector = 'Financial Services' WHERE symbol = 'INS'")
+    _seed_annual_cashflow(db, "INS", "KR", {
+        "2025-12-31": {"Free Cash Flow": 600.0},
+        "2024-12-31": {"Free Cash Flow": 600.0},
+        "2023-12-31": {"Free Cash Flow": 600.0},
+    })
+    run(db, ["KR"])
+    assert _read_fcf(db)["INS"] == (None, None, None, None)

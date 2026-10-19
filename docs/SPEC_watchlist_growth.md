@@ -271,3 +271,6 @@ def growth_tier(cagr: float | None) -> str | None
   만든다. 음수만 주의 색.
 - 코드: `src/analyzers/company_cashflow.py`(순수 함수), `scripts/compute_watchlist_valuation.py`(LATE_COLUMNS 4개),
   API는 가장 바깥 계층 `FCF_COLS`. 테스트: `test_company_cashflow.py` 9개 + 배관 2개.
+- 금융업 제외(같은 날 실측 후 추가): 첫 계산에서 상위가 현대해상 62%, Synchrony 37%, RenaissanceRe 21%였다.
+  은행·보험사는 예금·보험료 흐름이 영업현금흐름에 섞여 FCF가 사업의 현금 창출을 뜻하지 않는다.
+  trap_filter.FINANCIAL_SECTORS(부채비율 제외와 같은 목록)에 걸리면 계산하지 않고 화면에 "해당 없음 (금융업)".

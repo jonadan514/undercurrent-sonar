@@ -69,6 +69,10 @@ interface Candidate {
 // "테마 흐름과 겹침"의 기준: 펀더멘털이 먼저 움직인 테마. 레이더 Quiet 단계 라벨이거나
 // 분기 분류가 "조용한 변화". Buzz·Full은 이미 알려졌거나 기대만 앞선 구간이라 넣지 않는다.
 const FLOW_LABELS = new Set(["Quiet Strength", "Quiet Recovery"]);
+// 금융업 판정 - src/analyzers/trap_filter.py FINANCIAL_SECTORS와 같은 목록(FCF 수익률을 계산하지 않는 업종)
+const FINANCIAL_SECTORS = ["Financial Services", "Banking", "Insurance", "금융", "은행", "보험"];
+const isFinancialSector = (sector: string | null | undefined) =>
+  FINANCIAL_SECTORS.some((s) => (sector ?? "").includes(s));
 // 시장 인식 소속 표시색 - 테마 레이더의 LINKAGE_STYLE.perceived와 같은 색
 const PERCEIVED_FG = "#d4a95a";
 type ThemeRef = { label: string | null; quarterly: string | null; earn_arrow?: string | null; price_arrow?: string | null };
@@ -771,10 +775,12 @@ function DetailModal({ c, inList, note, onAdd, onSaveNote, onClose }: {
                   )}
                 </p>
               ) : (
-                <p className="text-[13px]" style={{ color: TEXT_MUTED }}>데이터 부족</p>
+                <p className="text-[13px]" style={{ color: TEXT_MUTED }}>{isFinancialSector(c.sector) ? "해당 없음 (금융업)" : "데이터 부족"}</p>
               )}
               <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY }}>
-                {c.fcf_yield_3y != null
+                {isFinancialSector(c.sector) && c.fcf_yield_3y == null && c.fcf_yield_latest == null
+                  ? "은행·보험사는 예금·보험료 흐름이 영업현금흐름에 섞여 FCF가 사업의 현금 창출을 뜻하지 않아 계산하지 않습니다."
+                  : c.fcf_yield_3y != null
                   ? "잉여현금흐름(영업현금흐름 - 설비투자)을 지금 시가총액으로 나눈 값. 설비투자로 해마다 출렁여서 최근 3개 회계연도 평균을 함께 봅니다. 업종마다 정상 범위가 달라 등급은 매기지 않습니다."
                   : c.fcf_yield_latest != null
                     ? "연속 3개 회계연도 현금흐름이 없어 3년 평균은 계산하지 않았습니다."
