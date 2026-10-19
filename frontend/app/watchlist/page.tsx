@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { X, Info, Pencil, Search } from "lucide-react";
 import StockTechPanel from "@/src/components/StockTechPanel";
 import { themeName } from "@/src/lib/themeNames";
@@ -303,6 +303,45 @@ function ValuationBadge({ tier }: { tier?: string | null }) {
 const fmtPsr = (v?: number | null) => (v == null ? "-" : v >= 100 ? v.toFixed(0) : v.toFixed(2));
 const fmtPer = (v?: number | null) => (v == null ? "-" : v >= 100 ? v.toFixed(0) : v.toFixed(1));
 
+// ── 같은 업종 후보 중앙값 (2026-10-19) ───────────────────────────────────────
+// 밸류 등급은 같은 시장 후보 전체 안의 위치라서, 은행처럼 업종 자체가 싼 곳은 늘 "싼 편"이 된다.
+// 같은 시장·같은 업종 후보의 중앙값을 옆에 두어 그걸 가려 보게 한다. 순위·판정은 만들지 않는다
+// (원칙 1) - 숫자만 나란히. 값이 있는 후보가 PEER_MIN곳 미만이면 중앙값을 내지 않는다.
+const PEER_MIN = 5;
+type PeerStats = {
+  sector: string;
+  psr: number | null; nPsr: number;
+  per: number | null; nPer: number;
+  fcf: number | null; nFcf: number;
+};
+function median(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+const peerKey = (c: { market: string; sector: string | null }) => `${c.market}|${c.sector ?? ""}`;
+function buildPeerStats(cands: Candidate[]): Record<string, PeerStats> {
+  const groups: Record<string, Candidate[]> = {};
+  for (const c of cands) {
+    if (!c.sector || c.sector === "Unknown") continue;   // 업종을 모르면 비교하지 않는다
+    (groups[peerKey(c)] ??= []).push(c);
+  }
+  const out: Record<string, PeerStats> = {};
+  for (const [key, list] of Object.entries(groups)) {
+    const psr = list.map((c) => c.psr).filter((v): v is number => v != null);
+    const per = list.map((c) => c.per).filter((v): v is number => v != null);   // 적자 기업은 PER이 없다
+    const fcf = list.map((c) => c.fcf_yield_3y).filter((v): v is number => v != null);
+    out[key] = {
+      sector: list[0].sector as string,
+      psr: psr.length >= PEER_MIN ? median(psr) : null, nPsr: psr.length,
+      per: per.length >= PEER_MIN ? median(per) : null, nPer: per.length,
+      fcf: fcf.length >= PEER_MIN ? median(fcf) : null, nFcf: fcf.length,
+    };
+  }
+  return out;
+}
+
 function ValuationNumbers({ psr, per }: { psr?: number | null; per?: number | null }) {
   return (
     <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
@@ -555,8 +594,8 @@ function ChecklistSection({ c }: { c: Candidate }) {
 }
 
 // ── 종목 상세 팝업 ────────────────────────────────────────────────────────────
-function DetailModal({ c, inList, note, onAdd, onSaveNote, onClose }: {
-  c: Candidate; inList: boolean; note: string | null;
+function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
+  c: Candidate; peer?: PeerStats; inList: boolean; note: string | null;
   onAdd: () => void; onSaveNote: (note: string) => void; onClose: () => void;
 }) {
   const [editingNote, setEditingNote] = useState(false);
@@ -753,6 +792,22 @@ function DetailModal({ c, inList, note, onAdd, onSaveNote, onClose }: {
                     : "최근 4분기 재무나 시가총액이 없어 계산할 수 없습니다."}
                 {c.psr != null && c.per == null && " 순이익 합이 0 이하여서 PER은 표시하지 않습니다."}
               </p>
+              {peer && (
+                <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>
+                  {peer.psr != null || peer.per != null ? (
+                    <>
+                      같은 업종({peer.sector}) 후보 중앙값: PSR {fmtPsr(peer.psr)}
+                      <span style={{ color: TEXT_MUTED }}> ({peer.nPsr}곳)</span>
+                      <span style={{ color: TEXT_MUTED }}> · </span>
+                      PER {fmtPer(peer.per)}
+                      <span style={{ color: TEXT_MUTED }}> ({peer.nPer}곳)</span>
+                      <span style={{ color: TEXT_MUTED }}> - 업종 전체가 아니라 필터 통과 후보 중</span>
+                    </>
+                  ) : (
+                    <span style={{ color: TEXT_MUTED }}>같은 업종({peer.sector}) 후보가 {PEER_MIN}곳 미만이라 업종 비교를 하지 않습니다.</span>
+                  )}
+                </p>
+              )}
             </div>
 
             {/* 현금 창출 — FCF 수익률. 등급·색 판정을 하지 않는다(업종마다 정상 범위가 너무 달라
@@ -772,6 +827,9 @@ function DetailModal({ c, inList, note, onAdd, onSaveNote, onClose }: {
                   </span>
                   {c.fcf_negative_years != null && c.fcf_negative_years > 0 && (
                     <span style={{ color: CAUTION }}> · 3년 중 {c.fcf_negative_years}년 마이너스</span>
+                  )}
+                  {peer?.fcf != null && (
+                    <span style={{ color: TEXT_MUTED }}> · 같은 업종 후보 중앙값 {(peer.fcf * 100).toFixed(1)}% ({peer.nFcf}곳)</span>
                   )}
                 </p>
               ) : (
@@ -1120,6 +1178,9 @@ export default function WatchlistPage() {
   const presetCounts = Object.fromEntries(PRESETS.map((p) => [p.key, inMarket.filter(p.test).length])) as Record<PresetKey, number>;
   const activePreset = PRESETS.find((p) => p.key === preset) ?? null;
 
+  // 업종 중앙값은 필터를 건 목록이 아니라 시장 전체 후보로 낸다 - 필터에 따라 기준이 바뀌면 안 된다.
+  const peerStats = useMemo(() => buildPeerStats(candidates), [candidates]);
+
   const filtered = candidates.filter((c) => {
     if (marketFilter !== "ALL" && c.market !== marketFilter) return false;
     if (themeOnly && !inTheme(c)) return false;
@@ -1201,6 +1262,7 @@ export default function WatchlistPage() {
       {selected && (
         <DetailModal
           c={selected}
+          peer={peerStats[peerKey(selected)]}
           inList={addedSymbols.has(`${selected.market}:${selected.symbol}`)}
           note={myList.find((w) => w.market === selected.market && w.symbol === selected.symbol)?.note ?? null}
           onAdd={() => addToWatchlist(selected)}
