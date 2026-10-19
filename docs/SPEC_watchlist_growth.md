@@ -257,3 +257,17 @@ def growth_tier(cagr: float | None) -> str | None
   계산되는 것을 "유니버스 전체 기준"으로 바꾸자는 제안인데, 표시 문구가 이미
   "같은 시장 후보 중"이라고 정확히 밝히고 있어 거짓은 아니다. 가치는 있지만
   별개 판단이라 섞지 않는다.
+
+## 부록. FCF 수익률 추가 (2026-10-19)
+
+3장에서 미룬 FCF Yield를 3장의 조건대로 넣었다 - **표가 아니라 상세 카드에, 등급 없이.**
+
+- 대표값: 최근 3개 회계연도 FCF 평균 / 현재 시가총액(`fcf_yield_3y`). 3개 연도가 연속(간격 정확히 2년)이
+  아니면 None. 3장 이유 2(해마다 출렁임)에 대한 답이 3년 평균이다.
+- 함께 보여주는 것: 최근 1개 연도 값(`fcf_yield_latest`, `fcf_latest_year`), 3년 중 음수인 해 수
+  (`fcf_negative_years`) - 평균이 양수여도 설비투자 한 해가 섞였는지 보이게.
+- FCF 계정: `Free Cash Flow` 직접 항목, 없으면 영업현금흐름 - |자본지출|. 둘 중 하나라도 없으면 그 해는 없음.
+- 등급·필터·색 판정 없음: 업종마다 정상 범위가 너무 달라(소프트웨어 vs 조선) 기준선 하나가 거짓 라벨을
+  만든다. 음수만 주의 색.
+- 코드: `src/analyzers/company_cashflow.py`(순수 함수), `scripts/compute_watchlist_valuation.py`(LATE_COLUMNS 4개),
+  API는 가장 바깥 계층 `FCF_COLS`. 테스트: `test_company_cashflow.py` 9개 + 배관 2개.

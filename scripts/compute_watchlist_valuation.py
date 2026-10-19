@@ -61,6 +61,7 @@ from src.analyzers.company_growth import (quarterly_margin_change, quarterly_rev
                                            operating_margin_direction,
                                            revenue_cagr, revenue_yoy)
 from src.analyzers.company_valuation import per as calc_per, psr as calc_psr, theme_valuation_tiers
+from src.analyzers.company_cashflow import fcf_yield
 from src.db.data_store import get_db
 from src.db.fundamentals_cache import get_cached_financials_bulk
 from src.db.quarterly_financials import select_quarters_bulk
@@ -79,6 +80,9 @@ LATE_COLUMNS = [
     ("rev_q_yoy", "REAL"), ("rev_q_tier", "TEXT"), ("rev_q_quarter", "TEXT"),
     # 최근 4개 분기 합 대 직전 4개 분기 합(TTM, 2026-10-09) - quarterly_financials_raw 연속 8분기가 있을 때만
     ("rev_ttm_yoy", "REAL"), ("rev_ttm_tier", "TEXT"), ("rev_ttm_quarter", "TEXT"),
+    # FCF 수익률(2026-10-19) - 3년 평균 FCF / 시가총액, 상세 카드 전용(등급 없음, company_cashflow.py)
+    ("fcf_yield_3y", "REAL"), ("fcf_yield_latest", "REAL"), ("fcf_negative_years", "INTEGER"),
+    ("fcf_latest_year", "TEXT"),
 ]
 
 UPDATE_SQL = (
@@ -86,7 +90,8 @@ UPDATE_SQL = (
     "revenue_cagr_3y = ?, revenue_yoy = ?, op_margin_direction = ?, growth_tier = ?, "
     "op_margin_q_now = ?, op_margin_q_change = ?, op_margin_q_status = ?, "
     "rev_q_yoy = ?, rev_q_tier = ?, rev_q_quarter = ?, "
-    "rev_ttm_yoy = ?, rev_ttm_tier = ?, rev_ttm_quarter = ? "
+    "rev_ttm_yoy = ?, rev_ttm_tier = ?, rev_ttm_quarter = ?, "
+    "fcf_yield_3y = ?, fcf_yield_latest = ?, fcf_negative_years = ?, fcf_latest_year = ? "
     "WHERE market = ? AND symbol = ?"
 )
 BATCH = 50   # push_to_turso()와 같은 크기
@@ -137,7 +142,8 @@ def income_periods(financials_df) -> list[tuple[str, dict]]:
 
 def write_updates(conn, market: str, updates: list[tuple]) -> None:
     """updates: (psr, per, tier, cagr_3y, yoy, op_dir, growth_tier, om_now, om_change, om_status,
-    rq_yoy, rq_tier, rq_quarter, ttm_yoy, ttm_tier, ttm_quarter, symbol) 목록.
+    rq_yoy, rq_tier, rq_quarter, ttm_yoy, ttm_tier, ttm_quarter,
+    fcf_yield_3y, fcf_yield_latest, fcf_negative_years, fcf_latest_year, symbol) 목록.
 
     후보가 시장당 100종목이 넘어서 _TursoConn.execute()로 한 줄씩 보내면 UPDATE 하나마다
     HTTP 왕복이 생긴다 - push_to_turso()와 같이 pipeline 배치로 묶는다.
@@ -175,6 +181,7 @@ def run(conn, markets: list[str]) -> None:
         om_by_ticker: dict[str, dict] = {}
         rq_by_ticker: dict[str, dict] = {}
         ttm_by_ticker: dict[str, dict] = {}
+        fcf_by_ticker: dict[str, dict] = {}
         for c in candidates:
             sym = c["symbol"]
             quarters = quarters_by_ticker.get(sym, [])
@@ -189,6 +196,9 @@ def run(conn, markets: list[str]) -> None:
             op_dir_by_ticker[sym] = operating_margin_direction(periods)
             om_by_ticker[sym] = (quarterly_margin_change(cached.get("financials_quarterly")) if cached else None) or {}
             rq_by_ticker[sym] = (quarterly_revenue_yoy(cached.get("financials_quarterly")) if cached else None) or {}
+            # 현금흐름표도 손익과 같은 모양(컬럼=회계기간)이라 같은 변환을 쓴다.
+            fcf_by_ticker[sym] = fcf_yield(income_periods(cached.get("cashflow")) if cached else [],
+                                           c["market_cap"])
 
         # 밸류: 같은 시장 후보 전체 안에서 3등분(위 모듈 설명 참고 - 분기 화면은 테마 안에서 나눈다).
         tiers = theme_valuation_tiers(psr_by_ticker)
@@ -205,6 +215,8 @@ def run(conn, markets: list[str]) -> None:
              rq_by_ticker[c["symbol"]].get("quarter"),
              ttm_by_ticker[c["symbol"]].get("yoy"), ttm_by_ticker[c["symbol"]].get("tier"),
              ttm_by_ticker[c["symbol"]].get("quarter"),
+             fcf_by_ticker[c["symbol"]]["yield_3y"], fcf_by_ticker[c["symbol"]]["yield_latest"],
+             fcf_by_ticker[c["symbol"]]["negative_years"], fcf_by_ticker[c["symbol"]]["latest_year"],
              c["symbol"])
             for c in candidates
         ])
@@ -218,6 +230,13 @@ def run(conn, markets: list[str]) -> None:
         if have_psr:
             vals = sorted(v for v in psr_by_ticker.values() if v is not None)
             _log(f"  PSR 최소 {vals[0]:.2f} / 중앙 {vals[len(vals) // 2]:.2f} / 최대 {vals[-1]:.2f}")
+
+        fcf3 = sorted(v["yield_3y"] for v in fcf_by_ticker.values() if v["yield_3y"] is not None)
+        _log(f"  FCF 수익률(3년 평균) 계산됨 {len(fcf3)}/{len(candidates)}")
+        if fcf3:
+            neg = sum(1 for v in fcf_by_ticker.values() if (v["negative_years"] or 0) > 0)
+            _log(f"    최소 {fcf3[0]*100:.1f}% / 중앙 {fcf3[len(fcf3)//2]*100:.1f}% / 최대 {fcf3[-1]*100:.1f}%"
+                 f" / 3년 중 음수 해가 있는 종목 {neg}")
 
         have_cagr = sum(1 for v in cagr_by_ticker.values() if v is not None)
         _log(f"  매출 3년 CAGR 계산됨 {have_cagr}/{len(candidates)}")

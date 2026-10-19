@@ -41,6 +41,11 @@ interface Candidate {
   // 최근 4개 분기 합 대 직전 4개 분기 합(2026-10-09) - 연속 8분기가 있을 때만(지금은 한국 DART 종목)
   rev_ttm_yoy?: number | null;
   rev_ttm_tier?: string | null;
+  // FCF 수익률(2026-10-19) - 3년 평균 FCF / 시가총액. 상세 카드 전용, 등급 없음
+  fcf_yield_3y?: number | null;
+  fcf_yield_latest?: number | null;
+  fcf_negative_years?: number | null;
+  fcf_latest_year?: string | null;
   rev_ttm_quarter?: string | null;
   // 최근 100일 안 실적 발표의 EPS 서프라이즈(2026-10-05, earnings_surprise)
   surprise?: { pct: number; date: string; estimate: number | null; reported: number | null } | null;
@@ -743,6 +748,37 @@ function DetailModal({ c, inList, note, onAdd, onSaveNote, onClose }: {
                     ? "후보 중 PSR을 구한 곳이 3곳 미만이라 등급을 나누지 않습니다."
                     : "최근 4분기 재무나 시가총액이 없어 계산할 수 없습니다."}
                 {c.psr != null && c.per == null && " 순이익 합이 0 이하여서 PER은 표시하지 않습니다."}
+              </p>
+            </div>
+
+            {/* 현금 창출 — FCF 수익률. 등급·색 판정을 하지 않는다(업종마다 정상 범위가 너무 달라
+                하나의 기준선이 거짓 라벨을 만든다 - src/analyzers/company_cashflow.py). 음수만 주의 색. */}
+            <div className="p-3 mt-3" style={insetCard}>
+              <p className={eyebrow + " mb-1"} style={{ color: TEXT_SECONDARY }}>현금 창출 (FCF 수익률)</p>
+              {c.fcf_yield_3y != null || c.fcf_yield_latest != null ? (
+                <p className="text-[13px]" style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>
+                  3년 평균{" "}
+                  <span className="font-bold" style={{ color: c.fcf_yield_3y == null ? TEXT_MUTED : c.fcf_yield_3y < 0 ? CAUTION : NUM }}>
+                    {c.fcf_yield_3y == null ? "-" : `${(c.fcf_yield_3y * 100).toFixed(1)}%`}
+                  </span>
+                  <span style={{ color: TEXT_MUTED }}> · </span>
+                  {c.fcf_latest_year ?? "최근"}년{" "}
+                  <span style={{ color: c.fcf_yield_latest == null ? TEXT_MUTED : c.fcf_yield_latest < 0 ? CAUTION : NUM }}>
+                    {c.fcf_yield_latest == null ? "-" : `${(c.fcf_yield_latest * 100).toFixed(1)}%`}
+                  </span>
+                  {c.fcf_negative_years != null && c.fcf_negative_years > 0 && (
+                    <span style={{ color: CAUTION }}> · 3년 중 {c.fcf_negative_years}년 마이너스</span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-[13px]" style={{ color: TEXT_MUTED }}>데이터 부족</p>
+              )}
+              <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY }}>
+                {c.fcf_yield_3y != null
+                  ? "잉여현금흐름(영업현금흐름 - 설비투자)을 지금 시가총액으로 나눈 값. 설비투자로 해마다 출렁여서 최근 3개 회계연도 평균을 함께 봅니다. 업종마다 정상 범위가 달라 등급은 매기지 않습니다."
+                  : c.fcf_yield_latest != null
+                    ? "연속 3개 회계연도 현금흐름이 없어 3년 평균은 계산하지 않았습니다."
+                    : "연차 현금흐름표나 시가총액이 없어 계산할 수 없습니다."}
               </p>
             </div>
 

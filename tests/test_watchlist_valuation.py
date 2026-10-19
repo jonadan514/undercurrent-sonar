@@ -254,3 +254,39 @@ def test_growth_and_valuation_computed_independently(db):
 
     assert got["AAA"][2] is None       # valuation_tier - 후보 1곳뿐이라 데이터부족
     assert got["AAA"][6] == GROWING    # growth_tier - 절대 기준이라 후보 수와 무관
+
+
+# ── FCF 수익률 - run()을 통한 배관 검증 (2026-10-19) ─────────────────────────
+
+def _seed_annual_cashflow(conn, symbol, market, yearly: dict[str, dict]):
+    df = pd.DataFrame({pd.Timestamp(period): pd.Series(accounts) for period, accounts in yearly.items()})
+    upsert_statement_rows(conn, symbol, market, "cashflow", df, fetched_at="2026-09-30T00:00:00")
+
+
+def _read_fcf(conn, market="KR"):
+    rows = conn.execute(
+        "SELECT symbol, fcf_yield_3y, fcf_yield_latest, fcf_negative_years, fcf_latest_year "
+        "FROM watchlist_candidates WHERE market = ?", (market,)).fetchall()
+    return {r[0]: tuple(r[1:]) for r in rows}
+
+
+def test_fcf_yield_computed_and_written(db):
+    _seed(db, "AAA", "KR", 1000.0, revenue_per_q=100.0)
+    _seed_annual_cashflow(db, "AAA", "KR", {
+        "2025-12-31": {"Free Cash Flow": 200.0},
+        "2024-12-31": {"Free Cash Flow": -50.0},
+        "2023-12-31": {"Free Cash Flow": 150.0},
+    })
+    run(db, ["KR"])
+    y3, latest, neg, year = _read_fcf(db)["AAA"]
+    assert float(y3) == pytest.approx(0.10)
+    assert float(latest) == pytest.approx(0.20)
+    assert int(neg) == 1
+    assert year == "2025"
+
+
+def test_no_cashflow_leaves_fcf_null(db):
+    """원칙 4 - 현금흐름표가 없으면 0이 아니라 NULL(데이터부족)."""
+    _seed(db, "AAA", "KR", 1000.0, revenue_per_q=100.0)
+    run(db, ["KR"])
+    assert _read_fcf(db)["AAA"] == (None, None, None, None)
