@@ -55,8 +55,8 @@ def _log(msg: str) -> None:
     print(f"[kr-disc] {msg}", flush=True)
 
 
-def probe(bgn: str, end: str, names: list[str] | None = None, grep: str | None = None) -> int:
-    items = dart.list_disclosures(bgn, end)
+def probe(bgn: str, end: str, names: list[str] | None = None, grep: str | None = None, ptype: str = "I") -> int:
+    items = dart.list_disclosures(bgn, end, pblntf_ty=ptype)
     if grep:    # 제목에 이 말이 든 공시 3건의 원문 표(새 양식 확인용)
         hits = [i for i in items if grep in i["report_nm"] and i.get("stock_code") and "자회사" not in i["report_nm"]][:3]
         print(f"'{grep}' {sum(grep in i['report_nm'] for i in items)}건")
@@ -179,10 +179,11 @@ def main() -> int:
     ap.add_argument("--probe", nargs=2, metavar=("BGN", "END"))
     ap.add_argument("--names", nargs="*", default=None, help="--probe와 함께: 이 회사들 원문 표 출력")
     ap.add_argument("--grep", default=None, help="--probe와 함께: 제목에 이 말이 든 공시 원문 표 출력")
+    ap.add_argument("--ptype", default="I", help="--probe와 함께: DART 공시 유형(I 거래소공시, D 지분공시)")
     ap.add_argument("--reparse", action="store_true", help="--days 기간에 저장된 공시를 원문에서 다시 읽어 payload만 갱신")
     args = ap.parse_args()
     if args.probe:
-        return probe(*args.probe, names=args.names, grep=args.grep)
+        return probe(*args.probe, names=args.names, grep=args.grep, ptype=args.ptype)
 
     today = datetime.now(KST).date()
     if args.reparse:

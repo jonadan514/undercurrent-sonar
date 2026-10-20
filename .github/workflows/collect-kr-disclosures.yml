@@ -19,6 +19,10 @@ on:
         description: "true면 days 기간에 저장된 공시 payload를 원문에서 다시 읽는다(파서 수정 후)"
         required: false
         default: ""
+      ptype:
+        description: "probe와 함께: DART 공시 유형(I 거래소공시, D 지분공시). 비우면 I"
+        required: false
+        default: ""
       grep:
         description: "probe와 함께: 제목에 이 말이 든 공시 원문 표 출력"
         required: false
@@ -54,13 +58,14 @@ jobs:
           PROBE: ${{ inputs.probe }}
           NAMES: ${{ inputs.names }}
           GREP: ${{ inputs.grep }}
+          PTYPE: ${{ inputs.ptype || 'I' }}
           REPARSE: ${{ inputs.reparse == 'true' && '--reparse' || '' }}
           DAYS: ${{ inputs.days || '3' }}
           # 정기 실행만 알림 - 수동 채우기에서 지난 공시가 한꺼번에 알림으로 가지 않게
           NOTIFY: ${{ github.event_name == 'schedule' && '--notify' || '' }}
         run: |
           if [ -n "$PROBE" ]; then
-            python scripts/collect_kr_disclosures.py --probe $PROBE ${NAMES:+--names $NAMES} ${GREP:+--grep "$GREP"}
+            python scripts/collect_kr_disclosures.py --probe $PROBE ${NAMES:+--names $NAMES} ${GREP:+--grep "$GREP"} --ptype "$PTYPE"
           else
             python scripts/collect_kr_disclosures.py --days "$DAYS" $NOTIFY $REPARSE
           fi
