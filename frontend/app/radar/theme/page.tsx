@@ -12,6 +12,7 @@ import { themeName } from "@/src/lib/themeNames";
 import { krStockName } from "@/src/lib/krStockNames";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { ObservationCard, ObservationForm, ObservationT } from "@/src/components/Observation";
+import { labelWithKo } from "@/src/lib/labelNames";
 
 const GOOD = "var(--good)";
 const DANGER = "var(--danger)";
@@ -291,7 +292,7 @@ function ThemeHistory() {
               </span>
             )}
             <span>기준 {md(latest!.week_start)} 주</span>
-            <span>이번 주 라벨 {latest!.label ? <b style={{ color: LABEL_COLOR[latest!.label] ?? ACCENT }}>{latest!.label}</b> : "없음"}</span>
+            <span>이번 주 라벨 {latest!.label ? <b style={{ color: LABEL_COLOR[latest!.label] ?? ACCENT }}>{labelWithKo(latest!.label)}</b> : "없음"}</span>
           </div>
 
           {/* ① 세 축 타임라인 */}

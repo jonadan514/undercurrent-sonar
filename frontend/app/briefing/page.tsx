@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
+import { TagBadges } from "@/src/components/TagBadge";
+import AsOf from "@/src/components/AsOf";
+import { labelWithKo } from "@/src/lib/labelNames";
 
 interface StockRef {
   market: string;
@@ -45,7 +48,6 @@ interface Briefing {
 interface DisclosureItem { symbol: string; name?: string | null; date: string; rcept_no: string; tags: string[]; summary: string;
   amount?: number | null; pct?: number | null; title?: string | null; withheld?: boolean; quarter?: string;
   revenue_yoy_pct?: number | null; revenue_yoy_turn?: string | null; operating_income_yoy_pct?: number | null; operating_income_yoy_turn?: string | null }
-const DISC_TAG: Record<string, string> = { my: "내 관심", note: "노트", cand: "워치", theme: "테마" };
 const eok = (v?: number | null) => v == null ? "-" : Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(1)}조` : Math.abs(v) >= 1e8 ? `${Math.round(v / 1e8).toLocaleString()}억` : `${(v / 1e8).toFixed(1)}억`;
 function YoY({ label, pct, turn }: { label: string; pct?: number | null; turn?: string | null }) {
   if (turn) return <span>{label} <span style={{ color: turn.startsWith("흑자") ? "#4ade80" : "#f87171" }}>{turn}</span></span>;
@@ -65,7 +67,7 @@ function DiscName({ d }: { d: DisclosureItem }) {
   );
 }
 function DiscTags({ tags }: { tags: string[] }) {
-  return tags.length > 0 ? <span className="text-[11px]" style={{ color: "#fbbf24" }}>{tags.map((t) => DISC_TAG[t] ?? t).join(" · ")}</span> : null;
+  return <TagBadges tags={tags} />;
 }
 // 코스피·코스닥 투자자별 순매수 최근 5거래일 합(원, 2026-10-17부터). 예전 브리핑엔 없다.
 interface FlowSum { foreign?: number; institution?: number; individual?: number; days: number; from: string; to: string }
@@ -88,7 +90,6 @@ function FlowRow({ label, f }: { label: string; f?: FlowSum | null }) {
 }
 // 이번 주 실적 발표 예정(2026-10-17부터, earnings_calendar - yfinance). 예상이면 date~date_end 범위.
 interface EarningsItem { market: string; symbol: string; name?: string | null; date: string; date_end: string; estimate: boolean; tags: string[] }
-const EARN_TAG: Record<string, string> = { my: "내 관심", note: "노트", turnaround: "실적 반전" };
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const mdw = (d: string) => { const [y, m, dd] = d.split("-").map(Number); return `${m}/${dd}(${WEEKDAY[new Date(y, m - 1, dd).getDay()]})`; };
 interface TurnaroundItem { market: string; symbol: string; name?: string | null; basis: "1년" | "분기"; yoy: number | null }
@@ -225,7 +226,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                       <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5">
                         <span className="mr-1">{t.market === "KR" ? "🇰🇷" : "🇺🇸"}</span>
                         <span className="font-bold text-white">{themeName(t.theme_id).ko}</span>
-                        <span className="ml-1.5" style={{ color: "var(--text-muted)" }}>{t.label}</span>
+                        <span className="ml-1.5" style={{ color: "var(--text-muted)" }}>{labelWithKo(t.label)}</span>
                       </p>
                     ))}
                   </div>
@@ -235,7 +236,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                     <p className="text-[11px] font-bold mb-1" style={{ color: "var(--text-faint)" }}>− 소멸 라벨 ({b.theme_labels.dropped_labels.length})</p>
                     {b.theme_labels.dropped_labels.map((t) => (
                       <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5" style={{ color: "var(--text-faint)" }}>
-                        {t.market === "KR" ? "🇰🇷" : "🇺🇸"} {themeName(t.theme_id).ko} <span>({t.label})</span>
+                        {t.market === "KR" ? "🇰🇷" : "🇺🇸"} {themeName(t.theme_id).ko} <span>({labelWithKo(t.label)})</span>
                       </p>
                     ))}
                   </div>
@@ -336,7 +337,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                               ? { background: "#f59e0b14", border: "1px solid #f59e0b55" }
                               : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
                             <StockLabel s={x} />
-                            {x.tags.length > 0 && <span style={{ color: "#fbbf24" }}> {x.tags.map((t) => EARN_TAG[t] ?? t).join(" · ")}</span>}
+                            {x.tags.length > 0 && <> <TagBadges tags={x.tags} /></>}
                             {x.estimate && <span style={{ color: "var(--text-muted)" }}> 예상{x.date_end !== x.date ? `~${mdw(x.date_end)}` : ""}</span>}
                           </span>
                         ))}
@@ -461,7 +462,10 @@ export default function BriefingPage() {
   return (
     <div className="space-y-3 max-w-3xl">
       <div>
-        <h1 className="text-base font-bold text-white">주간 브리핑</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-base font-bold text-white">주간 브리핑</h1>
+          {!loading && <AsOf date={briefings[0]?.week} cadence="매주 월요일 아침" staleDays={8} />}
+        </div>
         <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
           매주 월요일 아침, 지난주를 돌아보고 이번 주를 준비하는 문서 — 위 목차를 눌러 칸으로 바로 이동
         </p>

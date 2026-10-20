@@ -5,6 +5,7 @@ import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
+import AsOf from "@/src/components/AsOf";
 
 // 경기 사이클 판정(회복기·성장기 등)은 2026-10-20에 화면에서 뺐다 - 대표 섹터 3개씩의 1달 RS 평균 중 최댓값을
 // 고르는 단일 판정이라 원칙 1(단일 판정 없음)과 어긋나고, 에너지·소재가 두 단계에 겹쳐 구분력도 약했다.
@@ -93,7 +94,7 @@ export default function SectorPage() {
           <FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{isKR ? "KOSPI" : "S&P 500"}
         </span>
         <h1 className="text-base font-bold text-white">섹터 분석</h1>
-        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{data.date}</span>
+        <AsOf date={data.date} cadence="매주 화요일 아침" staleDays={8} />
         {/* KR만 두 경로가 있다 - KRX가 코스피200 섹터지수를 못 내려주면(로그인 만료,
             점검 등) 대표 종목 평균으로 조용히 폴백하는데, 그 사실이 화면에 안 보이면
             "왜 이 숫자가 지난주랑 계산 기준이 다른가"를 알 방법이 없다.

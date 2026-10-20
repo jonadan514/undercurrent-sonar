@@ -7,6 +7,8 @@ import { useMarket } from "@/src/contexts/MarketContext";
 import { krStockName } from "@/src/lib/krStockNames";
 import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
+import AsOf from "@/src/components/AsOf";
+import { LABEL_KO, labelWithKo } from "@/src/lib/labelNames";
 
 // globals.css의 앱 전역 토큰을 그대로 쓴다 (워치리스트 페이지와 같은 터미널·앰버 룩).
 const ACCENT = "var(--accent)";
@@ -162,7 +164,7 @@ function LabelBadge({ label }: { label: string }) {
       style={BADGE_STYLE[label] ?? { background: ACCENT_SOFT, color: ACCENT }}
       title={LABEL_NOTE[label] ?? label}
     >
-      {label}
+      {label}{LABEL_KO[label] && <span className="ml-1 font-semibold opacity-80">· {LABEL_KO[label]}</span>}
     </span>
   );
 }
@@ -577,7 +579,10 @@ export default function RadarPage() {
   return (
     <div className="mx-auto max-w-[1280px]" style={{ color: "var(--text-primary)" }}>
       <div className="mb-2">
-        <h1 className="text-[22px] font-bold" style={{ letterSpacing: "-0.01em" }}>이번 주 움직인 테마</h1>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <h1 className="text-[22px] font-bold" style={{ letterSpacing: "-0.01em" }}>이번 주 움직인 테마</h1>
+          {!loading && <AsOf date={weekStart} cadence="매주 월요일 아침" staleDays={14} />}
+        </div>
         <p className="mt-1 max-w-[62ch] text-[14px]" style={{ color: MUTED }}>
           종합 점수도, 매수 추천도 없습니다. 뉴스·실적·주가 세 축을 각각 보여주고, 정해진 조합에만 이름을 붙입니다 — 나머지는 화살표로만 남겨둡니다.
         </p>
@@ -621,7 +626,7 @@ export default function RadarPage() {
         <span>배지 강도 =</span>
         {["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment"].map((l) => (
           <span key={l} className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-extrabold"
-                style={BADGE_STYLE[l]} title={LABEL_NOTE[l]}>{l}</span>
+                style={BADGE_STYLE[l]} title={LABEL_NOTE[l]}>{labelWithKo(l)}</span>
         ))}
         <span>← 이른 신호일수록 강하게. 카드 모양은 전부 동일합니다.</span>
       </div>

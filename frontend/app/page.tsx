@@ -5,6 +5,8 @@ import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import FlagIcon from "@/src/components/FlagIcon";
 import { BigChart, RangeBar, Sparkline, lastN, type Point } from "@/src/components/MacroChart";
+import AsOf from "@/src/components/AsOf";
+import { LABEL_KO } from "@/src/lib/labelNames";
 
 // radar/page.tsx의 편집 방침과 같은 순서 (SPEC §6.2) — 페이지별 상수 유지 관행.
 const LABEL_ORDER = ["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment", "Overheated Buzz", "Full Decline"];
@@ -191,7 +193,7 @@ export default function HomePage() {
                 </p>
               ) : (
                 <p className="text-[13px] mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                  {LABEL_ORDER.filter(l => radarCounts[l]).map(l => `${l} ${radarCounts[l]}`).join(" · ")}
+                  {LABEL_ORDER.filter(l => radarCounts[l]).map(l => `${LABEL_KO[l] ?? l} ${radarCounts[l]}`).join(" · ")}
                 </p>
               )}
             </div>
@@ -222,7 +224,7 @@ export default function HomePage() {
           <div className="flex items-center gap-1.5 mb-2">
             <p className="stat-label" style={{ fontSize: 13 }}>매크로 지표</p>
             <InfoTooltip content="시장 전체의 배경 지표를 판단 없이 숫자 그대로 보여줍니다. 등급·추천이 아니며, 매일 갱신됩니다." />
-            <span className="ml-auto text-[11px]" style={{ color: "var(--text-faint)" }}>{macro.date} 기준</span>
+            <span className="ml-auto"><AsOf date={macro.date} cadence="매일 아침" staleDays={4} /></span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {MACRO_ORDER.map((key) => {

@@ -6,6 +6,9 @@ import { X, Info, Pencil, Search } from "lucide-react";
 import StockTechPanel from "@/src/components/StockTechPanel";
 import { themeName } from "@/src/lib/themeNames";
 import { ObservationForm } from "@/src/components/Observation";
+import { TagBadges } from "@/src/components/TagBadge";
+import AsOf from "@/src/components/AsOf";
+import { labelWithKo } from "@/src/lib/labelNames";
 
 interface Candidate {
   market: string;
@@ -693,7 +696,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
                       className="text-[12px] font-semibold px-2.5 py-1 rounded-full transition-opacity hover:opacity-80"
                       style={{ background: ACCENT + "18", color: ACCENT, border: `1px solid ${ACCENT}33` }}
                     >
-                      {themeName(t.theme_id).ko}{t.label ? ` · ${t.label}` : ""}
+                      {themeName(t.theme_id).ko}{t.label ? ` · ${labelWithKo(t.label)}` : ""}
                     </a>
                   );
                 })}
@@ -1314,12 +1317,12 @@ export default function WatchlistPage() {
 
       {/* 헤더 */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em", color: TEXT_PRIMARY }}>워치리스트</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em", color: TEXT_PRIMARY }}>워치리스트</h1>
+          {!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
+        </div>
         <p style={{ color: TEXT_MUTED, fontSize: 13, marginTop: 4 }}>
           재무 건전성 필터(함정 필터) 통과 종목 전부, 순위 없이 리스트업
-          {screened_at && (
-            <span style={{ marginLeft: 8, color: TEXT_FAINT }}>(스크리닝: {screened_at.slice(0, 10)})</span>
-          )}
         </p>
       </div>
 
@@ -1599,6 +1602,9 @@ export default function WatchlistPage() {
                                 }}>
                                 {c.is_reentry ? "재진입" : "신규"}
                               </span>
+                            )}
+                            {(inList || isTurnaround(c)) && (
+                              <TagBadges tags={[...(inList ? ["my"] : []), ...(isTurnaround(c) ? ["turnaround"] : [])]} />
                             )}
                             {heating.has(key) && (
                               <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(key)}) · 뉴스량 기준 보조 정보`}
