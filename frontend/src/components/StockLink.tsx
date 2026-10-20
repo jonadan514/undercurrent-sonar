@@ -21,5 +21,5 @@ export default function StockLink({ market, symbol, children, className, style }
 export function externalQuoteUrl(market: string, symbol: string): string {
   return market === "KR"
     ? `https://finance.naver.com/item/main.naver?code=${encodeURIComponent(symbol)}`
-    : `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+    : `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replace(".", "-"))}`;   // BRK.B -> BRK-B (야후 표기)
 }
