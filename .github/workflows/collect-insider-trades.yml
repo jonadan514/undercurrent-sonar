@@ -1,0 +1,63 @@
+name: Collect Insider Trades
+
+# 내부자 장내 매수(2026-10-21) - 미국 SEC Form 4, 한국 DART 임원ㆍ주요주주 소유상황 보고.
+# 매일 13:00 UTC(22:00 KST) - 미국은 전날 장 마감 뒤 공시까지, 한국은 그날 공시까지. 최근 14일을 다시 훑고 이미 받은 공시는 건너뛴다.
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "US / KR / ALL"
+        required: false
+        default: "ALL"
+      days:
+        description: "공시일 기준 며칠 전까지 (처음 채우기 90)"
+        required: false
+        default: "14"
+      tickers:
+        description: "확인용: 몇 종목만(공백 구분, 저장 안 함) - market을 US나 KR로"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          MARKET: ${{ inputs.market || 'ALL' }}
+          DAYS: ${{ inputs.days || '14' }}
+          TICKERS: ${{ inputs.tickers }}
+        run: |
+          for m in US KR; do
+            if [ "$MARKET" = "ALL" ] || [ "$MARKET" = "$m" ]; then
+              python scripts/collect_insider_trades.py --market "$m" --days "$DAYS" ${TICKERS:+--tickers $TICKERS}
+            fi
+          done
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
