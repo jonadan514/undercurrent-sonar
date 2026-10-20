@@ -219,9 +219,14 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         time.sleep(VIEWER_SLEEP)
         if not rows:
             stats["no_table"] += 1
+            if not save:
+                _log(f"  {i['corp_name']} {i['rcept_no']} 웹 뷰어 원문 없음")
             continue
         filed = f"{i['rcept_dt'][:4]}-{i['rcept_dt'][4:6]}-{i['rcept_dt'][6:8]}"
         buys = parse_kr_ownership(rows)
+        if not save and not buys:   # 확인용: 변동 내역 줄 모양을 본다
+            _log(f"  {i['corp_name']} {i['rcept_no']} 매수 없음 - 변동 줄: "
+                 + " || ".join(r[:120] for r in rows if "(+)" in r or "(-)" in r)[:600])
         for b in buys:
             stats["buys"] += 1
             if not save:

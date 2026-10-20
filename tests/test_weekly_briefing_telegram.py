@@ -192,3 +192,25 @@ def test_kr_disclosures_termination_and_amend():
     assert kd["termination"]["count"] == 1 and kd["amend"]["count"] == 1   # 날짜만 바뀐 정정은 뺀다
     text = g.build_telegram_summary(_briefing(kr_disclosures={**kd, "contract": {"count": 0, "items": []}, "prelim": {"count": 0, "items": []}}))
     assert "계약 해지 1 · 금액 정정 1" in text and "해지사 계약 해지 2,900억 (매출 대비 41.0%)" in text
+
+
+def test_insider_week_grouping_and_telegram():
+    rows = [{"market": "US", "symbol": "OXY", "owner": "Jackson", "role": "President and CEO · 이사", "trade_date": "2026-10-15",
+             "filed_on": "2026-10-16", "value": 249_853, "plan": 0},
+            {"market": "KR", "symbol": "043200", "owner": "(주)지본", "role": "10%이상주주", "trade_date": "2026-10-14",
+             "filed_on": "2026-10-20", "value": 1.51e8, "plan": 0},
+            {"market": "KR", "symbol": "043200", "owner": "(주)지본", "role": "10%이상주주", "trade_date": "2026-10-15",
+             "filed_on": "2026-10-20", "value": 0.4e8, "plan": 0},
+            {"market": "US", "symbol": "DVN", "owner": "A", "role": "CEO", "trade_date": "2026-10-14", "filed_on": "2026-10-15",
+             "value": 100_000, "plan": 1},
+            {"market": "US", "symbol": "DVN", "owner": "B", "role": "CFO", "trade_date": "2026-10-15", "filed_on": "2026-10-16",
+             "value": 50_000, "plan": 1}]
+    ins = g.insider_week_items(rows, {"KR:043200": ["theme"]}, {"KR:043200": "파루"})
+    assert [x["symbol"] for x in ins["items"]] == ["043200", "DVN", "OXY"]   # 관심 표시 → 산 사람 수 → 금액
+    kr = ins["items"][0]
+    assert kr["buyers"] == 1 and kr["trades"] == 2 and kr["value"] == 1.91e8 and kr["last_date"] == "2026-10-15"
+    assert ins["items"][1]["buyers"] == 2 and ins["items"][1]["all_plan"]
+    text = g.build_telegram_summary(_briefing(insider_week=ins))
+    assert "내부자 장내 매수</b> 지난 7일 🇺🇸 2 · 🇰🇷 1종목" in text
+    assert "🇰🇷 파루 10%이상주주 1.9억 · 테마" in text and "DVN 2명 $150K (계획 매수)" in text and "OXY President and CEO · 이사 $250K" in text
+    assert g.fmt_money(1.2e6, "US") == "$1.2M" and g.fmt_money(3e7, "KR") == "3,000만"

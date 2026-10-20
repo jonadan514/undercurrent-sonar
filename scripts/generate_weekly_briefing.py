@@ -426,6 +426,85 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
     return out
 
 
+INSIDER_TG_MAX = 5
+INSIDER_WEB_MAX = 30
+
+
+def fmt_money(v: float | None, market: str) -> str:
+    """미국 달러 -> '$250K' / '$1.2M', 한국 원 -> '2.5억' / '1.2조'."""
+    if v is None:
+        return "-"
+    if market == "KR":
+        return f"{v / 1e12:.1f}조" if v >= 1e12 else (f"{v / 1e8:,.1f}억" if v >= 1e8 else f"{v / 1e4:,.0f}만")
+    return f"${v / 1e6:.1f}M" if v >= 1e6 else f"${v / 1e3:,.0f}K"
+
+
+def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict[str, str]) -> dict:
+    """종목별로 묶는다: 산 사람 수(서로 다른 내부자)·합계 금액·건수·직함·최근 거래일. 관심 표시 먼저, 그다음 산 사람 수·금액 큰 순
+    - 공시 숫자를 그대로 더하고 정렬할 뿐 점수가 아니다(원칙 1). 10b5-1 계획 매수만 있는 종목은 표시해 둔다."""
+    by: dict[str, dict] = {}
+    for r in rows:
+        key = f"{r['market']}:{r['symbol']}"
+        g = by.setdefault(key, {"market": r["market"], "symbol": r["symbol"], "name": names.get(key), "owners": [],
+                                "roles": [], "value": 0.0, "value_known": False, "trades": 0, "last_date": None,
+                                "all_plan": True, "tags": tags.get(key, [])})
+        if r["owner"] not in g["owners"]:
+            g["owners"].append(r["owner"])
+            g["roles"].append(r.get("role") or "-")
+        if r.get("value") is not None:
+            g["value"] += float(r["value"])
+            g["value_known"] = True
+        g["trades"] += 1
+        d = r.get("trade_date") or r.get("filed_on")
+        if d and (g["last_date"] is None or d > g["last_date"]):
+            g["last_date"] = d
+        g["all_plan"] = g["all_plan"] and bool(r.get("plan"))
+    items = list(by.values())
+    for g in items:
+        g["buyers"] = len(g["owners"])
+        if not g["value_known"]:
+            g["value"] = None
+    items.sort(key=lambda g: (not g["tags"], -g["buyers"], -(g["value"] or 0)))
+    by_market: dict[str, int] = {}
+    for g in items:
+        by_market[g["market"]] = by_market.get(g["market"], 0) + 1
+    return {"total": len(items), "by_market": by_market, "items": items[:INSIDER_WEB_MAX]}
+
+
+def get_insider_week() -> dict | None:
+    """지난 7일 공시된 내부자 장내 매수(insider_trades, scripts/collect_insider_trades.py - 2026-10-21). 표가 없으면 None."""
+    try:
+        rows = turso_exec("SELECT market, symbol, owner, role, trade_date, filed_on, value, plan FROM insider_trades "
+                          "WHERE filed_on >= date('now', '-7 days')")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("내부자 매수 조회 실패(표 없음?) - 건너뜀: %s", e)
+        return None
+    tags: dict[str, list[str]] = {}
+    names: dict[str, str] = {}
+    for sql, t in (("SELECT market, symbol, name FROM my_watchlist", "my"),
+                   ("SELECT DISTINCT market, ticker AS symbol, NULL AS name FROM observations WHERE kind = 'stock' "
+                    "AND ticker IS NOT NULL", "note"),
+                   ("SELECT market, symbol, name FROM watchlist_candidates", "cand"),
+                   ("SELECT DISTINCT m.market, m.ticker AS symbol, NULL AS name FROM theme_members m WHERE m.approved = 1 "
+                    "AND m.run_id = (SELECT MAX(run_id) FROM theme_members t WHERE t.theme_id = m.theme_id "
+                    "AND t.market = m.market AND t.approved = 1)", "theme")):
+        try:
+            for r in turso_exec(sql):
+                key = f"{r['market']}:{r['symbol']}"
+                if t not in tags.setdefault(key, []):
+                    tags[key].append(t)
+                if r.get("name"):
+                    names.setdefault(key, r["name"])
+        except Exception:  # noqa: BLE001
+            pass
+    try:   # 한국 이름은 유니버스 파일에서
+        for i in json.loads(KR_UNIVERSE.read_text(encoding="utf-8")).get("items", []):
+            names.setdefault(f"KR:{i['symbol']}", i.get("name"))
+    except Exception:  # noqa: BLE001
+        pass
+    return insider_week_items(rows, tags, names)
+
+
 def get_kr_disclosures_week() -> dict | None:
     """한국 공시 지난 7일(kr_disclosures, scripts/collect_kr_disclosures.py - 2026-10-17). 표가 없으면 None."""
     try:
@@ -750,6 +829,18 @@ def build_telegram_summary(b: dict) -> str:
             lines.append(f"  {_md(x['date'])} {disp({'market': 'KR', 'symbol': x['symbol'], 'name': x['name']})} "
                          f"{html.escape(x['summary'])}" + (f" · {tag}" if tag else ""))
 
+    ins = b.get("insider_week")
+    if ins and ins.get("total"):
+        counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ins["by_market"].items(), reverse=True))
+        lines.append("")
+        lines.append(f"<b>🧑‍💼 내부자 장내 매수</b> 지난 7일 {counts}종목")
+        for g in ins["items"][:INSIDER_TG_MAX]:
+            tag = " · ".join(DISC_TAG_KO.get(t, t) for t in g["tags"])
+            who = g["roles"][0] if g["buyers"] == 1 else f"{g['buyers']}명"
+            plan = " (계획 매수)" if g["all_plan"] else ""
+            lines.append(f"  {disp(g)} {html.escape(who)} {fmt_money(g['value'], g['market'])}{plan}"
+                         + (f" · {tag}" if tag else ""))
+
     reviews = b.get("observation_reviews") or []
     if reviews:
         names = load_theme_names()
@@ -823,6 +914,7 @@ def main() -> None:
         "turnaround": get_turnaround_changes(week),
         "earnings_week": get_earnings_week(week),
         "kr_disclosures": get_kr_disclosures_week(),
+        "insider_week": get_insider_week(),
         "sentiment_heating": get_sentiment_week(),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),
