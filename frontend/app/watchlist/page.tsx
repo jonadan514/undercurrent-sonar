@@ -619,6 +619,35 @@ function Us8kSection({ c }: { c: Candidate }) {
   );
 }
 
+// 후보가 아닌 종목으로 들어왔을 때(브리핑 "관심 밖 내부자 매수" 등, 2026-10-21) - 트랩 필터 판정과 사유, 내부자 장내 매수·8-K.
+// 탈락이어도 왜 떨어졌는지가 정보다. 판정이 없으면 "미확인"(원칙 4).
+function MissDetail({ market, symbol }: { market: string; symbol: string }) {
+  const [sc, setSc] = useState<{ status: string; piotroski: number | null; reasons: string[]; screened_at: string } | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/watchlist/screening?market=${market}&symbol=${encodeURIComponent(symbol)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setSc(d.screening ?? null); })
+      .catch(() => { if (!cancelled) setSc(null); });
+    return () => { cancelled = true; };
+  }, [market, symbol]);
+  const c = { market, symbol } as Candidate;
+  const label = sc === undefined ? "확인 중..." : !sc ? "트랩 필터 판정 없음(미확인 - 스크리닝 대상 밖이거나 아직 안 돌았음)"
+    : sc.status === "pass" ? `트랩 필터 통과${sc.piotroski != null ? ` (F-Score ${sc.piotroski})` : ""}`
+    : sc.status === "fail" ? "트랩 필터 탈락" : "트랩 필터 데이터부족(계산 못 한 항목이 있음 - 탈락 아님)";
+  return (
+    <div style={{ flexBasis: "100%" }} className="space-y-2">
+      <p style={{ color: sc?.status === "fail" ? BAD : sc?.status === "pass" ? GOOD : TEXT_SECONDARY, fontSize: 12 }}>
+        {label}
+        {sc?.status === "fail" && sc.reasons.length > 0 && <span style={{ color: TEXT_SECONDARY }}> — {sc.reasons.slice(0, 4).join(" · ")}</span>}
+        {sc?.screened_at && <span style={{ color: TEXT_SECONDARY }}> · {String(sc.screened_at).slice(0, 10)} 기준</span>}
+      </p>
+      <Us8kSection c={c} />
+      <InsiderSection c={c} />
+    </div>
+  );
+}
+
 function ChecklistSection({ c }: { c: Candidate }) {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1397,6 +1426,7 @@ export default function WatchlistPage() {
           <a href={externalQuoteUrl(linkMiss.market, linkMiss.symbol)} target="_blank" rel="noreferrer"
             style={{ color: "#ffb020" }}>{linkMiss.market === "KR" ? "네이버 금융" : "Yahoo Finance"}에서 보기 ↗</a>
           <button onClick={() => { setLinkMiss(null); clearStockParam(); }} style={{ marginLeft: "auto", color: TEXT_MUTED }} aria-label="닫기">✕</button>
+          <MissDetail market={linkMiss.market} symbol={linkMiss.symbol} />
         </div>
       )}
       {infoKey && (

@@ -45,7 +45,9 @@ interface Briefing {
   // termination(계약 해지)·amend(계약금액 정정)는 2026-10-21부터
   kr_disclosures?: { contract: { count: number; items: DisclosureItem[] }; prelim: { count: number; items: DisclosureItem[] };
                      termination?: { count: number; items: DisclosureItem[] }; amend?: { count: number; items: DisclosureItem[] } } | null;
-  insider_week?: { total: number; by_market: Record<string, number>; items: InsiderItem[] } | null;
+  // tagged_count·discovery(관심 밖 새 이름)는 2026-10-21부터 - 그 전 브리핑은 items 하나에 관심 표시 먼저 섞여 있다
+  insider_week?: { total: number; by_market: Record<string, number>; items: InsiderItem[]; tagged_count?: number;
+                   discovery?: InsiderItem[]; discovery_count?: number } | null;
   us_8k_week?: { total: number; by_kind: Record<string, number>; items: Us8kItem[] } | null;
 }
 // 미국 8-K 지난 7일(2026-10-21부터, SEC). 항목 번호로 나눈 종류 + 원문 첫머리(영어 그대로). warn은 해지·손상 등 종류 분류일 뿐 점수 아님.
@@ -53,7 +55,31 @@ interface Us8kItem { market: string; symbol: string; name?: string | null; date:
   items: { item: string; label: string; warn: boolean; excerpt?: string | null }[] }
 // 내부자 장내 매수 지난 7일(2026-10-21부터, SEC Form 4 · DART 임원ㆍ주요주주 소유보고). 공시 숫자 합계일 뿐 점수 아님.
 interface InsiderItem { market: string; symbol: string; name?: string | null; owners: string[]; roles: string[]; buyers: number;
-  value: number | null; trades: number; last_date: string | null; all_plan: boolean; tags: string[] }
+  value: number | null; trades: number; last_date: string | null; all_plan: boolean; tags: string[];
+  finance?: { status: string; piotroski: number | null; reasons: string[] } | null }
+// 트랩 필터 3분류 - 계산 못 한 것은 탈락이 아니라 데이터부족, 스크리닝 결과가 없으면 미확인(원칙 4)
+function FinanceTag({ f }: { f?: InsiderItem["finance"] }) {
+  const [label, color] = f?.status === "pass" ? [`재무 통과${f.piotroski != null ? ` F${f.piotroski}` : ""}`, "#4ade80"]
+    : f?.status === "fail" ? ["재무 탈락", "#f87171"] : f?.status === "insufficient" ? ["데이터부족", "var(--text-muted)"] : ["재무 미확인", "var(--text-muted)"];
+  return <span className="text-[11px] px-1.5 rounded" style={{ color, border: "1px solid var(--border)" }} title={f?.reasons?.join(" / ") || undefined}>{label}</span>;
+}
+function InsiderRow({ x, showFinance = false }: { x: InsiderItem; showFinance?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
+      style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{x.last_date ? x.last_date.slice(5).replace("-", "/") : "-"}</span>
+      <StockLabel s={x} />
+      <span className="text-white">{insiderMoney(x.value, x.market)}</span>
+      <span style={{ color: x.buyers > 1 ? "#4ade80" : "var(--text-secondary)" }}>
+        {x.buyers > 1 ? `${x.buyers}명` : x.owners[0]}{x.buyers === 1 && x.roles[0] && x.roles[0] !== "-" ? ` (${x.roles[0]})` : ""}
+      </span>
+      <span style={{ color: "var(--text-muted)" }}>{x.trades}건</span>
+      {x.all_plan && <span style={{ color: "var(--text-muted)" }} title="10b5-1: 미리 정해 둔 계획 매수">계획 매수</span>}
+      {showFinance && <FinanceTag f={x.finance} />}
+      <DiscTags tags={x.tags} />
+    </div>
+  );
+}
 const insiderMoney = (v: number | null, market: string) => v == null ? "-" : market === "KR" ? (v >= 1e8 ? `${eok(v)}원` : `${Math.round(v / 1e4).toLocaleString()}만원`)
   : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3).toLocaleString()}K`;
 // 한국 공시 지난 7일(2026-10-17부터, DART 원문 표 값 그대로). 유니버스(시총 3000억+) 또는 관심 표시 종목만.
@@ -481,27 +507,29 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 내부자 장내 매수 (지난 7일 공시) — {Object.entries(b.insider_week.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}종목`).join(" · ")}
               </p>
-              <div className="space-y-1">
-                {b.insider_week.items.map((x) => (
-                  <div key={`${x.market}:${x.symbol}`} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
-                    style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                    <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{x.last_date ? x.last_date.slice(5).replace("-", "/") : "-"}</span>
-                    <StockLabel s={x} />
-                    <span className="text-white">{insiderMoney(x.value, x.market)}</span>
-                    <span style={{ color: x.buyers > 1 ? "#4ade80" : "var(--text-secondary)" }}>
-                      {x.buyers > 1 ? `${x.buyers}명` : x.owners[0]}{x.buyers === 1 && x.roles[0] && x.roles[0] !== "-" ? ` (${x.roles[0]})` : ""}
-                    </span>
-                    <span style={{ color: "var(--text-muted)" }}>{x.trades}건</span>
-                    {x.all_plan && <span style={{ color: "var(--text-muted)" }} title="10b5-1: 미리 정해 둔 계획 매수">계획 매수</span>}
-                    <DiscTags tags={x.tags} />
-                  </div>
-                ))}
-              </div>
-              {b.insider_week.total > b.insider_week.items.length && (
-                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.insider_week.items.length}종목까지</p>
+              {b.insider_week.discovery ? (
+                <>
+                  {b.insider_week.items.length > 0 && (
+                    <>
+                      <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>관심 종목 {b.insider_week.tagged_count ?? b.insider_week.items.length}</p>
+                      <div className="space-y-1">{b.insider_week.items.map((x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />)}</div>
+                    </>
+                  )}
+                  {b.insider_week.discovery.length > 0 && (
+                    <>
+                      <p className="text-[11px] mt-2 mb-1" style={{ color: "var(--text-muted)" }}>
+                        🆕 관심 밖 — 새 이름 {b.insider_week.discovery_count ?? b.insider_week.discovery.length} · 산 사람 수 → 금액 순, 계획 매수만 있는 종목은 뒤로
+                      </p>
+                      <div className="space-y-1">{b.insider_week.discovery.map((x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} showFinance />)}</div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-1">{b.insider_week.items.map((x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />)}</div>
               )}
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 관심 종목(워치리스트·내 관심·노트·테마) 대상 · 금액은 공시 단가 × 주식 수 합계
+                임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 금액은 공시 단가 × 주식 수 합계 · 목록은 각 30종목까지
+                {b.insider_week.discovery && " · 관심 밖은 미국 S&P 500·400, 한국 시총 3000억+ 중 관심 표시 없는 종목, 재무는 트랩 필터 판정(통과·탈락·데이터부족)"}
               </p>
             </div>
           )}

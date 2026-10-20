@@ -19,6 +19,7 @@ Usage: python scripts/generate_weekly_briefing.py [--no-telegram]
 from __future__ import annotations
 
 import argparse
+import csv
 import html
 import json
 import logging
@@ -388,6 +389,7 @@ def get_earnings_week(week: str) -> dict | None:
 
 
 KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
+US_LISTS = (ROOT / "data" / "sp500_list.csv", ROOT / "data" / "sp400_list.csv")
 DISC_TG_MAX = 5
 DISC_WEB_MAX = 30
 DISC_TAG_KO = {"my": "내 관심", "note": "노트", "cand": "워치", "theme": "테마"}
@@ -427,6 +429,8 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
 
 
 INSIDER_TG_MAX = 5
+INSIDER_DISC_TG_MAX = 5
+FIN_KO = {"pass": "재무 통과", "fail": "재무 탈락", "insufficient": "재무 데이터부족"}
 INSIDER_WEB_MAX = 30
 
 
@@ -439,15 +443,19 @@ def fmt_money(v: float | None, market: str) -> str:
     return f"${v / 1e6:.1f}M" if v >= 1e6 else f"${v / 1e3:,.0f}K"
 
 
-def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict[str, str]) -> dict:
-    """종목별로 묶는다: 산 사람 수(서로 다른 내부자)·합계 금액·건수·직함·최근 거래일. 관심 표시 먼저, 그다음 산 사람 수·금액 큰 순
-    - 공시 숫자를 그대로 더하고 정렬할 뿐 점수가 아니다(원칙 1). 10b5-1 계획 매수만 있는 종목은 표시해 둔다."""
+def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict[str, str],
+                       finance: dict[str, dict] | None = None) -> dict:
+    """종목별로 묶는다: 산 사람 수(서로 다른 내부자)·합계 금액·건수·직함·최근 거래일.
+    관심 표시가 있는 종목(items)과 관심 밖 새 이름(discovery, 2026-10-21)을 나눠 각각 산 사람 수 → 금액 순.
+    관심 밖은 10b5-1 계획 매수만 있는 종목을 뒤로 - 미리 정해 둔 매수라 새 신호로 보기 어렵다.
+    finance는 트랩 필터 3분류(통과/탈락/데이터부족 - watchlist_screening_results). 없으면 "미확인".
+    공시 숫자를 그대로 더하고 정렬할 뿐 점수가 아니다(원칙 1)."""
     by: dict[str, dict] = {}
     for r in rows:
         key = f"{r['market']}:{r['symbol']}"
         g = by.setdefault(key, {"market": r["market"], "symbol": r["symbol"], "name": names.get(key), "owners": [],
                                 "roles": [], "value": 0.0, "value_known": False, "trades": 0, "last_date": None,
-                                "all_plan": True, "tags": tags.get(key, [])})
+                                "all_plan": True, "tags": tags.get(key, []), "finance": (finance or {}).get(key)})
         if r["owner"] not in g["owners"]:
             g["owners"].append(r["owner"])
             g["roles"].append(r.get("role") or "-")
@@ -459,16 +467,37 @@ def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict
         if d and (g["last_date"] is None or d > g["last_date"]):
             g["last_date"] = d
         g["all_plan"] = g["all_plan"] and bool(r.get("plan"))
-    items = list(by.values())
-    for g in items:
+    groups = list(by.values())
+    for g in groups:
         g["buyers"] = len(g["owners"])
         if not g["value_known"]:
             g["value"] = None
-    items.sort(key=lambda g: (not g["tags"], -g["buyers"], -(g["value"] or 0)))
+    tagged = sorted((g for g in groups if g["tags"]), key=lambda g: (-g["buyers"], -(g["value"] or 0)))
+    other = sorted((g for g in groups if not g["tags"]), key=lambda g: (g["all_plan"], -g["buyers"], -(g["value"] or 0)))
     by_market: dict[str, int] = {}
-    for g in items:
+    for g in groups:
         by_market[g["market"]] = by_market.get(g["market"], 0) + 1
-    return {"total": len(items), "by_market": by_market, "items": items[:INSIDER_WEB_MAX]}
+    return {"total": len(groups), "by_market": by_market, "items": tagged[:INSIDER_WEB_MAX],
+            "tagged_count": len(tagged), "discovery": other[:INSIDER_WEB_MAX], "discovery_count": len(other)}
+
+
+def screening_status(keys: set[str]) -> dict[str, dict]:
+    """'시장:종목' -> 트랩 필터 3분류(watchlist_screening_results). 표가 없거나 대상 밖이면 빠진다(화면에서 "미확인")."""
+    out: dict[str, dict] = {}
+    try:
+        for r in turso_exec("SELECT market, symbol, status, piotroski, red_flags FROM watchlist_screening_results"):
+            key = f"{r['market']}:{r['symbol']}"
+            if key not in keys:
+                continue
+            try:
+                reasons = json.loads(r.get("red_flags") or "[]")
+            except (TypeError, ValueError):
+                reasons = []
+            out[key] = {"status": r["status"], "piotroski": r.get("piotroski"),
+                        "reasons": [x for x in reasons if isinstance(x, str)] if isinstance(reasons, list) else []}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("트랩 필터 결과 조회 실패 - 재무 표시 없이: %s", e)
+    return out
 
 
 def interest_tags_names() -> tuple[dict[str, list[str]], dict[str, str]]:
@@ -496,6 +525,14 @@ def interest_tags_names() -> tuple[dict[str, list[str]], dict[str, str]]:
             names.setdefault(f"KR:{i['symbol']}", i.get("name"))
     except Exception:  # noqa: BLE001
         pass
+    for path in US_LISTS:   # 미국 이름은 S&P 500·400 목록에서 - 관심 밖 새 이름도 회사명이 보이게
+        try:
+            with path.open(encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    if row.get("Symbol"):
+                        names.setdefault(f"US:{row['Symbol'].strip()}", row.get("Security"))
+        except Exception:  # noqa: BLE001
+            pass
     return tags, names
 
 
@@ -508,7 +545,8 @@ def get_insider_week() -> dict | None:
         logger.warning("내부자 매수 조회 실패(표 없음?) - 건너뜀: %s", e)
         return None
     tags, names = interest_tags_names()
-    return insider_week_items(rows, tags, names)
+    keys = {f"{r['market']}:{r['symbol']}" for r in rows}
+    return insider_week_items(rows, tags, names, screening_status(keys))
 
 
 US8K_TG_MAX = 5
@@ -876,12 +914,18 @@ def build_telegram_summary(b: dict) -> str:
         counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ins["by_market"].items(), reverse=True))
         lines.append("")
         lines.append(f"<b>🧑‍💼 내부자 장내 매수</b> 지난 7일 {counts}종목")
-        for g in ins["items"][:INSIDER_TG_MAX]:
-            tag = " · ".join(DISC_TAG_KO.get(t, t) for t in g["tags"])
+
+        def ins_line(g: dict, extra: str) -> str:
             who = g["roles"][0] if g["buyers"] == 1 else f"{g['buyers']}명"
             plan = " (계획 매수)" if g["all_plan"] else ""
-            lines.append(f"  {disp(g)} {html.escape(who)} {fmt_money(g['value'], g['market'])}{plan}"
-                         + (f" · {tag}" if tag else ""))
+            return f"  {disp(g)} {html.escape(who)} {fmt_money(g['value'], g['market'])}{plan}" + (f" · {extra}" if extra else "")
+        for g in ins["items"][:INSIDER_TG_MAX]:
+            lines.append(ins_line(g, " · ".join(DISC_TAG_KO.get(t, t) for t in g["tags"])))
+        disc = ins.get("discovery") or []
+        if disc:
+            lines.append(f"  🆕 관심 밖 {ins.get('discovery_count', len(disc))}종목")
+            for g in disc[:INSIDER_DISC_TG_MAX]:
+                lines.append(ins_line(g, FIN_KO.get((g.get("finance") or {}).get("status"), "재무 미확인")))
 
     u8 = b.get("us_8k_week")
     if u8 and u8.get("total"):

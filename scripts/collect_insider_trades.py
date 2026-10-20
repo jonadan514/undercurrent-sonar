@@ -1,6 +1,7 @@
 """내부자 장내 매수를 insider_trades에 쌓는다 (2026-10-21, 사용자 결정: 다음 작업 1번). 규칙은 src/collectors/insider_trades.py.
 
 대상: 워치리스트 후보 + 내 관심 + 관찰 노트 종목 + 승인된 테마 소속 기업(테마마다 최근 승인 run).
+     정기 실행은 여기에 미국 S&P 500·400, 한국 유니버스(시총 3000억+)를 더한다 - 관심 밖 새 이름 찾기용(2026-10-21).
 이력 표라 덮어쓰지 않는다(원칙 5): (시장, 공시번호, 줄)이 키, 이미 받은 공시는 다시 받지 않는다.
 
 미국: SEC submissions(회사별 최근 공시 목록)에서 기간 안의 Form 4만 골라 원본 XML을 읽는다.
@@ -15,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 import time
@@ -32,6 +34,7 @@ from src.collectors.insider_trades import clean_role, is_open_market_buy, parse_
 from src.db.data_store import get_db
 
 KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
+US_LISTS = (ROOT / "data" / "sp500_list.csv", ROOT / "data" / "sp400_list.csv")
 KR_REPORT = "임원ㆍ주요주주특정증권등소유상황보고서"
 VIEWER_SLEEP = 0.5
 
@@ -87,6 +90,18 @@ def _mark(conn, market: str, filing_id: str, buys: int, now: str) -> None:
 
 def _log(msg: str) -> None:
     print(f"[insider] {msg}", flush=True)
+
+
+def us_universe() -> set[str]:
+    """S&P 500 + 400 (워치리스트 스크리닝 유니버스와 같은 목록). 파일이 없으면 빈 집합."""
+    out: set[str] = set()
+    for path in US_LISTS:
+        try:
+            with path.open(encoding="utf-8") as f:
+                out |= {row["Symbol"].strip() for row in csv.DictReader(f) if row.get("Symbol")}
+        except Exception:  # noqa: BLE001
+            _log(f"{path.name} 없음 - 건너뜀")
+    return out
 
 
 def targets(conn, market: str) -> list[str]:
@@ -264,6 +279,10 @@ def main() -> int:
         conn.execute(SEEN_DDL)
         conn.commit()
     tickers = args.tickers or targets(conn, args.market)
+    if save and args.market == "US":
+        # 관심 밖 종목에서 새 이름을 찾으려고 S&P 500·400 전체도 본다(2026-10-21, 사용자 결정 A).
+        # 한국은 collect_kr 안에서 이미 유니버스(시총 3000억+)를 더한다.
+        tickers = sorted(set(tickers) | us_universe())
     _log(f"{args.market} 대상 {len(tickers)}종목, {since} 이후 공시")
     if args.market == "US":
         stats = collect_us(conn, tickers, since, save)

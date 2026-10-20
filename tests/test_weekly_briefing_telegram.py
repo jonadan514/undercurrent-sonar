@@ -205,14 +205,18 @@ def test_insider_week_grouping_and_telegram():
              "value": 100_000, "plan": 1},
             {"market": "US", "symbol": "DVN", "owner": "B", "role": "CFO", "trade_date": "2026-10-15", "filed_on": "2026-10-16",
              "value": 50_000, "plan": 1}]
-    ins = g.insider_week_items(rows, {"KR:043200": ["theme"]}, {"KR:043200": "파루"})
-    assert [x["symbol"] for x in ins["items"]] == ["043200", "DVN", "OXY"]   # 관심 표시 → 산 사람 수 → 금액
+    ins = g.insider_week_items(rows, {"KR:043200": ["theme"]}, {"KR:043200": "파루"},
+                               {"US:OXY": {"status": "pass", "piotroski": 7, "reasons": []}})
+    assert [x["symbol"] for x in ins["items"]] == ["043200"] and ins["tagged_count"] == 1
+    # 관심 밖: 계획 매수만 있는 DVN(2명)은 뒤로, OXY 먼저
+    assert [x["symbol"] for x in ins["discovery"]] == ["OXY", "DVN"] and ins["discovery_count"] == 2
     kr = ins["items"][0]
     assert kr["buyers"] == 1 and kr["trades"] == 2 and kr["value"] == 1.91e8 and kr["last_date"] == "2026-10-15"
-    assert ins["items"][1]["buyers"] == 2 and ins["items"][1]["all_plan"]
+    assert ins["discovery"][1]["buyers"] == 2 and ins["discovery"][1]["all_plan"] and ins["discovery"][1]["finance"] is None
     text = g.build_telegram_summary(_briefing(insider_week=ins))
     assert "내부자 장내 매수</b> 지난 7일 🇺🇸 2 · 🇰🇷 1종목" in text
-    assert "🇰🇷 파루 10%이상주주 1.9억 · 테마" in text and "DVN 2명 $150K (계획 매수)" in text and "OXY President and CEO · 이사 $250K" in text
+    assert "🇰🇷 파루 10%이상주주 1.9억 · 테마" in text and "🆕 관심 밖 2종목" in text
+    assert "OXY President and CEO · 이사 $250K · 재무 통과" in text and "DVN 2명 $150K (계획 매수) · 재무 미확인" in text
     assert g.fmt_money(1.2e6, "US") == "$1.2M" and g.fmt_money(3e7, "KR") == "3,000만"
 
 

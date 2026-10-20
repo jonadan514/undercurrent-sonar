@@ -43,6 +43,7 @@ interface WeekBrief {
   earnings_week?: { total: number; by_market: Record<string, number>; items: { market: string; tags: string[] }[] } | null;
   kr_disclosures?: { contract: { count: number; items: { tags: string[] }[] }; prelim: { count: number; items: { tags: string[] }[] };
                      termination?: { count: number; items: { tags: string[] }[] }; amend?: { count: number; items: { tags: string[] }[] } } | null;
+  insider_week?: { by_market: Record<string, number>; items: { market: string }[]; discovery?: { market: string }[]; discovery_count?: number } | null;
   observation_reviews?: unknown[];
 }
 
@@ -143,7 +144,7 @@ export default function HomePage() {
           <InfoTooltip content="이번 주에 새로 생긴 것만 모았습니다. 칸을 누르면 해당 목록으로 갑니다. 순위나 추천이 아닙니다." />
           {brief && <span className="ml-auto text-[11px]" style={{ color: "var(--text-faint)" }}>{brief.week.slice(5).replace("-", "/")} 주 브리핑 기준</span>}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <ChangeTile href={newCount ? "/watchlist?new=1" : "/watchlist"} label="워치리스트 후보"
             value={`${candidateCount}`} sub={newCount != null ? `이번 주 신규 ${newCount}` : "재무 필터 통과, 순위 없음"}
             hint="재무 건전성 필터를 통과한 종목. 매수 신호가 아닙니다." />
@@ -169,6 +170,14 @@ export default function HomePage() {
             const term = kd?.termination?.count ?? 0;
             return <ChangeTile href="/briefing#disclosures" label="🇰🇷 한국 공시 (7일)" value={kd ? `${all.reduce((n, k) => n + k.count, 0)}` : "-"}
               sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}${term ? ` · 해지 ${term}` : ""}` : "브리핑 전"} />;
+          })()}
+          {(() => {
+            const ins = brief?.insider_week;
+            const mine = (ins?.items ?? []).filter(x => x.market === market).length;
+            const fresh = (ins?.discovery ?? []).filter(x => x.market === market).length;
+            return <ChangeTile href="/briefing#insider" label="내부자 장내 매수 (7일)" value={ins ? `${ins.by_market[market] ?? 0}` : "-"}
+              sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 밖 ${fresh}` : `종목 ${ins.by_market[market] ?? 0}`) : "브리핑 전"}
+              hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 밖은 관심 표시 없는 유니버스 종목(새 이름 찾기용)." />;
           })()}
           <ChangeTile href="/notes" label="관찰 노트 회고" value={`${brief?.observation_reviews?.length ?? 0}`}
             sub={(brief?.observation_reviews?.length ?? 0) > 0 ? "판단 남길 회고 도착" : "도착한 회고 없음"} />
