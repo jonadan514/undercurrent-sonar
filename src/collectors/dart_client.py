@@ -291,14 +291,15 @@ def viewer_rows(rcept_no: str) -> list[str]:
     """DART 웹 뷰어에서 원문 HTML을 받아 document_rows와 같은 '칸 | 칸' 행으로. 못 받으면 빈 목록."""
     headers = {"User-Agent": "Mozilla/5.0 (U-Sonar research)"}
     try:
-        page = _decode(requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).content)
+        page = requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).content.decode("utf-8", "replace")
         m = _DCM_RE.search(page)
         if not m:
             return []
         dcm = m.group(1) or m.group(2)
-        # 응답 헤더의 문자셋과 실제 인코딩이 달라 .text가 깨진다(2026-10-21) - 바이트를 직접 utf-8 우선으로 푼다
-        html = _decode(requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
-                                                        "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content)
+        # 응답 헤더의 문자셋과 실제 인코딩이 달라 .text가 깨진다(2026-10-21). 본문은 utf-8인데 군데군데 잘못된 바이트가 있어
+        # 엄격하게 풀면 실패하고 cp949로 넘어가 전부 깨진다 - utf-8로 풀고 잘못된 바이트만 대체 문자로.
+        html = requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
+                                                "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content.decode("utf-8", "replace")
     except (requests.Timeout, requests.ConnectionError):
         return []
     text = _STYLE_RE.sub(" ", html)
