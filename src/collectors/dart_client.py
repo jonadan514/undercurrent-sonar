@@ -314,6 +314,21 @@ VIEWER_DOC = "https://dart.fss.or.kr/report/viewer.do"
 _DCM_RE = re.compile(r"node\d*\['dcmNo'\]\s*=\s*\"(\d+)\"|dcmNo['\"]?\s*[:=]\s*['\"](\d+)['\"]")
 
 
+VIEWER_TRIES = 4   # 웹 뷰어는 보안 연결(SSL)이 간헐적으로 끊긴다(2026-10-21 로그: 실패 전부 SSLError) - 잠깐 쉬고 다시
+
+
+def _viewer_get(url: str, params: dict, headers: dict) -> requests.Response:
+    """SSLError·연결 끊김·시간 초과면 2·4·6초 쉬고 다시. 마지막까지 실패하면 그 예외를 올린다."""
+    for attempt in range(VIEWER_TRIES):
+        try:
+            return requests.get(url, params=params, headers=headers, timeout=30)
+        except (requests.Timeout, requests.ConnectionError):   # SSLError는 ConnectionError의 하위
+            if attempt == VIEWER_TRIES - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError("unreachable")
+
+
 viewer_last_error: str | None = None   # 마지막 viewer_rows 실패 사유 - 수집 로그용(2026-10-21 절반가량 빈 응답 원인 찾기)
 
 
@@ -323,7 +338,7 @@ def viewer_rows(rcept_no: str) -> list[str]:
     viewer_last_error = None
     headers = {"User-Agent": "Mozilla/5.0 (U-Sonar research)"}
     try:
-        r = requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30)
+        r = _viewer_get(VIEWER_MAIN, {"rcpNo": rcept_no}, headers)
         page = decode_mixed(r.content)
         m = _DCM_RE.search(page)
         if not m:
@@ -332,8 +347,8 @@ def viewer_rows(rcept_no: str) -> list[str]:
         dcm = m.group(1) or m.group(2)
         # 응답이 utf-8과 EUC-KR이 섞여 있어(틀은 utf-8, 일부 데이터는 EUC-KR) 한 가지로 풀면 깨진다(2026-10-21)
         # - utf-8로 풀다가 실패한 2바이트만 cp949로.
-        html = decode_mixed(requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
-                                                "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content)
+        html = decode_mixed(_viewer_get(VIEWER_DOC, {"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
+                                                     "length": "0", "dtd": "HTML"}, headers).content)
     except (requests.Timeout, requests.ConnectionError) as e:
         viewer_last_error = type(e).__name__
         return []
