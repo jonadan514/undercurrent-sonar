@@ -314,20 +314,28 @@ VIEWER_DOC = "https://dart.fss.or.kr/report/viewer.do"
 _DCM_RE = re.compile(r"node\d*\['dcmNo'\]\s*=\s*\"(\d+)\"|dcmNo['\"]?\s*[:=]\s*['\"](\d+)['\"]")
 
 
+viewer_last_error: str | None = None   # 마지막 viewer_rows 실패 사유 - 수집 로그용(2026-10-21 절반가량 빈 응답 원인 찾기)
+
+
 def viewer_rows(rcept_no: str) -> list[str]:
-    """DART 웹 뷰어에서 원문 HTML을 받아 document_rows와 같은 '칸 | 칸' 행으로. 못 받으면 빈 목록."""
+    """DART 웹 뷰어에서 원문 HTML을 받아 document_rows와 같은 '칸 | 칸' 행으로. 못 받으면 빈 목록(사유는 viewer_last_error)."""
+    global viewer_last_error
+    viewer_last_error = None
     headers = {"User-Agent": "Mozilla/5.0 (U-Sonar research)"}
     try:
-        page = decode_mixed(requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).content)
+        r = requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30)
+        page = decode_mixed(r.content)
         m = _DCM_RE.search(page)
         if not m:
+            viewer_last_error = f"main.do {r.status_code} 길이 {len(r.content)} dcmNo 없음: {re.sub(chr(10) + '|' + chr(13), ' ', page[:120])}"
             return []
         dcm = m.group(1) or m.group(2)
         # 응답이 utf-8과 EUC-KR이 섞여 있어(틀은 utf-8, 일부 데이터는 EUC-KR) 한 가지로 풀면 깨진다(2026-10-21)
         # - utf-8로 풀다가 실패한 2바이트만 cp949로.
         html = decode_mixed(requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
                                                 "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content)
-    except (requests.Timeout, requests.ConnectionError):
+    except (requests.Timeout, requests.ConnectionError) as e:
+        viewer_last_error = type(e).__name__
         return []
     text = _STYLE_RE.sub(" ", html)
     text = re.sub(r"[\r\n]+", " ", text)
@@ -338,4 +346,6 @@ def viewer_rows(rcept_no: str) -> list[str]:
         line = re.sub(r"[ \t\xa0]+", " ", line.replace("&nbsp;", " ").replace("&amp;cr;", " ").replace("&cr;", " ")).strip(" |")
         if line:
             rows.append(line)
+    if not rows:
+        viewer_last_error = f"viewer.do 표 없음 길이 {len(html)}"
     return rows

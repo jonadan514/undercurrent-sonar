@@ -233,8 +233,8 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         if not rows:
             stats["no_table"] += 1
             fails += 1
-            if not save:
-                _log(f"  {i['corp_name']} {i['rcept_no']} 웹 뷰어 원문 없음")
+            if not save or stats["no_table"] <= 8:
+                _log(f"  {i['corp_name']} {i['rcept_no']} 웹 뷰어 원문 없음 - {dart.viewer_last_error}")
             # 못 읽은 공시는 본 것으로 남기지 않아 다음 실행에서 다시 읽는다 - 막힌 동안 계속 두드리지 않고 쉬었다가, 길면 멈춘다
             if fails >= VIEWER_STOP_AFTER:
                 _log(f"웹 뷰어 연속 {fails}건 실패 - 막힌 것으로 보고 멈춘다(남은 공시는 다음 실행에서)")
