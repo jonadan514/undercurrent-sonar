@@ -1382,6 +1382,82 @@ export default function WatchlistPage() {
       : cur.dir === SORT_FIRST_DIR[key] ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
       : null);   // 세 번째 누르면 정렬 해제(원래 순서)
 
+  // 종목 칸·성장 칸 - 넓은 화면 표와 휴대폰 카드가 같이 쓴다(2026-10-21 휴대폰 카드형).
+  const renderName = (c: Candidate, inList: boolean) => {
+    const key = `${c.market}:${c.symbol}`;
+    return (
+      <>
+        {/* 배지(신규·내 관심·실적 반전 등)가 많으면 다음 줄로 - 좁은 화면에서 이 칸이 표를 밀어내지 않게 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexWrap: "wrap", rowGap: 3 }}>
+          <span style={{ color: c.market === "US" ? INFO : BAD, fontSize: 11, fontWeight: 600 }}>{c.market}</span>
+          <span style={{ fontWeight: 700, color: NUM }}>{c.symbol}</span>
+          {c.is_new === true && (
+            <span
+              // first_seen은 이력 기록이 쌓이기 시작한 뒤로만 알 수 있다 - 실제
+              // 첫 통과일이 그보다 이전일 수 있어 "최초"라고 단정하지 않는다.
+              title={c.is_reentry
+                ? `예전에 후보였다가 빠진 뒤 이번에 다시 통과 (기록상 최초 등장: ${c.first_seen ?? "-"})`
+                : "이번 회차에 처음 필터를 통과 (이력 기록 시작 이후 처음)"}
+              style={{
+                marginLeft: 6, fontSize: 10, fontWeight: 700,
+                color: GOOD, border: `1px solid ${GOOD}55`,
+                padding: "1px 5px", verticalAlign: "middle",
+              }}>
+              {c.is_reentry ? "재진입" : "신규"}
+            </span>
+          )}
+          {(inList || isTurnaround(c)) && (
+            <TagBadges tags={[...(inList ? ["my"] : []), ...(isTurnaround(c) ? ["turnaround"] : [])]} />
+          )}
+          {heating.has(key) && (
+            <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(key)}) · 뉴스량 기준 보조 정보`}
+              style={{ fontSize: 10, fontWeight: 700, color: BAD, border: `1px solid ${BAD}55`, padding: "1px 5px", verticalAlign: "middle" }}>
+              ▲관심
+            </span>
+          )}
+        </div>
+        <div style={{ color: TEXT_SECONDARY, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {c.name ?? "-"}{c.sector ? <span style={{ color: TEXT_MUTED }}> · {c.sector}</span> : null}
+        </div>
+        {(c.themes ?? []).length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
+            {(c.themes ?? []).slice(0, 3).map((t) => (
+              <span key={t.theme_id}
+                title={[t.label && `레이더: ${t.label}`, t.quarterly && `분기: ${t.quarterly}`,
+                        `실적 ${arrowText(t.earn_arrow)} · 주가 ${arrowText(t.price_arrow)}`].filter(Boolean).join(" · ")}
+                style={{
+                  fontSize: 10, padding: "0 5px", whiteSpace: "nowrap",
+                  color: flowTest?.(t) ? ACCENT : TEXT_MUTED,
+                  border: `1px solid ${flowTest?.(t) ? ACCENT + "60" : BORDER_CTRL}`,
+                }}>{themeName(t.theme_id).ko}</span>
+            ))}
+            {(c.themes ?? []).length > 3 && <span style={{ fontSize: 10, color: TEXT_MUTED }}>+{(c.themes ?? []).length - 3}</span>}
+          </div>
+        )}
+      </>
+    );
+  };
+  const renderGrowth = (c: Candidate) => (
+    <>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <GrowthBadge tier={c.growth_tier} prefix={c.rev_q_tier || c.rev_ttm_tier ? "3년" : undefined} title="연간 매출 3년 CAGR 기준" />
+        {/* 지금 흐름: 최근 4개 분기 합 비교가 있으면 그것(덜 흔들림), 없으면 최근 한 분기 비교 */}
+        {c.rev_ttm_tier
+          ? <GrowthBadge tier={c.rev_ttm_tier} prefix="1년"
+              title={`최근 4개 분기 매출 합, 그 전 4개 분기 대비 ${fmtGrowthPct(c.rev_ttm_yoy)} (최근 분기 단독 ${fmtGrowthPct(c.rev_q_yoy)})`} />
+          : <GrowthBadge tier={c.rev_q_tier} prefix="분기"
+              title={`${quarterLabel(c.rev_q_quarter)} 매출, 1년 전 같은 분기 대비 ${fmtGrowthPct(c.rev_q_yoy)}`} />}
+      </div>
+      <div style={{ marginTop: 2 }}><GrowthNumbers cagr3y={c.revenue_cagr_3y} yoy={c.revenue_yoy} /></div>
+      {(c.op_margin_q_status === "개선" || c.op_margin_q_status === "악화") && (
+        <div style={{ marginTop: 2, fontSize: 11, color: c.op_margin_q_status === "개선" ? GOOD : CAUTION, whiteSpace: "nowrap" }}
+          title={`최근 분기 영업이익률 ${c.op_margin_q_now != null ? (c.op_margin_q_now * 100).toFixed(1) + "%" : "-"}, 1년 전 같은 분기 대비 ${c.op_margin_q_change != null ? ((c.op_margin_q_change >= 0 ? "+" : "") + (c.op_margin_q_change * 100).toFixed(1)) : "-"}%p`}>
+          분기 이익률 {c.op_margin_q_status === "개선" ? "↑" : "↓"}
+        </div>
+      )}
+    </>
+  );
+
   // 후보가 275종목이라 목록만으로는 이번 주에 뭐가 달라졌는지 안 보인다.
   // 순위를 만들지 않으면서 "먼저 볼 것"을 주는 방법 - 이번 회차 신규만 따로 센다.
   const newCount = candidates.filter((c) => c.is_new === true).length;
@@ -1673,8 +1749,71 @@ export default function WatchlistPage() {
                   : "필터 조건에 맞는 종목 없음."}
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <p style={{ fontSize: 12, color: TEXT_MUTED, marginBottom: 8 }}>행 클릭 시 상세 정보 · 열 제목 클릭 시 정렬 · ⓘ 클릭 시 지표 설명<span className="sm:hidden"> · 좁은 화면에선 시총·부채·이자보상·체제·추가 열을 숨김(행을 누르면 상세에 전부)</span></p>
+            <>
+            {/* 휴대폰: 표 대신 종목 카드(2026-10-21). 열 제목이 없으니 정렬은 고르는 상자로 - 기본은 정렬 없음(순위 아님). */}
+            <div className="sm:hidden">
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, fontSize: 12, color: TEXT_MUTED }}>
+                <span>정렬</span>
+                <select value={sort?.key ?? ""} aria-label="정렬 기준"
+                  onChange={(e) => { const k = e.target.value as SortKey | ""; setSort(k ? { key: k, dir: SORT_FIRST_DIR[k] } : null); }}
+                  style={{ background: INSET_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, padding: "3px 6px", fontSize: 12 }}>
+                  <option value="">없음(종목 순)</option>
+                  {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
+                </select>
+                {sort && (
+                  <button onClick={() => setSort({ key: sort.key, dir: sort.dir === "asc" ? "desc" : "asc" })}
+                    style={{ border: `1px solid ${BORDER_CTRL}`, padding: "2px 8px", color: TEXT_SECONDARY }}>
+                    {sort.dir === "asc" ? "낮은 순 ↑" : "높은 순 ↓"}
+                  </button>
+                )}
+                <span style={{ marginLeft: "auto" }}>{sorted.length}종목 · 누르면 상세</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {sorted.map((c) => {
+                  const key = `${c.market}:${c.symbol}`;
+                  const inList = addedSymbols.has(key);
+                  return (
+                    <div key={key} role="button" tabIndex={0} onClick={() => setSelected(c)}
+                      onKeyDown={(e) => { if (e.key === "Enter") setSelected(c); }}
+                      style={{ background: INSET_BG, border: `1px solid ${BORDER}`, padding: "10px 12px", cursor: "pointer" }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>{renderName(c, inList)}</div>
+                        <button onClick={(e) => { e.stopPropagation(); if (!inList) addToWatchlist(c); }} disabled={inList}
+                          style={{
+                            flexShrink: 0, background: inList ? PANEL_BG : ACCENT + "20", color: inList ? TEXT_FAINT : ACCENT,
+                            border: `1px solid ${inList ? BORDER : ACCENT + "40"}`, padding: "3px 8px", fontSize: 11,
+                          }}>
+                          {inList ? "추가됨" : "+ 추가"}
+                        </button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1.3fr", gap: 10, marginTop: 8, alignItems: "start" }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: TEXT_MUTED }}>F-Score</div>
+                          <PiotroskiBadge score={c.piotroski} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 10, color: TEXT_MUTED }}>밸류</div>
+                          <ValuationBadge tier={c.valuation_tier} />
+                          <div style={{ marginTop: 2 }}><ValuationNumbers psr={c.psr} per={c.per} /></div>
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 10, color: TEXT_MUTED }}>성장</div>
+                          {renderGrowth(c)}
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 11, color: TEXT_MUTED, display: "flex", gap: 10, flexWrap: "wrap", fontVariantNumeric: "tabular-nums" }}>
+                        <span>시총 {formatCap(c.market, c.market_cap)}</span>
+                        <span>부채 <MetricOrNote value={c.debt_ratio} note={c.data_notes?.debt} format={(v) => `${v}%`} /></span>
+                        <span>이자보상 <MetricOrNote value={c.interest_coverage} note={c.data_notes?.interest} format={(v) => v.toFixed(1) + "x"} /></span>
+                        <RegimeBadge fit={c.regime_fit} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="hidden sm:block" style={{ overflowX: "auto" }}>
+              <p style={{ fontSize: 12, color: TEXT_MUTED, marginBottom: 8 }}>행 클릭 시 상세 정보 · 열 제목 클릭 시 정렬 · ⓘ 클릭 시 지표 설명</p>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
@@ -1703,53 +1842,7 @@ export default function WatchlistPage() {
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
                         <td style={{ padding: "8px 8px", minWidth: 120, maxWidth: 220 }}>
-                          {/* 배지(신규·내 관심·실적 반전 등)가 많으면 다음 줄로 - 좁은 화면에서 이 칸이 표를 밀어내지 않게 */}
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexWrap: "wrap", rowGap: 3 }}>
-                            <span style={{ color: c.market === "US" ? INFO : BAD, fontSize: 11, fontWeight: 600 }}>{c.market}</span>
-                            <span style={{ fontWeight: 700, color: NUM }}>{c.symbol}</span>
-                            {c.is_new === true && (
-                              <span
-                                // first_seen은 이력 기록이 쌓이기 시작한 뒤로만 알 수 있다 - 실제
-                                // 첫 통과일이 그보다 이전일 수 있어 "최초"라고 단정하지 않는다.
-                                title={c.is_reentry
-                                  ? `예전에 후보였다가 빠진 뒤 이번에 다시 통과 (기록상 최초 등장: ${c.first_seen ?? "-"})`
-                                  : "이번 회차에 처음 필터를 통과 (이력 기록 시작 이후 처음)"}
-                                style={{
-                                  marginLeft: 6, fontSize: 10, fontWeight: 700,
-                                  color: GOOD, border: `1px solid ${GOOD}55`,
-                                  padding: "1px 5px", verticalAlign: "middle",
-                                }}>
-                                {c.is_reentry ? "재진입" : "신규"}
-                              </span>
-                            )}
-                            {(inList || isTurnaround(c)) && (
-                              <TagBadges tags={[...(inList ? ["my"] : []), ...(isTurnaround(c) ? ["turnaround"] : [])]} />
-                            )}
-                            {heating.has(key) && (
-                              <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(key)}) · 뉴스량 기준 보조 정보`}
-                                style={{ fontSize: 10, fontWeight: 700, color: BAD, border: `1px solid ${BAD}55`, padding: "1px 5px", verticalAlign: "middle" }}>
-                                ▲관심
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ color: TEXT_SECONDARY, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {c.name ?? "-"}{c.sector ? <span style={{ color: TEXT_MUTED }}> · {c.sector}</span> : null}
-                          </div>
-                          {(c.themes ?? []).length > 0 && (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
-                              {(c.themes ?? []).slice(0, 3).map((t) => (
-                                <span key={t.theme_id}
-                                  title={[t.label && `레이더: ${t.label}`, t.quarterly && `분기: ${t.quarterly}`,
-                                          `실적 ${arrowText(t.earn_arrow)} · 주가 ${arrowText(t.price_arrow)}`].filter(Boolean).join(" · ")}
-                                  style={{
-                                    fontSize: 10, padding: "0 5px", whiteSpace: "nowrap",
-                                    color: flowTest?.(t) ? ACCENT : TEXT_MUTED,
-                                    border: `1px solid ${flowTest?.(t) ? ACCENT + "60" : BORDER_CTRL}`,
-                                  }}>{themeName(t.theme_id).ko}</span>
-                              ))}
-                              {(c.themes ?? []).length > 3 && <span style={{ fontSize: 10, color: TEXT_MUTED }}>+{(c.themes ?? []).length - 3}</span>}
-                            </div>
-                          )}
+                          {renderName(c, inList)}
                         </td>
                         <td className="hidden sm:table-cell" style={{ padding: "8px 8px", color: NUM, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCap(c.market, c.market_cap)}</td>
                         <td style={{ padding: "8px 8px" }}><PiotroskiBadge score={c.piotroski} /></td>
@@ -1764,22 +1857,7 @@ export default function WatchlistPage() {
                           <div style={{ marginTop: 2 }}><ValuationNumbers psr={c.psr} per={c.per} /></div>
                         </td>
                         <td style={{ padding: "8px 8px" }}>
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            <GrowthBadge tier={c.growth_tier} prefix={c.rev_q_tier || c.rev_ttm_tier ? "3년" : undefined} title="연간 매출 3년 CAGR 기준" />
-                            {/* 지금 흐름: 최근 4개 분기 합 비교가 있으면 그것(덜 흔들림), 없으면 최근 한 분기 비교 */}
-                            {c.rev_ttm_tier
-                              ? <GrowthBadge tier={c.rev_ttm_tier} prefix="1년"
-                                  title={`최근 4개 분기 매출 합, 그 전 4개 분기 대비 ${fmtGrowthPct(c.rev_ttm_yoy)} (최근 분기 단독 ${fmtGrowthPct(c.rev_q_yoy)})`} />
-                              : <GrowthBadge tier={c.rev_q_tier} prefix="분기"
-                                  title={`${quarterLabel(c.rev_q_quarter)} 매출, 1년 전 같은 분기 대비 ${fmtGrowthPct(c.rev_q_yoy)}`} />}
-                          </div>
-                          <div style={{ marginTop: 2 }}><GrowthNumbers cagr3y={c.revenue_cagr_3y} yoy={c.revenue_yoy} /></div>
-                          {(c.op_margin_q_status === "개선" || c.op_margin_q_status === "악화") && (
-                            <div style={{ marginTop: 2, fontSize: 11, color: c.op_margin_q_status === "개선" ? GOOD : CAUTION, whiteSpace: "nowrap" }}
-                              title={`최근 분기 영업이익률 ${c.op_margin_q_now != null ? (c.op_margin_q_now * 100).toFixed(1) + "%" : "-"}, 1년 전 같은 분기 대비 ${c.op_margin_q_change != null ? ((c.op_margin_q_change >= 0 ? "+" : "") + (c.op_margin_q_change * 100).toFixed(1)) : "-"}%p`}>
-                              분기 이익률 {c.op_margin_q_status === "개선" ? "↑" : "↓"}
-                            </div>
-                          )}
+                          {renderGrowth(c)}
                         </td>
                         <td className="hidden sm:table-cell" style={{ padding: "8px 8px" }}><RegimeBadge fit={c.regime_fit} /></td>
                         <td className="hidden sm:table-cell" style={{ padding: "8px 8px" }} onClick={(e) => e.stopPropagation()}>
@@ -1802,6 +1880,7 @@ export default function WatchlistPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </>
       )}
