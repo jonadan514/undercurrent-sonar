@@ -5,6 +5,7 @@
 // 세 축은 합치지 않고 한 줄씩 둔다(원칙 1). 계산 불가(na)는 하락처럼 칠하지 않는다(원칙 4).
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import StockLink from "@/src/components/StockLink";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { themeName } from "@/src/lib/themeNames";
@@ -422,7 +423,7 @@ function ThemeHistory() {
                         return (
                           <tr key={m.ticker} style={{ borderBottom: "1px solid var(--border-dim)" }}>
                             <td className="py-2">
-                              <span className="font-bold" style={{ color: "var(--text-primary)" }}>{market === "KR" && name ? name : m.ticker}</span>
+                              <StockLink market={market} symbol={m.ticker} className="font-bold" style={{ color: "var(--text-primary)" }}>{market === "KR" && name ? name : m.ticker}</StockLink>
                               {name && (
                                 <span className="ml-1.5 text-[11px]" style={{ fontFamily: MONO, color: FAINT }}>
                                   {market === "KR" ? m.ticker : name}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import FlagIcon from "@/src/components/FlagIcon";
+import StockLink from "@/src/components/StockLink";
 
 // 경기 사이클 판정(회복기·성장기 등)은 2026-10-20에 화면에서 뺐다 - 대표 섹터 3개씩의 1달 RS 평균 중 최댓값을
 // 고르는 단일 판정이라 원칙 1(단일 판정 없음)과 어긋나고, 에너지·소재가 두 단계에 겹쳐 구분력도 약했다.
@@ -321,7 +322,7 @@ export default function SectorPage() {
                       {stocks.map((s: any) => (
                         <div key={s.symbol} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12px]"
                           style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                          <span className="font-bold text-white">{s.symbol}</span>
+                          <StockLink market={isKR ? "KR" : "US"} symbol={s.symbol} className="font-bold text-white">{s.symbol}</StockLink>
                           {isKR && s.name && <span style={{ color: "#a39c88" }}>{s.name}</span>}
                           {s.piotroski != null ? (
                             <span

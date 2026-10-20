@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import FlagIcon from "@/src/components/FlagIcon";
+import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
 
 interface StockRef {
@@ -51,12 +52,16 @@ function YoY({ label, pct, turn }: { label: string; pct?: number | null; turn?: 
   if (pct == null) return <span style={{ color: "var(--text-muted)" }}>{label} -</span>;
   return <span>{label} <span style={{ color: pct >= 0 ? "#4ade80" : "#f87171" }}>{pct >= 0 ? "+" : ""}{pct.toFixed(0)}%</span></span>;
 }
+// 이름은 종목 상세로, 옆 "원문"은 DART 공시로(2026-10-20)
 function DiscName({ d }: { d: DisclosureItem }) {
   return (
-    <a href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`} target="_blank" rel="noreferrer"
-      className="font-bold text-white hover:underline inline-flex items-center gap-1">
-      <FlagIcon market="KR" size={11} />{d.name || d.symbol}
-    </a>
+    <span className="inline-flex items-center gap-1">
+      <StockLink market="KR" symbol={d.symbol} className="font-bold text-white inline-flex items-center gap-1">
+        <FlagIcon market="KR" size={11} />{d.name || d.symbol}
+      </StockLink>
+      <a href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`} target="_blank" rel="noreferrer"
+        className="text-[11px] hover:underline" style={{ color: "var(--text-muted)" }}>원문↗</a>
+    </span>
   );
 }
 function DiscTags({ tags }: { tags: string[] }) {
@@ -104,10 +109,10 @@ function MacroRow({ label, m, fmt, chgFmt }: { label: string; m?: MacroItem | nu
 
 function StockLabel({ s }: { s: StockRef }) {
   return (
-    <span className="inline-flex items-center gap-1">
+    <StockLink market={s.market} symbol={s.symbol} className="inline-flex items-center gap-1">
       <FlagIcon market={s.market as "US" | "KR"} size={11} />
       <span className="font-bold text-white">{s.market === "KR" ? (s.name || s.symbol) : s.symbol}</span>
-    </span>
+    </StockLink>
   );
 }
 
@@ -368,7 +373,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 종류별 30건까지</p>
               )}
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 DART 원문
+                시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 종목 상세, 원문↗은 DART 공시
               </p>
             </div>
           )}

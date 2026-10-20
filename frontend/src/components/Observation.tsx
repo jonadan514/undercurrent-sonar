@@ -4,6 +4,7 @@
 // 가설·그때 값은 고치지 않고, 회고의 판단·배운 점만 사람이 붙인다. 툴은 기대가 일어났는지 사실만 적는다.
 
 import { useState } from "react";
+import StockLink from "@/src/components/StockLink";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { themeName } from "@/src/lib/themeNames";
@@ -289,7 +290,9 @@ export function ObservationCard({ o, currentWeek, onChanged, showTarget = true }
           {status === "due" ? "🔁 회고 도착" : status === "done" ? "정리됨" : "⏳ 진행 중"}
         </span>
         <span>· {md(o.created_at)} 작성</span>
-        {showTarget && <span>· <b style={{ color: "var(--text-primary)" }}>{targetName(o)}</b> ({o.market === "US" ? "미국" : "한국"}{o.kind === "stock" ? " · 종목" : ""})</span>}
+        {showTarget && <span>· {o.kind === "stock" && o.ticker
+          ? <StockLink market={o.market} symbol={o.ticker}><b style={{ color: "var(--text-primary)" }}>{targetName(o)}</b></StockLink>
+          : <b style={{ color: "var(--text-primary)" }}>{targetName(o)}</b>} ({o.market === "US" ? "미국" : "한국"}{o.kind === "stock" ? " · 종목" : ""})</span>}
         {wait && <span>· {wait}</span>}
         <span className="ml-auto flex gap-3">
           {o.kind === "theme" && o.theme_id && (

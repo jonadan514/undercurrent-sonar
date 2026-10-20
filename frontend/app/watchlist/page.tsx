@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { externalQuoteUrl } from "@/src/components/StockLink";
 import { X, Info, Pencil, Search } from "lucide-react";
 import StockTechPanel from "@/src/components/StockTechPanel";
 import { themeName } from "@/src/lib/themeNames";
@@ -1097,6 +1098,27 @@ export default function WatchlistPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // 다른 화면에서 종목 이름을 누르고 들어온 경우(/watchlist?stock=US:MU, 2026-10-20) - 후보면 상세 카드를 바로 열고,
+  // 후보가 아니면 위에 안내와 외부 시세 링크를 띄운다. 처음 불러온 뒤 한 번만(메모 저장 뒤 다시 불러올 때는 무시).
+  const [linkMiss, setLinkMiss] = useState<{ market: string; symbol: string; name: string | null; mine: boolean } | null>(null);
+  const linkHandled = useRef(false);
+  useEffect(() => {
+    if (loading || linkHandled.current) return;
+    linkHandled.current = true;
+    const raw = new URLSearchParams(window.location.search).get("stock");
+    if (!raw || !raw.includes(":")) return;
+    const [m, ...rest] = raw.split(":");
+    const sym = rest.join(":");
+    const c = candidates.find((x) => x.market === m && x.symbol === sym);
+    if (c) { setSelected(c); return; }
+    const mine = myList.find((w) => w.market === m && w.symbol === sym);
+    setLinkMiss({ market: m, symbol: sym, name: mine?.name ?? null, mine: !!mine });
+    if (mine) setTab("my");
+  }, [loading, candidates, myList]);
+  const clearStockParam = () => {
+    if (window.location.search.includes("stock=")) window.history.replaceState(null, "", window.location.pathname);
+  };
+
   const addToWatchlist = async (c: Candidate) => {
     await fetch("/api/watchlist/my", {
       method: "POST",
@@ -1267,8 +1289,19 @@ export default function WatchlistPage() {
           note={myList.find((w) => w.market === selected.market && w.symbol === selected.symbol)?.note ?? null}
           onAdd={() => addToWatchlist(selected)}
           onSaveNote={(note) => saveNoteFromModal(selected, note)}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); clearStockParam(); }}
         />
+      )}
+      {linkMiss && (
+        <div style={{ background: INSET_BG, border: `1px solid ${BORDER_CTRL}`, padding: "10px 14px", margin: "8px 0", fontSize: 13, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ color: TEXT_PRIMARY, fontWeight: 700 }}>{linkMiss.name || linkMiss.symbol}</span>
+          <span style={{ color: TEXT_SECONDARY }}>
+            이번 주 워치리스트 후보가 아닙니다(재무 필터 미통과 또는 대상 밖){linkMiss.mine ? " · 내 관심 목록에 있습니다" : ""}
+          </span>
+          <a href={externalQuoteUrl(linkMiss.market, linkMiss.symbol)} target="_blank" rel="noreferrer"
+            style={{ color: "#ffb020" }}>{linkMiss.market === "KR" ? "네이버 금융" : "Yahoo Finance"}에서 보기 ↗</a>
+          <button onClick={() => { setLinkMiss(null); clearStockParam(); }} style={{ marginLeft: "auto", color: TEXT_MUTED }} aria-label="닫기">✕</button>
+        </div>
       )}
       {infoKey && (
         <InfoModal info={INDICATOR_INFO[infoKey]} onClose={() => setInfoKey(null)} />

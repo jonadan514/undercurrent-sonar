@@ -6,6 +6,7 @@ import { themeName } from "@/src/lib/themeNames";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { krStockName } from "@/src/lib/krStockNames";
 import Link from "next/link";
+import StockLink from "@/src/components/StockLink";
 
 // globals.css의 앱 전역 토큰을 그대로 쓴다 (워치리스트 페이지와 같은 터미널·앰버 룩).
 const ACCENT = "var(--accent)";
@@ -280,13 +281,13 @@ function MembersTable({ members, loading, market }: { members: Member[]; loading
                   // 한국 종목코드(6자리 숫자)는 사람이 못 읽으니 회사명을 앞세우고
                   // 코드는 보조로 작게 - 미국은 티커 자체가 식별자라 그대로 둔다.
                   <div className="flex flex-col">
-                    <span className="whitespace-nowrap font-bold" style={{ color: "var(--text-primary)" }}>
+                    <StockLink market="KR" symbol={m.ticker} className="whitespace-nowrap font-bold" style={{ color: "var(--text-primary)" }}>
                       {krStockName(m.ticker)}
-                    </span>
+                    </StockLink>
                     <span className="text-[11px]" style={{ fontFamily: MONO, color: FAINT }}>{m.ticker}</span>
                   </div>
                 ) : (
-                  <span className="font-bold" style={{ fontFamily: MONO, color: "var(--num)" }}>{m.ticker}</span>
+                  <StockLink market="US" symbol={m.ticker} className="font-bold" style={{ fontFamily: MONO, color: "var(--num)" }}>{m.ticker}</StockLink>
                 )}
               </td>
               <td className="px-3 py-2 align-top">

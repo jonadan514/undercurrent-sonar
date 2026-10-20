@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { krStockName } from "@/src/lib/krStockNames";
@@ -330,11 +331,11 @@ function MembersTable({ members, loading, market }: { members: CompanySignal[]; 
                 <td className="px-3 py-2 align-top">
                   {market === "KR" ? (
                     <div className="flex flex-col">
-                      <span className="whitespace-nowrap font-bold" style={{ color: "var(--text-primary)" }}>{krStockName(m.ticker)}</span>
+                      <StockLink market="KR" symbol={m.ticker} className="whitespace-nowrap font-bold" style={{ color: "var(--text-primary)" }}>{krStockName(m.ticker)}</StockLink>
                       <span className="text-[12px]" style={{ fontFamily: MONO, color: MUTED }}>{m.ticker}</span>
                     </div>
                   ) : (
-                    <span className="font-bold" style={{ fontFamily: MONO, color: "var(--num)" }}>{m.ticker}</span>
+                    <StockLink market="US" symbol={m.ticker} className="font-bold" style={{ fontFamily: MONO, color: "var(--num)" }}>{m.ticker}</StockLink>
                   )}
                 </td>
                 <td className="px-3 py-2 align-top">
