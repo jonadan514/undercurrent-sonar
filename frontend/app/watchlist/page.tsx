@@ -1013,8 +1013,9 @@ const SORT_FIRST_DIR: Record<SortKey, "asc" | "desc"> = {
   psr: "asc", per: "asc", revenue_cagr_3y: "desc", revenue_yoy: "desc",
 };
 
-function ColHeader({ label, infoKey, onInfo, sortKey, sort, onSort }: {
+function ColHeader({ label, infoKey, onInfo, sortKey, sort, onSort, className }: {
   label: string;
+  className?: string;
   infoKey?: keyof typeof INDICATOR_INFO;
   onInfo?: (key: keyof typeof INDICATOR_INFO) => void;
   sortKey?: SortKey;
@@ -1023,7 +1024,7 @@ function ColHeader({ label, infoKey, onInfo, sortKey, sort, onSort }: {
 }) {
   const active = sortKey && sort?.key === sortKey;
   return (
-    <th style={{ padding: "8px 8px", textAlign: "left", fontWeight: 500, whiteSpace: "nowrap" }}>
+    <th className={className} style={{ padding: "8px 8px", textAlign: "left", fontWeight: 500, whiteSpace: "nowrap" }}>
       <span style={{ display: "flex", alignItems: "center", gap: 4, color: active ? ACCENT : TEXT_SECONDARY, fontSize: 12 }}>
         {sortKey && onSort ? (
           <button onClick={() => onSort(sortKey)} title={`${SORT_LABEL[sortKey]}로 정렬`}
@@ -1556,21 +1557,21 @@ export default function WatchlistPage() {
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <p style={{ fontSize: 12, color: TEXT_MUTED, marginBottom: 8 }}>행 클릭 시 상세 정보 · 열 제목 클릭 시 정렬 · ⓘ 클릭 시 지표 설명</p>
+              <p style={{ fontSize: 12, color: TEXT_MUTED, marginBottom: 8 }}>행 클릭 시 상세 정보 · 열 제목 클릭 시 정렬 · ⓘ 클릭 시 지표 설명<span className="sm:hidden"> · 좁은 화면에선 시총·부채·이자보상·체제·추가 열을 숨김(행을 누르면 상세에 전부)</span></p>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
                     {/* 15열 -> 9열(2026-10-04): 마켓·티커·종목명·섹터를 한 칸에, 밸류 배지+PSR/PER, 성장 배지+3년/1년을
                         각각 한 칸에 합쳤다. 현재가는 상세 화면에 있다. 가로 스크롤 없이 한 화면에 들어오게. */}
                     <ColHeader label="종목" />
-                    <ColHeader label="시가총액" sortKey="market_cap" sort={sort} onSort={onSort} />
+                    <ColHeader label="시가총액" sortKey="market_cap" sort={sort} onSort={onSort} className="hidden sm:table-cell" />
                     <ColHeader label="F-Score" infoKey="fscore" onInfo={setInfoKey} sortKey="piotroski" sort={sort} onSort={onSort} />
-                    <ColHeader label="부채비율" infoKey="debt" onInfo={setInfoKey} sortKey="debt_ratio" sort={sort} onSort={onSort} />
-                    <ColHeader label="이자보상" infoKey="interest" onInfo={setInfoKey} sortKey="interest_coverage" sort={sort} onSort={onSort} />
+                    <ColHeader label="부채비율" infoKey="debt" onInfo={setInfoKey} sortKey="debt_ratio" sort={sort} onSort={onSort} className="hidden sm:table-cell" />
+                    <ColHeader label="이자보상" infoKey="interest" onInfo={setInfoKey} sortKey="interest_coverage" sort={sort} onSort={onSort} className="hidden sm:table-cell" />
                     <ColHeader label="밸류 · PSR" infoKey="valuation" onInfo={setInfoKey} sortKey="psr" sort={sort} onSort={onSort} />
                     <ColHeader label="성장 · 3년" infoKey="growth" onInfo={setInfoKey} sortKey="revenue_cagr_3y" sort={sort} onSort={onSort} />
-                    <ColHeader label="체제" infoKey="regime" onInfo={setInfoKey} />
-                    <th style={{ padding: "8px 8px" }} />
+                    <ColHeader label="체제" infoKey="regime" onInfo={setInfoKey} className="hidden sm:table-cell" />
+                    <th className="hidden sm:table-cell" style={{ padding: "8px 8px" }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -1584,8 +1585,9 @@ export default function WatchlistPage() {
                         onMouseEnter={(e) => (e.currentTarget.style.background = HOVER_BG)}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
-                        <td style={{ padding: "8px 8px", minWidth: 150, maxWidth: 220 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                        <td style={{ padding: "8px 8px", minWidth: 120, maxWidth: 220 }}>
+                          {/* 배지(신규·내 관심·실적 반전 등)가 많으면 다음 줄로 - 좁은 화면에서 이 칸이 표를 밀어내지 않게 */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexWrap: "wrap", rowGap: 3 }}>
                             <span style={{ color: c.market === "US" ? INFO : BAD, fontSize: 11, fontWeight: 600 }}>{c.market}</span>
                             <span style={{ fontWeight: 700, color: NUM }}>{c.symbol}</span>
                             {c.is_new === true && (
@@ -1632,12 +1634,12 @@ export default function WatchlistPage() {
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: "8px 8px", color: NUM, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCap(c.market, c.market_cap)}</td>
+                        <td className="hidden sm:table-cell" style={{ padding: "8px 8px", color: NUM, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCap(c.market, c.market_cap)}</td>
                         <td style={{ padding: "8px 8px" }}><PiotroskiBadge score={c.piotroski} /></td>
-                        <td style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
+                        <td className="hidden sm:table-cell" style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
                           <MetricOrNote value={c.debt_ratio} note={c.data_notes?.debt} format={(v) => `${v}%`} />
                         </td>
-                        <td style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
+                        <td className="hidden sm:table-cell" style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
                           <MetricOrNote value={c.interest_coverage} note={c.data_notes?.interest} format={(v) => v.toFixed(1) + "x"} />
                         </td>
                         <td style={{ padding: "8px 8px" }}>
@@ -1662,8 +1664,8 @@ export default function WatchlistPage() {
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: "8px 8px" }}><RegimeBadge fit={c.regime_fit} /></td>
-                        <td style={{ padding: "8px 8px" }} onClick={(e) => e.stopPropagation()}>
+                        <td className="hidden sm:table-cell" style={{ padding: "8px 8px" }}><RegimeBadge fit={c.regime_fit} /></td>
+                        <td className="hidden sm:table-cell" style={{ padding: "8px 8px" }} onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => !inList && addToWatchlist(c)}
                             disabled={inList}

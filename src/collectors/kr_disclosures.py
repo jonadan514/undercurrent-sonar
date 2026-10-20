@@ -9,7 +9,10 @@ DART 거래소공시 목록(list.json, pblntf_ty=I)에서 세 종류만 골라 �
   prelim    (연결재무제표기준)영업(잠정)실적(공정공시) - 매출·영업이익·순이익 당해 분기와 전년동기 대비(%)
             회사가 적은 증감율이 같은 표의 두 값과 1%p 넘게 어긋나면 그 증감율은 버린다(칸 위치가 다른 양식 대비).
   notice    결산실적공시예고 - 결산실적 공시 예정일(한국 실적 발표 일정, yfinance 빈칸 보완)
-정정공시([기재정정] 등)는 원 공시를 고친 것이라 새 알림으로 세지 않는다.
+  termination 단일판매ㆍ공급계약해지 - 해지금액(원)·매출액 대비(%)·해지 사유·해지일자 (2026-10-21)
+  amend     [기재정정]단일판매ㆍ공급계약체결 - 정정 표의 계약금액·매출액 대비 정정 전→후 + 고친 뒤 본문 (2026-10-21)
+            정정은 대부분 날짜·문구만 바뀐다 - 브리핑·알림은 계약금액이 바뀐 것만 쓴다(amount_changed).
+그 밖의 정정공시는 원 공시를 고친 것이라 새 알림으로 세지 않는다.
 """
 from __future__ import annotations
 
@@ -26,11 +29,19 @@ _NUM_RE = re.compile(r"^\(?-?[\d,]+(?:\.\d+)?\)?$")
 _DATE_RE = re.compile(r"(\d{4})[-.](\d{2})[-.](\d{2})")
 
 
+_TERMINATION = re.compile(r"공급계약\s*해지")
+
+
 def classify(report_nm: str) -> str | None:
-    """공시 제목 -> 'contract' | 'prelim' | 'notice' | None. 정정공시·자회사 공시는 None."""
+    """공시 제목 -> 'contract' | 'prelim' | 'notice' | 'termination' | 'amend' | None.
+    자회사 공시는 None. 정정공시는 공급계약 체결의 정정만 'amend', 나머지 정정은 None."""
     nm = report_nm or ""
-    if "정정" in nm or "자회사" in nm or "종속회사" in nm:
+    if "자회사" in nm or "종속회사" in nm:
         return None
+    if _TERMINATION.search(nm):
+        return None if "정정" in nm else "termination"
+    if "정정" in nm:
+        return "amend" if KIND_PATTERNS[0][1].search(nm) else None
     for kind, pat in KIND_PATTERNS:
         if pat.search(nm):
             return kind
@@ -156,7 +167,52 @@ def parse_notice(rows: list[str]) -> dict:
             "period_start": start, "period_end": end}
 
 
-PARSERS = {"contract": parse_contract, "prelim": parse_prelim, "notice": parse_notice}
+def parse_termination(rows: list[str]) -> dict:
+    return {
+        "title": _after(rows, re.compile(r"해지\s*계약명|공급계약\s*해지\s*내용")),
+        "amount": num(_after(rows, re.compile(r"해지\s*금액\s*\(원\)"))),
+        "recent_revenue": num(_after(rows, re.compile(r"최근\s*매출액\s*\(원\)"), skip_dash_prefix=True)),
+        "pct_of_revenue": num(_after(rows, re.compile(r"매출액\s*대비\s*\(%\)"))),
+        "counterparty": _after(rows, re.compile(r"계약상대(?:방)?$|^\d+\.\s*계약상대(?:방)?$")),
+        "reason": _after(rows, re.compile(r"해지\s*주요\s*사유|주요\s*해지\s*사유")),
+        "terminated_on": _date(_after(rows, re.compile(r"해지\s*일자"))),
+    }
+
+
+def _num_won(s: str | None) -> float | None:
+    """'8,584,885,317원' -> 8584885317.0 - 정정 표는 숫자 뒤에 '원'을 붙여 쓴다."""
+    return num(re.sub(r"\s*원$", "", s.strip())) if s else None
+
+
+def parse_amend(rows: list[str]) -> dict:
+    """정정 표(정정항목 | 정정전 | 정정후)에서 계약금액·매출액 대비의 전→후, 그 아래 고친 뒤 본문은 parse_contract로."""
+    start = next((i for i, r in enumerate(rows) if _cells(r)[0].startswith("정정항목")), None)
+    out: dict = {"reason": _after(rows, re.compile(r"정정\s*사유")),
+                 "original_filed": _date(_after(rows, re.compile(r"정정관련\s*공시서류\s*제출일"))),
+                 "amount_before": None, "amount_after": None, "pct_before": None, "pct_after": None}
+    body_from = len(rows)
+    if start is not None:
+        for j in range(start + 1, len(rows)):
+            cells = _cells(rows[j])
+            if rows[j].strip() == "-" or cells[0].startswith("단일판매"):
+                body_from = j
+                break
+            if len(cells) < 3:
+                continue
+            label, before, after = cells[0], cells[-2], cells[-1]
+            if "계약금액" in label and ("총액" in label or out["amount_before"] is None):
+                out["amount_before"], out["amount_after"] = _num_won(before), _num_won(after)
+            elif "매출액" in label and "대비" in label:
+                out["pct_before"], out["pct_after"] = num(before), num(after)
+    cur = parse_contract(rows[body_from:]) if body_from < len(rows) else {}
+    out.update({k: cur.get(k) for k in ("title", "amount", "pct_of_revenue", "counterparty", "end", "withheld")})
+    b, a = out["amount_before"], out["amount_after"]
+    out["amount_changed"] = b is not None and a is not None and abs(a - b) > 0.5
+    return out
+
+
+PARSERS = {"contract": parse_contract, "prelim": parse_prelim, "notice": parse_notice,
+           "termination": parse_termination, "amend": parse_amend}
 
 
 # ── 표시 (일일 알림·주간 브리핑 공용) ──────────────────────────────
@@ -211,4 +267,14 @@ def summary(kind: str, p: dict) -> str:
         return f"잠정실적 {q}".rstrip() + (f" 전년동기 대비 {' · '.join(parts)}" if parts else "")
     if kind == "notice":
         return f"실적 발표 예정 {p.get('announce_date') or '-'}"
+    if kind == "termination":
+        pct = f" (매출 대비 {p['pct_of_revenue']:.1f}%)" if p.get("pct_of_revenue") is not None else ""
+        reason = f" · {p['reason'][:30]}" if p.get("reason") else ""
+        return f"계약 해지 {fmt_eok(p.get('amount'))}{pct}{reason}"
+    if kind == "amend":
+        if p.get("amount_changed"):
+            pct = (f" (매출 대비 {p['pct_before']:.1f}→{p['pct_after']:.1f}%)"
+                   if p.get("pct_before") is not None and p.get("pct_after") is not None else "")
+            return f"계약금액 정정 {fmt_eok(p['amount_before'])}→{fmt_eok(p['amount_after'])}{pct}"
+        return f"계약 정정 · {(p.get('reason') or '-')[:30]}"
     return kind

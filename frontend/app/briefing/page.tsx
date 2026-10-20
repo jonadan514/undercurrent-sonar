@@ -42,10 +42,13 @@ interface Briefing {
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
                  added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
   earnings_week?: { total: number; by_market: Record<string, number>; tagged_count: number; items: EarningsItem[] } | null;
-  kr_disclosures?: { contract: { count: number; items: DisclosureItem[] }; prelim: { count: number; items: DisclosureItem[] } } | null;
+  // termination(계약 해지)·amend(계약금액 정정)는 2026-10-21부터
+  kr_disclosures?: { contract: { count: number; items: DisclosureItem[] }; prelim: { count: number; items: DisclosureItem[] };
+                     termination?: { count: number; items: DisclosureItem[] }; amend?: { count: number; items: DisclosureItem[] } } | null;
 }
 // 한국 공시 지난 7일(2026-10-17부터, DART 원문 표 값 그대로). 유니버스(시총 3000억+) 또는 관심 표시 종목만.
 interface DisclosureItem { symbol: string; name?: string | null; date: string; rcept_no: string; tags: string[]; summary: string;
+  amount_before?: number | null; amount_after?: number | null; pct_before?: number | null; pct_after?: number | null;
   amount?: number | null; pct?: number | null; title?: string | null; withheld?: boolean; quarter?: string;
   revenue_yoy_pct?: number | null; revenue_yoy_turn?: string | null; operating_income_yoy_pct?: number | null; operating_income_yoy_turn?: string | null }
 const eok = (v?: number | null) => v == null ? "-" : Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(1)}조` : Math.abs(v) >= 1e8 ? `${Math.round(v / 1e8).toLocaleString()}억` : `${(v / 1e8).toFixed(1)}억`;
@@ -65,6 +68,10 @@ function DiscName({ d }: { d: DisclosureItem }) {
         className="text-[11px] hover:underline" style={{ color: "var(--text-muted)" }}>원문↗</a>
     </span>
   );
+}
+function discTotal(b: { kr_disclosures?: Briefing["kr_disclosures"] }): number {
+  const k = b.kr_disclosures;
+  return k ? k.contract.count + k.prelim.count + (k.termination?.count ?? 0) + (k.amend?.count ?? 0) : 0;
 }
 function DiscTags({ tags }: { tags: string[] }) {
   return <TagBadges tags={tags} />;
@@ -145,7 +152,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
     ["watchlist", "워치리스트"],
     ...(b.turnaround ? [["turnaround", "실적 반전"] as [string, string]] : []),
     ...(b.earnings_week && b.earnings_week.total > 0 ? [["earnings", "실적 발표"] as [string, string]] : []),
-    ...(b.kr_disclosures && (b.kr_disclosures.contract.count > 0 || b.kr_disclosures.prelim.count > 0) ? [["disclosures", "한국 공시"] as [string, string]] : []),
+    ...(discTotal(b) > 0 ? [["disclosures", "한국 공시"] as [string, string]] : []),
     ...(b.sentiment_heating?.length > 0 ? [["sentiment", "관심도"] as [string, string]] : []),
     ...(b.catalysts?.length > 0 ? [["catalysts", "촉매"] as [string, string]] : []),
   ];
@@ -352,10 +359,12 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
           )}
 
           {/* 한국 공시 지난 7일 - 공급계약·잠정실적 */}
-          {b.kr_disclosures && (b.kr_disclosures.contract.count > 0 || b.kr_disclosures.prelim.count > 0) && (
+          {b.kr_disclosures && discTotal(b) > 0 && (
             <div id={sid("disclosures")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 한국 공시 (지난 7일) — 공급계약 {b.kr_disclosures.contract.count} · 잠정실적 {b.kr_disclosures.prelim.count}
+                {(b.kr_disclosures.termination?.count ?? 0) > 0 && <> · 계약 해지 {b.kr_disclosures.termination!.count}</>}
+                {(b.kr_disclosures.amend?.count ?? 0) > 0 && <> · 금액 정정 {b.kr_disclosures.amend!.count}</>}
               </p>
               {b.kr_disclosures.contract.items.length > 0 && (
                 <div className="mb-2">
@@ -369,6 +378,22 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                         <span className="text-white">{d.withheld ? "금액 비공개" : eok(d.amount)}</span>
                         {d.pct != null && <span style={{ color: d.pct >= 10 ? "#4ade80" : "var(--text-secondary)" }}>매출 대비 {d.pct.toFixed(1)}%</span>}
                         {d.title && <span className="truncate max-w-[16rem]" style={{ color: "var(--text-secondary)" }}>{d.title}</span>}
+                        <DiscTags tags={d.tags} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {((b.kr_disclosures.termination?.items.length ?? 0) + (b.kr_disclosures.amend?.items.length ?? 0)) > 0 && (
+                <div className="mb-2">
+                  <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>계약 해지 · 계약금액 정정 (날짜만 바뀐 정정은 뺌)</p>
+                  <div className="space-y-1">
+                    {[...(b.kr_disclosures.termination?.items ?? []), ...(b.kr_disclosures.amend?.items ?? [])].map((d) => (
+                      <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
+                        style={{ background: "#f8717110", border: `1px solid ${d.tags.length > 0 ? "#f59e0b55" : "#f8717133"}` }}>
+                        <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
+                        <DiscName d={d} />
+                        <span style={{ color: "#fca5a5" }}>{d.summary}</span>
                         <DiscTags tags={d.tags} />
                       </div>
                     ))}

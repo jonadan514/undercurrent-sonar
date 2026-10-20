@@ -41,7 +41,8 @@ interface WeekBrief {
   week: string;
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean; added: { market: string }[]; added_count: number } | null;
   earnings_week?: { total: number; by_market: Record<string, number>; items: { market: string; tags: string[] }[] } | null;
-  kr_disclosures?: { contract: { count: number; items: { tags: string[] }[] }; prelim: { count: number; items: { tags: string[] }[] } } | null;
+  kr_disclosures?: { contract: { count: number; items: { tags: string[] }[] }; prelim: { count: number; items: { tags: string[] }[] };
+                     termination?: { count: number; items: { tags: string[] }[] }; amend?: { count: number; items: { tags: string[] }[] } } | null;
   observation_reviews?: unknown[];
 }
 
@@ -163,9 +164,11 @@ export default function HomePage() {
           })()}
           {(() => {
             const kd = brief?.kr_disclosures;
-            const tagged = kd ? [...kd.contract.items, ...kd.prelim.items].filter(x => x.tags.length > 0).length : 0;
-            return <ChangeTile href="/briefing#disclosures" label="🇰🇷 한국 공시 (7일)" value={kd ? `${kd.contract.count + kd.prelim.count}` : "-"}
-              sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}` : "브리핑 전"} />;
+            const all = kd ? [kd.contract, kd.prelim, kd.termination, kd.amend].filter(Boolean) as { count: number; items: { tags: string[] }[] }[] : [];
+            const tagged = all.flatMap(k => k.items).filter(x => x.tags.length > 0).length;
+            const term = kd?.termination?.count ?? 0;
+            return <ChangeTile href="/briefing#disclosures" label="🇰🇷 한국 공시 (7일)" value={kd ? `${all.reduce((n, k) => n + k.count, 0)}` : "-"}
+              sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}${term ? ` · 해지 ${term}` : ""}` : "브리핑 전"} />;
           })()}
           <ChangeTile href="/notes" label="관찰 노트 회고" value={`${brief?.observation_reviews?.length ?? 0}`}
             sub={(brief?.observation_reviews?.length ?? 0) > 0 ? "판단 남길 회고 도착" : "도착한 회고 없음"} />

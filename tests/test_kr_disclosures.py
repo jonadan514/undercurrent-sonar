@@ -27,7 +27,7 @@ NOTICE = ["1. 회사명 | 한미약품 주식회사", "2. 결산대상기간 | �
 def test_classify():
     assert classify("단일판매ㆍ공급계약체결") == "contract"
     assert classify("단일판매ㆍ공급계약체결(자율공시)") == "contract"
-    assert classify("[기재정정]단일판매ㆍ공급계약체결") is None
+    assert classify("[기재정정]단일판매ㆍ공급계약체결") == "amend"   # 2026-10-21부터 정정도 받는다(금액 바뀐 것만 표시)
     assert classify("단일판매ㆍ공급계약체결(자회사의 주요경영사항)") is None
     assert classify("연결재무제표기준영업(잠정)실적(공정공시)") == "prelim"
     assert classify("영업(잠정)실적(공정공시)") == "prelim"
@@ -124,3 +124,37 @@ def test_prelim_annual_label():
     assert p["annual"] is True and p["monthly"] is False
     assert quarter_label(p["period_end"], p["monthly"], p["annual"]) == "26년"
     assert quarter_label("2026-12-31") == "26.4Q"
+
+
+TERMINATION = ["단일판매ㆍ공급계약 해지 1. 판매ㆍ공급계약 해지 구분 | 상품공급", "- 해지계약명 | DNT매매 계약",
+               "2. 해지내역 | 해지금액(원) | 293,947,635,296", "최근매출액(원) | 716,638,987,954", "매출액대비(%) | 41.0",
+               "3. 계약상대 | OCI 주식회사", "5. 해지 주요사유 | 계약상대방의 TDI사업종료에 따른 공급계약 해지", "6. 해지일자 | 2026-09-29"]
+AMEND = ["정정신고(보고) 정정일자 | 2026-10-19", "2. 정정관련 공시서류제출일 | 2026년8월 21일", "3. 정정사유 | 계약금액의 변경",
+         "정정항목 | 정정전 | 정정후", "2. 계약내역_확정계약금액 | 8,584,885,317원 | 9,172,521,329원",
+         "2. 계약내역_계약금액총액 | 8,584,885,317원 | 9,172,521,329원", "2. 계약내역_매출액대비 | 17.35 | 18.53", "-",
+         "단일판매ㆍ공급계약체결 1. 판매ㆍ공급계약 내용 | PSD system", "계약금액 총액(원) | 9,172,521,329", "매출액 대비(%) | 18.53"]
+AMEND_DATE_ONLY = ["3. 정정사유 | 계약기간 변경", "정정항목 | 정정전 | 정정후", "5. 계약기간(종료일) | - | 2026-11-30", "-",
+                   "단일판매ㆍ공급계약 체결 1. 판매ㆍ공급계약 구분 | 공사수주", "2. 계약내역 | 계약금액(원) | 33,254,100,000"]
+
+
+def test_classify_termination_and_amend():
+    assert classify("단일판매ㆍ공급계약해지") == "termination"
+    assert classify("[기재정정]단일판매ㆍ공급계약해지") is None
+    assert classify("[기재정정]단일판매ㆍ공급계약체결") == "amend"
+    assert classify("[기재정정]단일판매ㆍ공급계약체결(자율공시)") == "amend"
+    assert classify("[기재정정]단일판매ㆍ공급계약체결(자회사의 주요경영사항)") is None
+    assert classify("[기재정정]주주총회소집결의") is None
+
+
+def test_termination_and_amend_parse():
+    from src.collectors.kr_disclosures import parse_amend, parse_termination, summary
+    t = parse_termination(TERMINATION)
+    assert t["amount"] == 293_947_635_296 and t["pct_of_revenue"] == 41.0 and t["counterparty"] == "OCI 주식회사"
+    assert t["terminated_on"] == "2026-09-29" and t["title"] == "DNT매매 계약"
+    assert summary("termination", t).startswith("계약 해지 2,939억 (매출 대비 41.0%)")
+    a = parse_amend(AMEND)
+    assert a["amount_before"] == 8_584_885_317 and a["amount_after"] == 9_172_521_329 and a["amount_changed"]
+    assert a["pct_before"] == 17.35 and a["pct_after"] == 18.53 and a["title"] == "PSD system"
+    assert summary("amend", a) == "계약금액 정정 86억→92억 (매출 대비 17.4→18.5%)"
+    d = parse_amend(AMEND_DATE_ONLY)
+    assert not d["amount_changed"] and d["amount"] == 33_254_100_000 and summary("amend", d) == "계약 정정 · 계약기간 변경"

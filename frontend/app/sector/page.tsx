@@ -253,13 +253,14 @@ export default function SectorPage() {
 
         {/* 컬럼 헤더 + 행 (모바일에서는 가로 스크롤) */}
         <div className="overflow-x-auto">
-        <div style={{ minWidth: isKR ? 480 : 640 }}>
+        {/* 좁은 화면에선 이름·현재가 열을 숨겨 가로 스크롤 없이 상대강도까지 보이게(2026-10-21) */}
+        <div className={isKR ? "sm:min-w-[480px]" : "sm:min-w-[640px]"}>
         <div className="flex items-center gap-3 px-3 py-1" style={{ borderBottom: "1px solid var(--border-dim)", background: "var(--bg-inset)" }}>
-          <span className="w-32 text-[11px] font-semibold" style={{ color: "var(--text-faint)" }}>섹터</span>
-          {!isKR && <span className="w-28 text-[11px]" style={{ color: "var(--text-faint)" }}>이름</span>}
-          {!isKR && <span className="w-16 text-[11px]" style={{ color: "var(--text-faint)" }}>현재가</span>}
+          <span className="w-20 sm:w-32 shrink-0 text-[11px] font-semibold" style={{ color: "var(--text-faint)" }}>섹터</span>
+          {!isKR && <span className="hidden sm:block w-28 text-[11px]" style={{ color: "var(--text-faint)" }}>이름</span>}
+          {!isKR && <span className="hidden sm:block w-16 text-[11px]" style={{ color: "var(--text-faint)" }}>현재가</span>}
           <span className="w-16 text-[11px]" style={{ color: "var(--text-faint)" }}>수익률</span>
-          <span className="flex-1 text-[11px]" style={{ color: "var(--text-faint)" }}>시장 대비 상대강도 (RS) — 중앙 기준, 우측=아웃퍼폼</span>
+          <span className="flex-1 text-[11px] truncate" style={{ color: "var(--text-faint)" }}>시장 대비 상대강도 (RS)<span className="hidden sm:inline"> — 중앙 기준, 우측=아웃퍼폼</span></span>
         </div>
 
         <div className="divide-y" style={{ borderColor: "var(--border-dim)" }}>
@@ -280,13 +281,13 @@ export default function SectorPage() {
                   className="w-full flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-white/5"
                   style={{ cursor: stocks.length > 0 ? "pointer" : "default" }}
                 >
-                  <span className="w-32 font-bold text-white text-[12px] truncate">{rowLabel(row)}</span>
+                  <span className="w-20 sm:w-32 shrink-0 font-bold text-white text-[12px] truncate">{rowLabel(row)}</span>
                   {rowSubLabel(row) && (
-                    <span className="w-28 text-[12px] truncate" style={{ color: "var(--text-secondary)" }}>{rowSubLabel(row)}</span>
+                    <span className="hidden sm:block w-28 text-[12px] truncate" style={{ color: "var(--text-secondary)" }}>{rowSubLabel(row)}</span>
                   )}
 
                   {!isKR && (
-                    <span className="w-16 text-[12px]" style={{ color: "var(--text-muted)" }}>
+                    <span className="hidden sm:block w-16 text-[12px]" style={{ color: "var(--text-muted)" }}>
                       ${row.cur_price?.toFixed(2) ?? "—"}
                     </span>
                   )}
@@ -312,7 +313,7 @@ export default function SectorPage() {
                     </span>
                   </div>
 
-                  <span className="text-[11px] w-14 text-right" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-[11px] w-10 sm:w-14 shrink-0 text-right" style={{ color: "var(--text-muted)" }}>
                     {stocks.length > 0 ? `${stocks.length}종목 ${isOpen ? "▲" : "▼"}` : ""}
                   </span>
                 </button>

@@ -181,3 +181,14 @@ def test_past_kr_notice_does_not_hide_next_date():
     rows = [{"ticker": "000660", "market": "KR", "earnings_date": "2026-10-28", "earnings_date_end": "2026-10-28", "is_estimate": 1}]
     merged = g.merge_kr_notices(rows, [{"ticker": "000660", "announce_date": "2026-10-14"}], "2026-10-26")
     assert [x["date"] for x in g.earnings_week_items(merged, "2026-10-26", {}, {})["items"]] == ["2026-10-28"]
+
+
+def test_kr_disclosures_termination_and_amend():
+    rows = [_disc("1", "222222", "해지사", "termination", {"amount": 2.9e11, "pct_of_revenue": 41.0, "reason": "상대방 사업 종료"}),
+            _disc("2", "333333", "정정사", "amend", {"amount_changed": True, "amount_before": 8.58e9, "amount_after": 9.17e9,
+                                                  "pct_before": 17.35, "pct_after": 18.53}),
+            _disc("3", "333333", "날짜만", "amend", {"amount_changed": False, "reason": "계약기간 변경"})]
+    kd = g.kr_disclosures_week(rows, {"222222", "333333"}, {})
+    assert kd["termination"]["count"] == 1 and kd["amend"]["count"] == 1   # 날짜만 바뀐 정정은 뺀다
+    text = g.build_telegram_summary(_briefing(kr_disclosures={**kd, "contract": {"count": 0, "items": []}, "prelim": {"count": 0, "items": []}}))
+    assert "계약 해지 1 · 금액 정정 1" in text and "해지사 계약 해지 2,900억 (매출 대비 41.0%)" in text

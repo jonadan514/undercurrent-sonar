@@ -398,7 +398,8 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
     공급계약은 관심 종목 먼저, 그다음 매출 대비 큰 순 - 공시에 적힌 비율 그대로 정렬할 뿐 점수가 아니다(원칙 1).
     잠정실적은 관심 종목 먼저, 그다음 접수일 순."""
     out: dict = {}
-    for kind in ("contract", "prelim"):
+    # termination(계약 해지)·amend(계약금액 정정, 금액이 바뀐 것만)은 2026-10-21 추가
+    for kind in ("contract", "prelim", "termination", "amend"):
         items = []
         for r in rows:
             if r["kind"] != kind or not (r["stock_code"] in universe or tags.get(r["stock_code"])):
@@ -406,14 +407,18 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
             p = r["payload"] if isinstance(r["payload"], dict) else json.loads(r["payload"] or "{}")
             if kind == "prelim" and not prelim_has_values(p):
                 continue
+            if kind == "amend" and not p.get("amount_changed"):
+                continue
             items.append({"symbol": r["stock_code"], "name": r.get("corp_name"), "date": r["rcept_dt"],
                           "rcept_no": r["rcept_no"], "tags": tags.get(r["stock_code"], []), "summary": disclosure_summary(kind, p),
                           **({"amount": p.get("amount"), "pct": p.get("pct_of_revenue"), "title": p.get("title"),
-                              "withheld": bool(p.get("withheld")) and p.get("amount") is None} if kind == "contract" else
+                              "withheld": bool(p.get("withheld")) and p.get("amount") is None} if kind in ("contract", "termination") else
+                             {"amount_before": p.get("amount_before"), "amount_after": p.get("amount_after"),
+                              "pct_before": p.get("pct_before"), "pct_after": p.get("pct_after"), "title": p.get("title")} if kind == "amend" else
                              {"quarter": quarter_label(p.get("period_end"), p.get("monthly"), p.get("annual")),
                               **{k: p.get(k) for k in ("revenue_yoy_pct", "revenue_yoy_turn", "operating_income_yoy_pct",
                                                        "operating_income_yoy_turn", "revenue", "operating_income")}})})
-        if kind == "contract":
+        if kind in ("contract", "termination"):
             items.sort(key=lambda x: (not x["tags"], -(x["pct"] if x["pct"] is not None else -1), x["date"]))
         else:
             items.sort(key=lambda x: (not x["tags"], x["date"], x["symbol"]))
@@ -425,7 +430,7 @@ def get_kr_disclosures_week() -> dict | None:
     """한국 공시 지난 7일(kr_disclosures, scripts/collect_kr_disclosures.py - 2026-10-17). 표가 없으면 None."""
     try:
         rows = turso_exec("SELECT rcept_no, rcept_dt, stock_code, corp_name, kind, payload FROM kr_disclosures "
-                          "WHERE kind IN ('contract', 'prelim') AND rcept_dt >= date('now', '+9 hours', '-7 days')")
+                          "WHERE kind IN ('contract', 'prelim', 'termination', 'amend') AND rcept_dt >= date('now', '+9 hours', '-7 days')")
     except Exception as e:  # noqa: BLE001
         logger.warning("한국 공시 조회 실패(표 없음?) - 건너뜀: %s", e)
         return None
@@ -730,12 +735,16 @@ def build_telegram_summary(b: dict) -> str:
             lines.append(f"  외 {ew['total'] - min(len(shown), EARNINGS_TG_MAX)}개")
 
     kd = b.get("kr_disclosures")
-    if kd and (kd["contract"]["count"] or kd["prelim"]["count"]):
+    kinds = ("contract", "prelim", "termination", "amend")
+    if kd and any((kd.get(k) or {}).get("count") for k in kinds):
         lines.append("")
-        lines.append(f"<b>📝 한국 공시</b> 지난 7일 공급계약 {kd['contract']['count']} · 잠정실적 {kd['prelim']['count']}")
-        # 관심 표시 붙은 공시 먼저(공급계약 → 잠정실적), 남는 칸은 매출 대비 큰 공급계약
-        tagged = [x for k in ("contract", "prelim") for x in kd[k]["items"] if x["tags"]]
-        rest = [x for x in kd["contract"]["items"] if not x["tags"]]
+        extra = "".join(f" · {name} {kd[k]['count']}" for k, name in (("termination", "계약 해지"), ("amend", "금액 정정"))
+                        if (kd.get(k) or {}).get("count"))
+        lines.append(f"<b>📝 한국 공시</b> 지난 7일 공급계약 {kd['contract']['count']} · 잠정실적 {kd['prelim']['count']}{extra}")
+        # 관심 표시 붙은 공시 먼저, 그다음 계약 해지(드물고 중요), 남는 칸은 매출 대비 큰 공급계약
+        tagged = [x for k in kinds for x in (kd.get(k) or {}).get("items", []) if x["tags"]]
+        rest = [x for x in (kd.get("termination") or {}).get("items", []) if not x["tags"]] + \
+               [x for x in kd["contract"]["items"] if not x["tags"]]
         for x in (tagged + rest)[:DISC_TG_MAX]:
             tag = " · ".join(DISC_TAG_KO.get(t, t) for t in x["tags"])
             lines.append(f"  {_md(x['date'])} {disp({'market': 'KR', 'symbol': x['symbol'], 'name': x['name']})} "

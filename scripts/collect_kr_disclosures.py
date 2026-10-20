@@ -117,7 +117,9 @@ def send_telegram(text: str) -> None:
 
 
 def alert_text(new: list[dict], tags: dict[str, list[str]]) -> str | None:
-    hits = [d for d in new if tags.get(d["stock_code"])]
+    # 계약 정정은 금액이 바뀐 것만 알린다 - 대부분 날짜·문구 정정이라 다 보내면 소음이다
+    hits = [d for d in new if tags.get(d["stock_code"])
+            and not (d["kind"] == "amend" and not d["payload"].get("amount_changed"))]
     if not hits:
         return None
     lines = [f"<b>🔔 한국 공시</b> · 관심 종목 {len(hits)}건"]
@@ -131,7 +133,9 @@ def alert_text(new: list[dict], tags: dict[str, list[str]]) -> str | None:
 
 QUALITY_KEYS = {"contract": ("amount", "pct_of_revenue", "title"),
                 "prelim": ("period_end", "revenue", "revenue_yoy_pct", "operating_income_yoy_pct"),
-                "notice": ("announce_date",)}
+                "notice": ("announce_date",),
+                "termination": ("amount", "pct_of_revenue", "reason"),
+                "amend": ("reason",)}
 
 
 def log_quality(conn, since: str) -> None:
