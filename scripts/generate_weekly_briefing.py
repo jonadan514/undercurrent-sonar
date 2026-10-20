@@ -785,6 +785,52 @@ def gpt_comment(briefing: dict) -> str:
 
 # ── 텔레그램 요약 ────────────────────────────────────────────────────────────
 
+MY_TG_MAX = 8
+MY_TAGS = ("my", "note")
+
+
+def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str]) -> dict:
+    """브리핑 맨 위 "관심 종목에 생긴 일"(2026-10-21, 사용자 결정 B) - 내 관심·관찰 노트 종목에 이번 주 생긴 일을 한 칸에.
+    새로 계산하지 않고 이미 만든 칸(실적 발표·한국 공시·8-K·내부자 매수·실적 반전·노트 회고)에서 그 종목 줄만 모은다.
+    mine: '시장:종목' -> ['my'|'note']. 순서: 내 관심 먼저 → 생긴 일 수 → 종목. 점수 없음(원칙 1)."""
+    ev: dict[str, list[dict]] = {}
+
+    def add(key: str, kind: str, text: str, anchor: str, date: str | None = None, warn: bool = False) -> None:
+        if key in mine:
+            ev.setdefault(key, []).append({"kind": kind, "text": text, "anchor": anchor, "date": date, "warn": warn})
+
+    for x in (b.get("earnings_week") or {}).get("items", []):
+        add(f"{x['market']}:{x['symbol']}", "실적 발표", f"{_md(x['date'])}{' 예상' if x.get('estimate') else ''}", "earnings", x["date"])
+    kd = b.get("kr_disclosures") or {}
+    for k in ("contract", "termination", "amend", "prelim"):
+        for x in (kd.get(k) or {}).get("items", []):
+            add(f"KR:{x['symbol']}", "한국 공시", x["summary"], "disclosures", x["date"], k == "termination")
+    for x in (b.get("us_8k_week") or {}).get("items", []):
+        add(f"US:{x['symbol']}", "8-K", ", ".join(i["label"] for i in x["items"]), "us8k", x["date"], x.get("warn", False))
+    ins = b.get("insider_week") or {}
+    for g in (ins.get("items") or []) + (ins.get("discovery") or []):
+        who = g["roles"][0] if g["buyers"] == 1 else f"{g['buyers']}명"
+        add(f"{g['market']}:{g['symbol']}", "내부자 매수", f"{who} {fmt_money(g['value'], g['market'])}", "insider", g.get("last_date"))
+    for x in (b.get("turnaround") or {}).get("added", []):
+        yoy = f" {x['yoy'] * 100:+.0f}%" if x.get("yoy") is not None else ""
+        add(f"{x['market']}:{x['symbol']}", "실적 반전", f"새로 들어옴 ({x['basis']}{yoy})", "turnaround")
+    for rv in b.get("observation_reviews") or []:
+        if rv.get("kind") == "stock" and rv.get("ticker"):
+            add(f"{rv.get('market')}:{rv['ticker']}", "노트 회고", f"{rv.get('checkpoint') or ''} 회고 도착".strip(), "notes")
+    items = []
+    for key, events in ev.items():
+        market, symbol = key.split(":", 1)
+        items.append({"market": market, "symbol": symbol, "name": names.get(key), "tags": mine[key], "events": events})
+    items.sort(key=lambda x: ("my" not in x["tags"], -len(x["events"]), x["symbol"]))
+    return {"watched": len(mine), "count": len(items), "items": items}
+
+
+def get_my_stocks_week(b: dict) -> dict | None:
+    tags, names = interest_tags_names()
+    mine = {k: [t for t in v if t in MY_TAGS] for k, v in tags.items() if any(t in MY_TAGS for t in v)}
+    return my_stocks_week(b, mine, names) if mine else None
+
+
 def build_telegram_summary(b: dict) -> str:
     """텔레그램 요약 본문. 숫자는 전부 DB·시세에서 온 값만 쓴다 - GPT 총평은 웹에만 둔다(원칙 2)."""
     def disp(item):
@@ -795,6 +841,17 @@ def build_telegram_summary(b: dict) -> str:
         return f"{flag} {html.escape(label)}"
 
     lines = [f"<b>📋 Undercurrent Sonar 주간 브리핑</b> · {_md(b['week'])}", ""]
+
+    # 맨 위: 내 관심·노트 종목에 생긴 일(2026-10-21) - 아래 칸들에서 그 종목 줄만 모은 것
+    my = b.get("my_stocks_week")
+    if my and my.get("count"):
+        lines.append(f"<b>⭐ 관심 종목에 생긴 일</b> {my['count']}종목")
+        for x in my["items"][:MY_TG_MAX]:
+            evs = " · ".join(("⚠️" if e["warn"] else "") + f"{e['kind']} {html.escape(e['text'])}" for e in x["events"])
+            lines.append(f"  {disp(x)} {evs}")
+        if my["count"] > MY_TG_MAX:
+            lines.append(f"  외 {my['count'] - MY_TG_MAX}종목")
+        lines.append("")
 
     idx = []
     if b["us"].get("index_chg_1w") is not None:
@@ -1020,6 +1077,7 @@ def main() -> None:
         "observation_reviews": get_observation_reviews(),
     }
     briefing["gpt_comment"] = gpt_comment(briefing)
+    briefing["my_stocks_week"] = get_my_stocks_week(briefing)
 
     turso_exec(
         "CREATE TABLE IF NOT EXISTS weekly_briefings ("

@@ -241,3 +241,29 @@ def test_us_8k_week_items_and_telegram():
     text = g.build_telegram_summary(_briefing(us_8k_week=u8))
     assert "미국 주요 공시(8-K)</b> 지난 7일 3건 - 임원·이사 변동 2 · 중요 계약 체결 1" in text
     assert "BBB ⚠️임원·이사 변동(사임·퇴임)" in text and "DDD 임원·이사 변동(선임) · 내 관심" in text
+
+
+def test_my_stocks_week_collects_from_sections():
+    b = _briefing(
+        earnings_week={"items": [{"market": "US", "symbol": "MU", "date": "2026-10-22", "estimate": False, "tags": ["my"]},
+                                 {"market": "US", "symbol": "T", "date": "2026-10-21", "estimate": False, "tags": []}]},
+        kr_disclosures={"contract": {"count": 1, "items": [{"symbol": "089790", "date": "2026-10-16", "summary": "공급계약 57억", "tags": ["note"]}]},
+                        "termination": {"count": 1, "items": [{"symbol": "069260", "date": "2026-09-29", "summary": "계약 해지 2,939억", "tags": ["my"]}]},
+                        "prelim": {"count": 0, "items": []}},
+        us_8k_week={"items": [{"symbol": "MU", "date": "2026-10-16", "warn": False,
+                               "items": [{"item": "5.02", "label": "임원·이사 변동(선임)", "warn": False}]}]},
+        insider_week={"items": [], "discovery": [{"market": "KR", "symbol": "069260", "owners": ["A"], "roles": ["대표이사"],
+                                                  "buyers": 1, "value": 3e8, "last_date": "2026-10-15"}]},
+        turnaround={"added": [{"market": "US", "symbol": "MU", "basis": "1년", "yoy": 1.1}]},
+        observation_reviews=[{"kind": "stock", "market": "KR", "ticker": "089790", "checkpoint": "4w"}])
+    mine = {"US:MU": ["my"], "KR:089790": ["note"], "KR:069260": ["my"]}
+    my = g.my_stocks_week(b, mine, {"KR:089790": "제이티", "KR:069260": "티케이지휴켐스"})
+    assert [x["symbol"] for x in my["items"]] == ["MU", "069260", "089790"]   # 내 관심 → 생긴 일 수 → 종목
+    mu = my["items"][0]
+    assert [e["kind"] for e in mu["events"]] == ["실적 발표", "8-K", "실적 반전"] and mu["events"][2]["text"] == "새로 들어옴 (1년 +110%)"
+    tk = my["items"][1]
+    assert tk["events"][0]["warn"] and tk["events"][1]["text"] == "대표이사 3.0억"
+    assert [e["kind"] for e in my["items"][2]["events"]] == ["한국 공시", "노트 회고"]
+    text = g.build_telegram_summary(_briefing(my_stocks_week=my))
+    assert text.index("관심 종목에 생긴 일</b> 3종목") < text.index("지난 1주")
+    assert "🇰🇷 티케이지휴켐스 ⚠️한국 공시 계약 해지 2,939억 · 내부자 매수 대표이사 3.0억" in text

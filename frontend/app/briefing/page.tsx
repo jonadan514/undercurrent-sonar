@@ -49,7 +49,11 @@ interface Briefing {
   insider_week?: { total: number; by_market: Record<string, number>; items: InsiderItem[]; tagged_count?: number;
                    discovery?: InsiderItem[]; discovery_count?: number } | null;
   us_8k_week?: { total: number; by_kind: Record<string, number>; items: Us8kItem[] } | null;
+  my_stocks_week?: { watched: number; count: number; items: MyStock[] } | null;
 }
+// 관심 종목에 생긴 일(2026-10-21) - 내 관심·노트 종목 줄만 아래 칸들에서 모은 것. 눌러서 그 칸으로.
+interface MyStock { market: string; symbol: string; name?: string | null; tags: string[];
+  events: { kind: string; text: string; anchor: string; date?: string | null; warn: boolean }[] }
 // 미국 8-K 지난 7일(2026-10-21부터, SEC). 항목 번호로 나눈 종류 + 원문 첫머리(영어 그대로). warn은 해지·손상 등 종류 분류일 뿐 점수 아님.
 interface Us8kItem { market: string; symbol: string; name?: string | null; date: string; url?: string | null; tags: string[]; warn: boolean;
   items: { item: string; label: string; warn: boolean; excerpt?: string | null }[] }
@@ -182,6 +186,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
   // 목차(2026-10-20) - 최신 주는 개요 "이번 주 변화"가 쓰는 짧은 앵커(#earnings 등), 지난 주는 주차를 붙여 겹치지 않게
   const sid = (k: string) => defaultOpen ? k : `${b.week}-${k}`;
   const toc: [string, string][] = [
+    ...((b.my_stocks_week?.count ?? 0) > 0 ? [["mine", "관심 종목"] as [string, string]] : []),
     ["market", "지난주 시장"],
     ...(b.theme_labels && (b.theme_labels.new_labels.length > 0 || b.theme_labels.dropped_labels.length > 0) ? [["labels", "테마 라벨"] as [string, string]] : []),
     ...(b.gpt_comment ? [["comment", "총평"] as [string, string]] : []),
@@ -213,6 +218,31 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
             ))}
           </nav>
           {/* 시장 궤적 */}
+          {b.my_stocks_week && b.my_stocks_week.count > 0 && (
+            <div id={sid("mine")} className="rounded-xl p-3" style={{ scrollMarginTop: 72, background: "#f59e0b0d", border: "1px solid #f59e0b44" }}>
+              <p className="text-[12px] font-bold mb-1.5" style={{ color: "#f59e0b" }}>
+                ⭐ 관심 종목에 생긴 일 — 내 관심·노트 {b.my_stocks_week.watched}종목 중 {b.my_stocks_week.count}종목
+              </p>
+              <div className="space-y-1">
+                {b.my_stocks_week.items.map((x) => (
+                  <div key={`${x.market}:${x.symbol}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+                    <StockLabel s={x} />
+                    <DiscTags tags={x.tags} />
+                    {x.events.map((e, i) => (
+                      <a key={i} href={e.anchor === "notes" ? "/notes" : `#${sid(e.anchor)}`} className="hover:underline"
+                        style={{ color: e.warn ? "#f87171" : "var(--text-secondary)" }}>
+                        <span style={{ color: e.warn ? "#f87171" : "var(--text-muted)" }}>{e.kind}</span> {e.text}
+                      </a>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                아래 칸(실적 발표·한국 공시·미국 8-K·내부자 매수·실적 반전)과 노트 회고에서 내 관심·노트 종목 줄만 모았습니다 · 누르면 그 칸으로
+              </p>
+            </div>
+          )}
+
           <div id={sid("market")} className="space-y-1.5" style={{ scrollMarginTop: 72 }}>
             <p className="text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>지난주 시장</p>
             <MarketRow label="🇺🇸 S&P 500" m={b.us} />
