@@ -471,14 +471,8 @@ def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict
     return {"total": len(items), "by_market": by_market, "items": items[:INSIDER_WEB_MAX]}
 
 
-def get_insider_week() -> dict | None:
-    """지난 7일 공시된 내부자 장내 매수(insider_trades, scripts/collect_insider_trades.py - 2026-10-21). 표가 없으면 None."""
-    try:
-        rows = turso_exec("SELECT market, symbol, owner, role, trade_date, filed_on, value, plan FROM insider_trades "
-                          "WHERE filed_on >= date('now', '-7 days')")
-    except Exception as e:  # noqa: BLE001
-        logger.warning("내부자 매수 조회 실패(표 없음?) - 건너뜀: %s", e)
-        return None
+def interest_tags_names() -> tuple[dict[str, list[str]], dict[str, str]]:
+    """'시장:종목' -> 관심 표시(my·note·cand·theme), 이름. 내부자 매수·미국 8-K 칸이 같이 쓴다."""
     tags: dict[str, list[str]] = {}
     names: dict[str, str] = {}
     for sql, t in (("SELECT market, symbol, name FROM my_watchlist", "my"),
@@ -502,7 +496,55 @@ def get_insider_week() -> dict | None:
             names.setdefault(f"KR:{i['symbol']}", i.get("name"))
     except Exception:  # noqa: BLE001
         pass
+    return tags, names
+
+
+def get_insider_week() -> dict | None:
+    """지난 7일 공시된 내부자 장내 매수(insider_trades, scripts/collect_insider_trades.py - 2026-10-21). 표가 없으면 None."""
+    try:
+        rows = turso_exec("SELECT market, symbol, owner, role, trade_date, filed_on, value, plan FROM insider_trades "
+                          "WHERE filed_on >= date('now', '-7 days')")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("내부자 매수 조회 실패(표 없음?) - 건너뜀: %s", e)
+        return None
+    tags, names = interest_tags_names()
     return insider_week_items(rows, tags, names)
+
+
+US8K_TG_MAX = 5
+US8K_WEB_MAX = 30
+
+
+def us_8k_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict[str, str]) -> dict:
+    """미국 8-K 지난 7일 -> 목록. 실적 발표(2.02)만 있는 것은 뺀다(실적 발표 칸이 따로 있다).
+    관심 표시 먼저 → 해지·손상·사임처럼 나쁜 쪽일 수 있는 종류 → 최근 순. 종류별 건수는 항목 이름(괄호 앞) 기준. 점수 없음(원칙 1)."""
+    items, by_kind = [], {}
+    for r in rows:
+        d = json.loads(r["detail"]) if isinstance(r["detail"], str) else r["detail"]
+        if d.get("earnings_only"):
+            continue
+        key = f"US:{r['symbol']}"
+        shown = [x for x in d["items"] if x["item"] != "2.02"]
+        for x in shown:
+            base = x["label"].split("(")[0]
+            by_kind[base] = by_kind.get(base, 0) + 1
+        items.append({"market": "US", "symbol": r["symbol"], "name": names.get(key), "date": r["filed_on"],
+                      "url": r.get("url"), "tags": tags.get(key, []), "warn": bool(d.get("warn")), "items": shown})
+    items.sort(key=lambda x: x["date"], reverse=True)
+    items.sort(key=lambda x: (not x["tags"], not x["warn"]))
+    return {"total": len(items), "by_kind": dict(sorted(by_kind.items(), key=lambda kv: -kv[1])),
+            "items": items[:US8K_WEB_MAX]}
+
+
+def get_us_8k_week() -> dict | None:
+    """지난 7일 미국 8-K(us_8k_filings, scripts/collect_us_8k.py - 2026-10-21). 표가 없으면 None."""
+    try:
+        rows = turso_exec("SELECT symbol, filed_on, detail, url FROM us_8k_filings WHERE filed_on >= date('now', '-7 days')")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("미국 8-K 조회 실패(표 없음?) - 건너뜀: %s", e)
+        return None
+    tags, names = interest_tags_names()
+    return us_8k_week_items(rows, tags, names)
 
 
 def get_kr_disclosures_week() -> dict | None:
@@ -841,6 +883,18 @@ def build_telegram_summary(b: dict) -> str:
             lines.append(f"  {disp(g)} {html.escape(who)} {fmt_money(g['value'], g['market'])}{plan}"
                          + (f" · {tag}" if tag else ""))
 
+    u8 = b.get("us_8k_week")
+    if u8 and u8.get("total"):
+        kinds = " · ".join(f"{k} {n}" for k, n in list(u8["by_kind"].items())[:4])
+        lines.append("")
+        lines.append(f"<b>🇺🇸 미국 주요 공시(8-K)</b> 지난 7일 {u8['total']}건 - {kinds}")
+        for x in u8["items"][:US8K_TG_MAX]:
+            tag = " · ".join(DISC_TAG_KO.get(t, t) for t in x["tags"])
+            labels = ", ".join(("⚠️" if i["warn"] else "") + i["label"] for i in x["items"])
+            lines.append(f"  {_md(x['date'])} {disp(x)} {html.escape(labels)}" + (f" · {tag}" if tag else ""))
+        if u8["total"] > US8K_TG_MAX:
+            lines.append(f"  외 {u8['total'] - US8K_TG_MAX}건")
+
     reviews = b.get("observation_reviews") or []
     if reviews:
         names = load_theme_names()
@@ -915,6 +969,7 @@ def main() -> None:
         "earnings_week": get_earnings_week(week),
         "kr_disclosures": get_kr_disclosures_week(),
         "insider_week": get_insider_week(),
+        "us_8k_week": get_us_8k_week(),
         "sentiment_heating": get_sentiment_week(),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),

@@ -46,7 +46,11 @@ interface Briefing {
   kr_disclosures?: { contract: { count: number; items: DisclosureItem[] }; prelim: { count: number; items: DisclosureItem[] };
                      termination?: { count: number; items: DisclosureItem[] }; amend?: { count: number; items: DisclosureItem[] } } | null;
   insider_week?: { total: number; by_market: Record<string, number>; items: InsiderItem[] } | null;
+  us_8k_week?: { total: number; by_kind: Record<string, number>; items: Us8kItem[] } | null;
 }
+// 미국 8-K 지난 7일(2026-10-21부터, SEC). 항목 번호로 나눈 종류 + 원문 첫머리(영어 그대로). warn은 해지·손상 등 종류 분류일 뿐 점수 아님.
+interface Us8kItem { market: string; symbol: string; name?: string | null; date: string; url?: string | null; tags: string[]; warn: boolean;
+  items: { item: string; label: string; warn: boolean; excerpt?: string | null }[] }
 // 내부자 장내 매수 지난 7일(2026-10-21부터, SEC Form 4 · DART 임원ㆍ주요주주 소유보고). 공시 숫자 합계일 뿐 점수 아님.
 interface InsiderItem { market: string; symbol: string; name?: string | null; owners: string[]; roles: string[]; buyers: number;
   value: number | null; trades: number; last_date: string | null; all_plan: boolean; tags: string[] }
@@ -159,6 +163,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
     ...(b.turnaround ? [["turnaround", "실적 반전"] as [string, string]] : []),
     ...(b.earnings_week && b.earnings_week.total > 0 ? [["earnings", "실적 발표"] as [string, string]] : []),
     ...(discTotal(b) > 0 ? [["disclosures", "한국 공시"] as [string, string]] : []),
+    ...((b.us_8k_week?.total ?? 0) > 0 ? [["us8k", "미국 공시"] as [string, string]] : []),
     ...((b.insider_week?.total ?? 0) > 0 ? [["insider", "내부자 매수"] as [string, string]] : []),
     ...(b.sentiment_heating?.length > 0 ? [["sentiment", "관심도"] as [string, string]] : []),
     ...(b.catalysts?.length > 0 ? [["catalysts", "촉매"] as [string, string]] : []),
@@ -430,6 +435,43 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               )}
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
                 시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 종목 상세, 원문↗은 DART 공시
+              </p>
+            </div>
+          )}
+
+          {b.us_8k_week && b.us_8k_week.total > 0 && (
+            <div id={sid("us8k")} style={{ scrollMarginTop: 72 }}>
+              <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
+                미국 주요 공시 8-K (지난 7일) — {Object.entries(b.us_8k_week.by_kind).map(([k, n]) => `${k} ${n}`).join(" · ")}
+              </p>
+              <div className="space-y-1">
+                {b.us_8k_week.items.map((x) => (
+                  <div key={`${x.symbol}-${x.date}-${x.items.map((i) => i.item).join()}`} className="text-[12px] rounded-lg px-3 py-1.5"
+                    style={x.warn ? { background: "#f8717110", border: "1px solid #f8717144" }
+                      : x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{x.date.slice(5).replace("-", "/")}</span>
+                      <StockLabel s={x} />
+                      {x.url && <a href={x.url} target="_blank" rel="noreferrer" className="text-[11px] hover:underline" style={{ color: "var(--text-muted)" }}>원문↗</a>}
+                      {x.items.map((i) => (
+                        <span key={i.item} style={{ color: i.warn ? "#f87171" : "var(--text-secondary)" }}>{i.label}</span>
+                      ))}
+                      <DiscTags tags={x.tags} />
+                    </div>
+                    {x.items.filter((i) => i.excerpt).slice(0, 1).map((i) => (
+                      <p key={i.item} className="text-[11px] mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }} title={i.excerpt ?? ""}>
+                        {i.excerpt}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {b.us_8k_week.total > b.us_8k_week.items.length && (
+                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.us_8k_week.items.length}건까지</p>
+              )}
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                관심 종목(워치리스트·내 관심·노트·테마)의 8-K · 항목 번호로 나눈 종류, 아래 줄은 공시 원문 첫머리(번역·요약 없음) ·
+                실적 발표만 있는 8-K는 뺌 · 붉은 칸은 계약 해지·구조조정·손상·감사인 교체 등 · 임원 변동의 사임/선임은 낱말로 나눈 것
               </p>
             </div>
           )}

@@ -214,3 +214,26 @@ def test_insider_week_grouping_and_telegram():
     assert "내부자 장내 매수</b> 지난 7일 🇺🇸 2 · 🇰🇷 1종목" in text
     assert "🇰🇷 파루 10%이상주주 1.9억 · 테마" in text and "DVN 2명 $150K (계획 매수)" in text and "OXY President and CEO · 이사 $250K" in text
     assert g.fmt_money(1.2e6, "US") == "$1.2M" and g.fmt_money(3e7, "KR") == "3,000만"
+
+
+def test_us_8k_week_items_and_telegram():
+    import json as _j
+
+    def det(items, warn=False, earnings_only=False):
+        return _j.dumps({"items": items, "warn": warn, "earnings_only": earnings_only})
+    rows = [{"symbol": "AAA", "filed_on": "2026-10-16", "url": "u1",
+             "detail": det([{"item": "1.01", "label": "중요 계약 체결", "warn": False, "excerpt": "On Oct..."}])},
+            {"symbol": "BBB", "filed_on": "2026-10-14", "url": "u2",
+             "detail": det([{"item": "5.02", "label": "임원·이사 변동(사임·퇴임)", "warn": True, "excerpt": "resign"}], warn=True)},
+            {"symbol": "CCC", "filed_on": "2026-10-15", "url": "u3",
+             "detail": det([{"item": "2.02", "label": "실적 발표", "warn": False, "excerpt": None}], earnings_only=True)},
+            {"symbol": "DDD", "filed_on": "2026-10-13", "url": "u4",
+             "detail": det([{"item": "2.02", "label": "실적 발표", "warn": False, "excerpt": None},
+                            {"item": "5.02", "label": "임원·이사 변동(선임)", "warn": False, "excerpt": "appointed"}])}]
+    u8 = g.us_8k_week_items(rows, {"US:DDD": ["my"]}, {})
+    assert [x["symbol"] for x in u8["items"]] == ["DDD", "BBB", "AAA"]   # 관심 표시 → 주의 종류 → 최근 순, 실적만은 뺌
+    assert u8["items"][0]["items"] == [{"item": "5.02", "label": "임원·이사 변동(선임)", "warn": False, "excerpt": "appointed"}]
+    assert u8["by_kind"] == {"임원·이사 변동": 2, "중요 계약 체결": 1}
+    text = g.build_telegram_summary(_briefing(us_8k_week=u8))
+    assert "미국 주요 공시(8-K)</b> 지난 7일 3건 - 임원·이사 변동 2 · 중요 계약 체결 1" in text
+    assert "BBB ⚠️임원·이사 변동(사임·퇴임)" in text and "DDD 임원·이사 변동(선임) · 내 관심" in text

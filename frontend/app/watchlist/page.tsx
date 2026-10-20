@@ -580,6 +580,45 @@ function InsiderSection({ c }: { c: Candidate }) {
   );
 }
 
+// 미국 8-K 주요 공시(2026-10-21) - 최근 180일. 종류는 항목 번호, 아래 줄은 원문 첫머리(번역·요약 없음). 없으면 칸을 숨긴다.
+interface Us8kFiling { accession: string; filed_on: string; url: string | null; warn: boolean;
+  items: { item: string; label: string; warn: boolean; excerpt?: string | null }[] }
+function Us8kSection({ c }: { c: Candidate }) {
+  const [filings, setFilings] = useState<Us8kFiling[]>([]);
+  useEffect(() => {
+    if (c.market !== "US") { setFilings([]); return; }
+    let cancelled = false;
+    fetch(`/api/watchlist/us8k?symbol=${encodeURIComponent(c.symbol)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setFilings(d.filings ?? []); })
+      .catch(() => { if (!cancelled) setFilings([]); });
+    return () => { cancelled = true; };
+  }, [c.market, c.symbol]);
+  if (filings.length === 0) return null;
+  return (
+    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}` }}>
+      <p className="text-[12px] font-semibold mb-1.5" style={{ color: TEXT_SECONDARY }}>주요 공시 8-K — 최근 6개월 {filings.length}건</p>
+      <div className="space-y-1.5">
+        {filings.map((f) => (
+          <div key={f.accession} className="text-[12px]">
+            <p className="flex flex-wrap gap-x-2">
+              <span style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>{f.filed_on.slice(2)}</span>
+              {f.items.map((i) => <span key={i.item} style={{ color: i.warn ? BAD : "#fff" }}>{i.label}</span>)}
+              {f.url && <a href={f.url} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: TEXT_SECONDARY }}>원문↗</a>}
+            </p>
+            {f.items.filter((i) => i.excerpt).slice(0, 1).map((i) => (
+              <p key={i.item} className="text-[11px] line-clamp-2" style={{ color: TEXT_SECONDARY }} title={i.excerpt ?? ""}>{i.excerpt}</p>
+            ))}
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
+        SEC 8-K · 실적 발표만 있는 것은 뺌 · 임원 변동의 사임/선임은 원문 낱말로 나눈 것
+      </p>
+    </div>
+  );
+}
+
 function ChecklistSection({ c }: { c: Candidate }) {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -989,6 +1028,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
             </div>
           </div>
 
+          <Us8kSection c={c} />
           <InsiderSection c={c} />
 
           {/* 정성 체크 (구 투자 워크북) */}

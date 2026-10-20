@@ -27,7 +27,7 @@ def test_item_section_strips_title():
 
 def test_describe_and_officer_kinds():
     d = describe(["5.02"], html_text(DOC))
-    assert d["warn"] and d["items"][0]["label"] == "임원·이사 변동(사임·퇴임)" and d["items"][0]["excerpt"]
+    assert not d["warn"] and d["items"][0]["label"] == "임원·이사 변동(사임·퇴임)" and d["items"][0]["excerpt"]
     assert officer_change("The Board appointed John Doe as Chief Operating Officer.") == "선임"
     assert officer_change("The Committee approved the annual bonus plan.") == "보상·기타"
     e = describe(["2.02"], None)

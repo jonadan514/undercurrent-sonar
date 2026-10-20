@@ -144,14 +144,13 @@ def officer_change(seg: str | None) -> str | None:
 
 
 def describe(items: list[str], text: str | None) -> dict:
-    """항목별 이름·원문 발췌. 5.02는 사임/선임 구분을 붙이고, 사임·퇴임이 들어 있으면 주의 표시."""
+    """항목별 이름·원문 발췌. 5.02는 낱말로 사임/선임 구분을 붙인다 - 후임 소개에 전임자 '퇴임'이 같이 나오는 등
+    낱말 일치가 거칠어(2026-10-21 확인 실행: 이사 선임 공시에 '사임·선임'), 주의 표시는 하지 않는다. 발췌를 읽고 판단."""
     out = []
     for it in items:
         name, warn = ITEMS[it]
         seg = item_section(text, it) if text else None
         sub = officer_change(seg) if it == "5.02" else None
-        if sub and "사임" in sub:
-            warn = True
         out.append({"item": it, "label": f"{name}({sub})" if sub else name, "warn": warn,
                     "excerpt": excerpt(seg) if seg else None})
     return {"items": out, "warn": any(x["warn"] for x in out),
