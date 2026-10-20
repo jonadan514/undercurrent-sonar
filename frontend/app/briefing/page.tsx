@@ -94,14 +94,15 @@ const mdw = (d: string) => { const [y, m, dd] = d.split("-").map(Number); return
 interface TurnaroundItem { market: string; symbol: string; name?: string | null; basis: "1년" | "분기"; yoy: number | null }
 interface MacroItem { value: number | null; chg_1w: number | null }
 
+// 매크로는 줄마다 한 칸씩이면 9줄이 넘어 브리핑이 길어진다 - 작은 칸으로 묶는다(2026-10-20)
 function MacroRow({ label, m, fmt, chgFmt }: { label: string; m?: MacroItem | null; fmt: (v: number) => string; chgFmt: (v: number) => string }) {
   if (!m || m.value == null) return null;
   return (
-    <div className="flex items-center gap-3 flex-wrap rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-      <span className="text-[13px] font-bold text-white w-24 shrink-0">{label}</span>
-      <span className="text-[12px] text-white">{fmt(m.value)}</span>
+    <div className="rounded-lg px-2.5 py-1.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="text-[13px] font-bold text-white" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(m.value)}</p>
       {m.chg_1w != null && (
-        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>주간 {chgFmt(m.chg_1w)}</span>
+        <p className="text-[11px]" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>주간 {chgFmt(m.chg_1w)}</p>
       )}
     </div>
   );
@@ -134,6 +135,19 @@ function MarketRow({ label, m }: { label: string; m: MarketWeek }) {
 function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const wl = b.watchlist ?? { total: 0, added: [], removed: [], top: [], has_prev: false };
+  // 목차(2026-10-20) - 최신 주는 개요 "이번 주 변화"가 쓰는 짧은 앵커(#earnings 등), 지난 주는 주차를 붙여 겹치지 않게
+  const sid = (k: string) => defaultOpen ? k : `${b.week}-${k}`;
+  const toc: [string, string][] = [
+    ["market", "지난주 시장"],
+    ...(b.theme_labels && (b.theme_labels.new_labels.length > 0 || b.theme_labels.dropped_labels.length > 0) ? [["labels", "테마 라벨"] as [string, string]] : []),
+    ...(b.gpt_comment ? [["comment", "총평"] as [string, string]] : []),
+    ["watchlist", "워치리스트"],
+    ...(b.turnaround ? [["turnaround", "실적 반전"] as [string, string]] : []),
+    ...(b.earnings_week && b.earnings_week.total > 0 ? [["earnings", "실적 발표"] as [string, string]] : []),
+    ...(b.kr_disclosures && (b.kr_disclosures.contract.count > 0 || b.kr_disclosures.prelim.count > 0) ? [["disclosures", "한국 공시"] as [string, string]] : []),
+    ...(b.sentiment_heating?.length > 0 ? [["sentiment", "관심도"] as [string, string]] : []),
+    ...(b.catalysts?.length > 0 ? [["catalysts", "촉매"] as [string, string]] : []),
+  ];
 
   return (
     <div className="bg-card rounded-xl overflow-hidden">
@@ -145,13 +159,21 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
       {open && (
         <div className="px-4 pb-4 space-y-4" style={{ borderTop: "1px solid var(--border)" }}>
+          {/* 목차 */}
+          <nav className="pt-3 flex flex-wrap gap-1.5" aria-label="브리핑 목차">
+            {toc.map(([k, label]) => (
+              <a key={k} href={`#${sid(k)}`} className="text-[11px] px-2 py-0.5 rounded hover:brightness-125"
+                style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>{label}</a>
+            ))}
+          </nav>
           {/* 시장 궤적 */}
-          <div className="pt-3 space-y-1.5">
+          <div id={sid("market")} className="space-y-1.5" style={{ scrollMarginTop: 72 }}>
             <p className="text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>지난주 시장</p>
             <MarketRow label="🇺🇸 S&P 500" m={b.us} />
             <MarketRow label="🇰🇷 KOSPI" m={b.kr} />
             <FlowRow label="코스피 수급" f={b.kr_flows?.KOSPI} />
             <FlowRow label="코스닥 수급" f={b.kr_flows?.KOSDAQ} />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
             <MacroRow label="미 10년물" m={b.macro?.us10y}
               fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
             <MacroRow label="미 실질금리" m={b.macro?.real10y}
@@ -185,12 +207,13 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 const pct = base ? ` (${v / base >= 0 ? "+" : ""}${(v / base * 100).toFixed(1)}%)` : "";
                 return `${v >= 0 ? "+" : "-"}$${Math.abs(v).toFixed(2)}${pct}`;
               }} />
+            </div>
           </div>
 
           {/* 테마 레이더 라벨 변동 — 라벨 계산은 별도 워크플로우라 이 브리핑보다 늦게
               끝날 수 있어서, "이번 주"라 단정하지 않고 실제 기준 주를 그대로 보여준다. */}
           {b.theme_labels && (b.theme_labels.new_labels.length > 0 || b.theme_labels.dropped_labels.length > 0) && (
-            <div>
+            <div id={sid("labels")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 📡 테마 레이더 라벨 변동 <span style={{ color: "var(--text-faint)" }}>({b.theme_labels.week_start} 기준)</span>
               </p>
@@ -223,14 +246,14 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* GPT 총평 */}
           {b.gpt_comment && (
-            <div className="rounded-xl p-3" style={{ background: "#ffb02008", border: "1px solid #ffb02022" }}>
+            <div id={sid("comment")} className="rounded-xl p-3" style={{ scrollMarginTop: 72, background: "#ffb02008", border: "1px solid #ffb02022" }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "#ffb020" }}>주간 총평</p>
               <p className="text-[12px] leading-relaxed whitespace-pre-line" style={{ color: "#a39c88" }}>{b.gpt_comment}</p>
             </div>
           )}
 
           {/* 워치리스트 변동 */}
-          <div>
+          <div id={sid("watchlist")} style={{ scrollMarginTop: 72 }}>
             <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
               워치리스트 변동 <span style={{ color: "var(--text-faint)" }}>(후보 {wl.total}개)</span>
             </p>
@@ -265,7 +288,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 실적 반전 - 워치리스트 같은 이름 버튼과 같은 조건 */}
           {b.turnaround && (
-            <div id={defaultOpen ? "turnaround" : undefined} style={{ scrollMarginTop: 72 }}>
+            <div id={sid("turnaround")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 실적 반전 — {Object.entries(b.turnaround.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}`).join(" · ") || "0"}
                 {b.turnaround.has_prev && <> · 새로 {b.turnaround.added_count} · 빠짐 {b.turnaround.removed_count}</>}
@@ -296,7 +319,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 이번 주 실적 발표 - 워치리스트·내 관심·관찰 노트 종목 */}
           {b.earnings_week && b.earnings_week.total > 0 && (
-            <div id={defaultOpen ? "earnings" : undefined} style={{ scrollMarginTop: 72 }}>
+            <div id={sid("earnings")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 이번 주 실적 발표 — {Object.entries(b.earnings_week.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}`).join(" · ")}
               </p>
@@ -329,7 +352,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 한국 공시 지난 7일 - 공급계약·잠정실적 */}
           {b.kr_disclosures && (b.kr_disclosures.contract.count > 0 || b.kr_disclosures.prelim.count > 0) && (
-            <div id={defaultOpen ? "disclosures" : undefined} style={{ scrollMarginTop: 72 }}>
+            <div id={sid("disclosures")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 한국 공시 (지난 7일) — 공급계약 {b.kr_disclosures.contract.count} · 잠정실적 {b.kr_disclosures.prelim.count}
               </p>
@@ -380,7 +403,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 관심도 상승 */}
           {b.sentiment_heating?.length > 0 && (
-            <div>
+            <div id={sid("sentiment")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>관심도 상승</p>
               <div className="flex flex-wrap gap-2">
                 {b.sentiment_heating.map((s) => (
@@ -395,7 +418,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 다가오는 촉매 */}
           {b.catalysts?.length > 0 && (
-            <div>
+            <div id={sid("catalysts")} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 내 워치리스트 — 다가오는 촉매
               </p>
@@ -428,12 +451,19 @@ export default function BriefingPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // 개요 "이번 주 변화"에서 #earnings 등으로 들어오면, 브리핑을 불러온 뒤에야 그 칸이 생긴다 - 그때 스크롤한다.
+  useEffect(() => {
+    if (loading || !window.location.hash) return;
+    const el = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
+  }, [loading]);
+
   return (
     <div className="space-y-3 max-w-3xl">
       <div>
         <h1 className="text-base font-bold text-white">주간 브리핑</h1>
         <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-          매주 월요일 아침, 지난주를 돌아보고 이번 주를 준비하는 문서 — 시장 궤적 · 워치리스트 변동 · 관심도 흐름 · 촉매
+          매주 월요일 아침, 지난주를 돌아보고 이번 주를 준비하는 문서 — 위 목차를 눌러 칸으로 바로 이동
         </p>
       </div>
 
