@@ -265,7 +265,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 실적 반전 - 워치리스트 같은 이름 버튼과 같은 조건 */}
           {b.turnaround && (
-            <div>
+            <div id={defaultOpen ? "turnaround" : undefined} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 실적 반전 — {Object.entries(b.turnaround.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}`).join(" · ") || "0"}
                 {b.turnaround.has_prev && <> · 새로 {b.turnaround.added_count} · 빠짐 {b.turnaround.removed_count}</>}
@@ -296,7 +296,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 이번 주 실적 발표 - 워치리스트·내 관심·관찰 노트 종목 */}
           {b.earnings_week && b.earnings_week.total > 0 && (
-            <div>
+            <div id={defaultOpen ? "earnings" : undefined} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 이번 주 실적 발표 — {Object.entries(b.earnings_week.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}`).join(" · ")}
               </p>
@@ -329,7 +329,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
 
           {/* 한국 공시 지난 7일 - 공급계약·잠정실적 */}
           {b.kr_disclosures && (b.kr_disclosures.contract.count > 0 || b.kr_disclosures.prelim.count > 0) && (
-            <div>
+            <div id={defaultOpen ? "disclosures" : undefined} style={{ scrollMarginTop: 72 }}>
               <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
                 한국 공시 (지난 7일) — 공급계약 {b.kr_disclosures.contract.count} · 잠정실적 {b.kr_disclosures.prelim.count}
               </p>

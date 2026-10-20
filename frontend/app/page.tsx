@@ -34,9 +34,31 @@ function fmtMacroChg(item: MacroItem): string {
   return `${sign}${item.chg_1d.toFixed(digits)}`;
 }
 
+// 주간 브리핑(scripts/generate_weekly_briefing.py)에서 쓰는 칸만
+interface WeekBrief {
+  week: string;
+  turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean; added: { market: string }[]; added_count: number } | null;
+  earnings_week?: { total: number; by_market: Record<string, number>; items: { market: string; tags: string[] }[] } | null;
+  kr_disclosures?: { contract: { count: number; items: { tags: string[] }[] }; prelim: { count: number; items: { tags: string[] }[] } } | null;
+  observation_reviews?: unknown[];
+}
+
+function ChangeTile({ href, label, value, sub, hint }: { href: string; label: string; value: string; sub?: string; hint?: string }) {
+  return (
+    <a href={href} className="rounded-lg p-2.5 block transition-colors hover:brightness-125" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }} title={hint}>
+      <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="text-[20px] font-bold leading-tight mt-0.5" style={{ color: "var(--num)", fontVariantNumeric: "tabular-nums" }}>{value}</p>
+      {sub && <p className="text-[11px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{sub}</p>}
+    </a>
+  );
+}
+
 export default function HomePage() {
   const { market } = useMarket();
   const [candidateCount, setCandidateCount] = useState<number | null>(null);
+  const [newCount, setNewCount] = useState<number | null>(null);
+  // 최신 주간 브리핑 - "이번 주 변화" 줄의 숫자는 전부 여기서 그대로 가져온다(2026-10-20)
+  const [brief, setBrief] = useState<WeekBrief | null>(null);
   const [radarCounts, setRadarCounts] = useState<Record<string, number> | null>(null);
   const [macro, setMacro] = useState<MacroSnapshot | null>(null);
   // 일별 종가 1년치(2026-10-17) - 없으면 카드는 값만(추세선·범위 없이)
@@ -47,7 +69,11 @@ export default function HomePage() {
     setCandidateCount(null);
     fetch(`/api/watchlist/candidates?market=${market}`)
       .then(r => r.json())
-      .then(d => setCandidateCount((d?.candidates ?? []).length))
+      .then(d => {
+        const cs: { is_new?: boolean | null }[] = d?.candidates ?? [];
+        setCandidateCount(cs.length);
+        setNewCount(cs.some(c => c.is_new != null) ? cs.filter(c => c.is_new === true).length : null);
+      })
       .catch(() => setCandidateCount(0));
   }, [market]);
 
@@ -73,6 +99,10 @@ export default function HomePage() {
       // API가 { error }를 돌려주면(DB 오류 등) items가 없어 화면 전체가 깨졌다 - 모양이 맞을 때만 쓴다(2026-10-04).
       .then(d => setMacro(d && d.items ? d : null))
       .catch(() => setMacro(null));
+    fetch("/api/briefing")
+      .then(r => r.json())
+      .then(d => setBrief(Array.isArray(d?.briefings) && d.briefings.length ? d.briefings[0] : null))
+      .catch(() => setBrief(null));
     fetch("/api/data/macro/history")
       .then(r => r.json())
       .then(d => setMacroHist(d && typeof d === "object" && !Array.isArray(d) ? d : {}))
@@ -103,25 +133,42 @@ export default function HomePage() {
         </span>
       </div>
 
-      {/* 워치리스트 후보 — 순위 없는 리스트업 (Primary) */}
-      <a href="/watchlist" className="card-primary block" style={{ background: "var(--bg-raised)" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <p className="stat-label" style={{ fontSize: 13 }}>이번 주 워치리스트 후보</p>
-              <InfoTooltip content="재무 건전성 필터(Piotroski 등)를 통과한 종목을 순위 없이 리스트업합니다. 매수 신호가 아닙니다." />
-            </div>
-            <p className="text-5xl font-black mt-1" style={{ color: "#ffb020" }}>
-              {candidateCount}
-              <span className="text-lg font-normal ml-2" style={{ color: "var(--text-faint)" }}>개</span>
-            </p>
-            <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
-              재무 필터 통과, 순위 없음 — 탭해서 직접 검토
-            </p>
-          </div>
-          <span className="text-[13px] shrink-0" style={{ color: "var(--text-muted)" }}>확인하기 →</span>
+      {/* 이번 주 변화 - 무엇이 새로 생겼나만 모아 해당 화면으로 보낸다(2026-10-20). 숫자는 워치리스트·주간 브리핑 값 그대로. */}
+      <div className="bg-card rounded-lg p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <p className="stat-label" style={{ fontSize: 13 }}>이번 주 변화</p>
+          <InfoTooltip content="이번 주에 새로 생긴 것만 모았습니다. 칸을 누르면 해당 목록으로 갑니다. 순위나 추천이 아닙니다." />
+          {brief && <span className="ml-auto text-[11px]" style={{ color: "var(--text-faint)" }}>{brief.week.slice(5).replace("-", "/")} 주 브리핑 기준</span>}
         </div>
-      </a>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <ChangeTile href={newCount ? "/watchlist?new=1" : "/watchlist"} label="워치리스트 후보"
+            value={`${candidateCount}`} sub={newCount != null ? `이번 주 신규 ${newCount}` : "재무 필터 통과, 순위 없음"}
+            hint="재무 건전성 필터를 통과한 종목. 매수 신호가 아닙니다." />
+          {(() => {
+            const ta = brief?.turnaround;
+            if (!ta) return <ChangeTile href="/watchlist?preset=turnaround" label="실적 반전" value="-" sub="브리핑 전" />;
+            const added = ta.added.filter(a => a.market === market).length;
+            return <ChangeTile href="/watchlist?preset=turnaround" label="실적 반전" value={`${ta.by_market[market] ?? 0}`}
+              // 브리핑에는 새로 들어온 종목을 10개까지만 담는다 - 잘렸으면 시장별로 셀 수 없어 미·한 합계를 그대로 쓴다
+              sub={!ta.has_prev ? "비교는 다음 주부터" : ta.added_count > ta.added.length ? `새로 ${ta.added_count} (미·한 합계)` : `새로 ${added}`}
+              hint="매출 3년은 정체·역성장인데 최근 1년(없으면 분기)은 성장" />;
+          })()}
+          {(() => {
+            const ew = brief?.earnings_week;
+            const mine = (ew?.items ?? []).filter(x => x.market === market && x.tags.length > 0).length;
+            return <ChangeTile href="/briefing#earnings" label="이번 주 실적 발표" value={ew ? `${ew.by_market[market] ?? 0}` : "-"}
+              sub={ew ? `내 관심·노트·실적 반전 ${mine}` : "브리핑 전"} />;
+          })()}
+          {(() => {
+            const kd = brief?.kr_disclosures;
+            const tagged = kd ? [...kd.contract.items, ...kd.prelim.items].filter(x => x.tags.length > 0).length : 0;
+            return <ChangeTile href="/briefing#disclosures" label="🇰🇷 한국 공시 (7일)" value={kd ? `${kd.contract.count + kd.prelim.count}` : "-"}
+              sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}` : "브리핑 전"} />;
+          })()}
+          <ChangeTile href="/notes" label="관찰 노트 회고" value={`${brief?.observation_reviews?.length ?? 0}`}
+            sub={(brief?.observation_reviews?.length ?? 0) > 0 ? "판단 남길 회고 도착" : "도착한 회고 없음"} />
+        </div>
+      </div>
 
       {candidateCount === 0 && (
         <div className="bg-card rounded-lg p-3 text-center text-base" style={{ color: "#726b58" }}>

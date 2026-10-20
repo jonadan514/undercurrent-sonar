@@ -1105,7 +1105,12 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (loading || linkHandled.current) return;
     linkHandled.current = true;
-    const raw = new URLSearchParams(window.location.search).get("stock");
+    const qs = new URLSearchParams(window.location.search);
+    // 개요 "이번 주 변화"에서 넘어온 조합 보기(?preset=turnaround) · 신규만(?new=1)
+    const presetParam = qs.get("preset");
+    if (presetParam && PRESETS.some((p) => p.key === presetParam)) setPreset(presetParam as PresetKey);
+    if (qs.get("new") === "1") setNewOnly(true);
+    const raw = qs.get("stock");
     if (!raw || !raw.includes(":")) return;
     const [m, ...rest] = raw.split(":");
     const sym = rest.join(":");
