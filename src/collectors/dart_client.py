@@ -281,6 +281,14 @@ def document_rows(rcept_no: str) -> list[str]:
     return rows
 
 
+# ── 임원·주요주주 소유보고 정형 API (2026-10-21) ─────────────────────────────
+
+def fetch_elestock(corp_code: str) -> list[dict]:
+    """임원ㆍ주요주주 소유보고 목록(elestock.json) - 보고자·직위·주요주주 구분이 깨끗하게 온다(사유·단가는 없다)."""
+    data = _get("elestock.json", {"corp_code": corp_code})
+    return list(data.get("list") or [])
+
+
 # ── 웹 뷰어 원문 (2026-10-21) - 개인이 내는 지분 보고서(임원ㆍ주요주주 소유상황)는 document.xml이 없다 ──
 import codecs
 

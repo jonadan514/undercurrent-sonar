@@ -211,6 +211,25 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
     stats = {"reports": len(reports), "new": 0, "buys": 0, "no_table": 0}
     _log(f"지분공시 {len(items)}건 중 대상 임원·주요주주 보고 {len(reports)}건")
     now = datetime.utcnow().isoformat()
+    ele_cache: dict[str, dict[str, dict]] = {}
+
+    def who(i: dict) -> tuple[str, str] | None:
+        """보고자·직함은 정형 API(elestock)에서 - 웹 뷰어 글자는 일부가 '?'로 깨져 온다. 못 받으면 None."""
+        cc = i.get("corp_code")
+        if not cc:
+            return None
+        if cc not in ele_cache:
+            try:
+                ele_cache[cc] = {e.get("rcept_no"): e for e in dart.fetch_elestock(cc)}
+            except Exception as e:  # noqa: BLE001
+                _log(f"  {i['corp_name']}: 소유보고 목록 실패 {type(e).__name__}")
+                ele_cache[cc] = {}
+        e = ele_cache[cc].get(i["rcept_no"])
+        if not e:
+            return None
+        parts = [p for p in (e.get("isu_exctv_ofcps"), e.get("isu_main_shrholdr")) if p and p.strip() not in ("-", "")]
+        return (e.get("repror") or i.get("flr_nm") or "-").strip(), " · ".join(p.strip() for p in parts) or "-"
+
     for i in reports:
         if i["rcept_no"] in have:
             continue
@@ -224,6 +243,10 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
             continue
         filed = f"{i['rcept_dt'][:4]}-{i['rcept_dt'][4:6]}-{i['rcept_dt'][6:8]}"
         buys = parse_kr_ownership(rows)
+        if buys:
+            w = who(i)
+            for b in buys:
+                b["owner"], b["role"] = w if w else (i.get("flr_nm") or b["owner"], b["role"])
         if not save and not buys:   # 확인용: 변동 내역 줄 모양을 본다
             _log(f"  {i['corp_name']} {i['rcept_no']} 매수 없음 - 변동 줄: "
                  + " || ".join(r[:120] for r in rows if "(+)" in r or "(-)" in r)[:600])
