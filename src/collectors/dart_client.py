@@ -282,6 +282,25 @@ def document_rows(rcept_no: str) -> list[str]:
 
 
 # ── 웹 뷰어 원문 (2026-10-21) - 개인이 내는 지분 보고서(임원ㆍ주요주주 소유상황)는 document.xml이 없다 ──
+import codecs
+
+
+def _cp949_fallback(err: UnicodeDecodeError):
+    """utf-8로 못 푼 2바이트를 cp949(EUC-KR)로 - DART 웹 뷰어는 utf-8 틀 안에 EUC-KR 데이터가 섞여 온다(2026-10-21 확인)."""
+    chunk = err.object[err.start:err.start + 2]
+    try:
+        return chunk.decode("cp949"), err.start + 2
+    except UnicodeDecodeError:
+        return "?", err.start + 1
+
+
+codecs.register_error("cp949fallback", _cp949_fallback)
+
+
+def decode_mixed(data: bytes) -> str:
+    return data.decode("utf-8", "cp949fallback")
+
+
 VIEWER_MAIN = "https://dart.fss.or.kr/dsaf001/main.do"
 VIEWER_DOC = "https://dart.fss.or.kr/report/viewer.do"
 _DCM_RE = re.compile(r"node\d*\['dcmNo'\]\s*=\s*\"(\d+)\"|dcmNo['\"]?\s*[:=]\s*['\"](\d+)['\"]")
@@ -291,15 +310,15 @@ def viewer_rows(rcept_no: str) -> list[str]:
     """DART 웹 뷰어에서 원문 HTML을 받아 document_rows와 같은 '칸 | 칸' 행으로. 못 받으면 빈 목록."""
     headers = {"User-Agent": "Mozilla/5.0 (U-Sonar research)"}
     try:
-        page = requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).content.decode("utf-8", "replace")
+        page = decode_mixed(requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).content)
         m = _DCM_RE.search(page)
         if not m:
             return []
         dcm = m.group(1) or m.group(2)
-        # 응답 헤더의 문자셋과 실제 인코딩이 달라 .text가 깨진다(2026-10-21). 본문은 utf-8인데 군데군데 잘못된 바이트가 있어
-        # 엄격하게 풀면 실패하고 cp949로 넘어가 전부 깨진다 - utf-8로 풀고 잘못된 바이트만 대체 문자로.
-        html = requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
-                                                "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content.decode("utf-8", "replace")
+        # 응답이 utf-8과 EUC-KR이 섞여 있어(틀은 utf-8, 일부 데이터는 EUC-KR) 한 가지로 풀면 깨진다(2026-10-21)
+        # - utf-8로 풀다가 실패한 2바이트만 cp949로.
+        html = decode_mixed(requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
+                                                "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content)
     except (requests.Timeout, requests.ConnectionError):
         return []
     text = _STYLE_RE.sub(" ", html)

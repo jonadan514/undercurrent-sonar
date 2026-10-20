@@ -95,7 +95,8 @@ def cluster_buyers(trades: list[dict]) -> int:
 
 # ── 한국 (DART 임원ㆍ주요주주 소유상황 보고, 웹 뷰어 표) ────────────────────────
 
-_KR_DATE = re.compile(r"(\d{4})\s*[년.\-]\s*(\d{1,2})\s*[월.\-]\s*(\d{1,2})")
+# 숫자 사이 글자는 느슨하게 - 웹 뷰어 인코딩이 섞여 '년·월'이 깨져 와도 날짜는 읽히게
+_KR_DATE = re.compile(r"(\d{4})\D{1,6}?(\d{1,2})\D{1,6}?(\d{1,2})")
 
 
 def _kr_date(s: str | None) -> str | None:
@@ -140,7 +141,10 @@ def parse_kr_ownership(rows: list[str]) -> list[dict]:
     out = []
     for i, r in enumerate(rows):
         cells = [c.strip() for c in r.split("|")]
-        if not cells or not cells[0].replace(" ", "").startswith("장내매수") or len(cells) < 7:
+        reason = cells[0].replace(" ", "") if cells else ""
+        # 장내매수(+)만. 주식매수선택권(+)(스톡옵션)도 "매수"가 들어가 있어 "선택"으로 걸러낸다
+        if not (reason.startswith("장내매수") or (reason.endswith("매수(+)") and "선택" not in reason
+                                                  and not reason.startswith("주식"))) or len(cells) < 7:
             continue
         shares, price = _kr_num(cells[4]), _kr_num(cells[6])
         if shares is None or shares <= 0:
