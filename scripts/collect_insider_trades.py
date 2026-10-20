@@ -37,6 +37,9 @@ KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
 US_LISTS = (ROOT / "data" / "sp500_list.csv", ROOT / "data" / "sp400_list.csv")
 KR_REPORT = "임원ㆍ주요주주특정증권등소유상황보고서"
 VIEWER_SLEEP = 0.5
+VIEWER_PAUSE_AFTER = 5     # 연속 실패 이만큼이면 쉰다
+VIEWER_PAUSE = 60
+VIEWER_STOP_AFTER = 15     # 연속 실패 이만큼이면 멈춘다
 
 
 INSIDER_TRADES_DDL = """
@@ -220,6 +223,7 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         parts = [p for p in (clean_role(e.get("isu_exctv_ofcps")), clean_role(e.get("isu_main_shrholdr"))) if p]
         return (e.get("repror") or i.get("flr_nm") or "-").strip(), " · ".join(parts) or "-"
 
+    fails = 0   # 웹 뷰어 연속 실패 - 많이 읽으면 DART가 막는다(2026-10-21 60일 채우기: 400건 넘게 빈 응답·시간 초과)
     for i in reports:
         if i["rcept_no"] in have:
             continue
@@ -228,9 +232,19 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         time.sleep(VIEWER_SLEEP)
         if not rows:
             stats["no_table"] += 1
+            fails += 1
             if not save:
                 _log(f"  {i['corp_name']} {i['rcept_no']} 웹 뷰어 원문 없음")
+            # 못 읽은 공시는 본 것으로 남기지 않아 다음 실행에서 다시 읽는다 - 막힌 동안 계속 두드리지 않고 쉬었다가, 길면 멈춘다
+            if fails >= VIEWER_STOP_AFTER:
+                _log(f"웹 뷰어 연속 {fails}건 실패 - 막힌 것으로 보고 멈춘다(남은 공시는 다음 실행에서)")
+                stats["stopped"] = True
+                break
+            if fails % VIEWER_PAUSE_AFTER == 0:
+                _log(f"웹 뷰어 연속 {fails}건 실패 - {VIEWER_PAUSE}초 쉰다")
+                time.sleep(VIEWER_PAUSE)
             continue
+        fails = 0
         filed = f"{i['rcept_dt'][:4]}-{i['rcept_dt'][4:6]}-{i['rcept_dt'][6:8]}"
         buys = parse_kr_ownership(rows)
         # 깨진 글자라 장내인지 못 가린 '매수' 줄 - 빠뜨린 것이 있는지 보이게 남긴다(넣지는 않는다)
