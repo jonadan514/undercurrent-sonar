@@ -279,3 +279,34 @@ def document_rows(rcept_no: str) -> list[str]:
                 if line:
                     rows.append(line)
     return rows
+
+
+# ── 웹 뷰어 원문 (2026-10-21) - 개인이 내는 지분 보고서(임원ㆍ주요주주 소유상황)는 document.xml이 없다 ──
+VIEWER_MAIN = "https://dart.fss.or.kr/dsaf001/main.do"
+VIEWER_DOC = "https://dart.fss.or.kr/report/viewer.do"
+_DCM_RE = re.compile(r"node\d*\['dcmNo'\]\s*=\s*\"(\d+)\"|dcmNo['\"]?\s*[:=]\s*['\"](\d+)['\"]")
+
+
+def viewer_rows(rcept_no: str) -> list[str]:
+    """DART 웹 뷰어에서 원문 HTML을 받아 document_rows와 같은 '칸 | 칸' 행으로. 못 받으면 빈 목록."""
+    headers = {"User-Agent": "Mozilla/5.0 (U-Sonar research)"}
+    try:
+        page = requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).text
+        m = _DCM_RE.search(page)
+        if not m:
+            return []
+        dcm = m.group(1) or m.group(2)
+        html = requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
+                                                "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).text
+    except (requests.Timeout, requests.ConnectionError):
+        return []
+    text = _STYLE_RE.sub(" ", html)
+    text = re.sub(r"[\r\n]+", " ", text)
+    text = _CELL_END_RE.sub(" | ", text)
+    text = _ROW_END_RE.sub("\n", text)
+    rows = []
+    for line in _TAG_RE.sub(" ", text).split("\n"):
+        line = re.sub(r"[ \t\xa0]+", " ", line).replace("&nbsp;", " ").strip(" |")
+        if line:
+            rows.append(line)
+    return rows
