@@ -62,7 +62,17 @@ def probe(bgn: str, end: str, names: list[str] | None = None, grep: str | None =
         print(f"'{grep}' {sum(grep in i['report_nm'] for i in items)}건")
         for i in hits:
             print(f"\n===== {i['corp_name']} {i['report_nm'].strip()} {i['rcept_no']}")
-            for r in dart.document_rows(i["rcept_no"])[:45]:
+            rows = dart.document_rows(i["rcept_no"])
+            if not rows:   # 표 행이 하나도 없으면 원문 파일 모양을 본다(양식 확인용)
+                import io, zipfile
+                raw = dart._get("document.xml", {"rcept_no": i["rcept_no"]}, binary=True)
+                print("  원문:", None if not raw else len(raw))
+                if raw:
+                    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                        for n in zf.namelist():
+                            txt = dart._decode(zf.read(n))
+                            print("  파일", n, len(txt), repr(txt[:1500]))
+            for r in rows[:45]:
                 print("  " + r[:220])
         return 0
     if names:   # 이 회사들의 대상 공시 원문 표를 그대로 출력(양식 확인용)
