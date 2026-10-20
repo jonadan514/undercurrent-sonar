@@ -122,15 +122,21 @@ def _after_cell(rows: list[str], label: str) -> str | None:
     return None
 
 
+def clean_role(text: str | None) -> str | None:
+    """웹 뷰어 글자 일부가 '?'로 깨져 오는 경우를 다듬는다. '10%'가 보이면 '10% 이상 주주', 그 밖에 깨진 글자가 있으면 버린다."""
+    if not text or text.strip() in ("-", ""):
+        return None
+    t = text.strip()
+    if "10%" in t:
+        return "10% 이상 주주"
+    if "?" in t or "\ufffd" in t:
+        return None
+    return t
+
+
 def kr_role(rows: list[str]) -> str:
     """보고자 관계 -> 짧은 직함. 직위명이 있으면 그것, 주요주주면 그 구분."""
-    parts = []
-    title = _after_cell(rows, "직위명")
-    if title:
-        parts.append(title)
-    major = _after_cell(rows, "주요주주")
-    if major:
-        parts.append(major)
+    parts = [p for p in (clean_role(_after_cell(rows, "직위명")), clean_role(_after_cell(rows, "주요주주"))) if p]
     return " · ".join(parts) or "-"
 
 

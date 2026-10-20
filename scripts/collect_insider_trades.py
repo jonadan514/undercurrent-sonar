@@ -245,6 +245,8 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         buys = parse_kr_ownership(rows)
         if buys:
             w = who(i)
+            if not save:
+                _log(f"  {i['corp_name']} 정형 API 보고자: {w if w else '못 찾음(뷰어 표 값 사용)'}")
             for b in buys:
                 b["owner"], b["role"] = w if w else (i.get("flr_nm") or b["owner"], b["role"])
         if not save and not buys:   # 확인용: 변동 내역 줄 모양을 본다
