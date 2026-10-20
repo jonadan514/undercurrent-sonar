@@ -149,13 +149,15 @@ def parse_kr_ownership(rows: list[str]) -> list[dict]:
         cells = [c.strip() for c in r.split("|")]
         reason = cells[0].replace(" ", "") if cells else ""
         # 장내매수(+)만. 주식매수선택권(+)(스톡옵션)도 "매수"가 들어가 있어 "선택"으로 걸러낸다
+        # 장외매수(블록딜·상속 정리 등)는 뺀다 - 장내에서 자기 돈으로 산 것만
         if not (reason.startswith("장내매수") or (reason.endswith("매수(+)") and "선택" not in reason
-                                                  and not reason.startswith("주식"))) or len(cells) < 7:
+                                                  and "장외" not in reason and not reason.startswith("주식"))) \
+                or len(cells) < 7:
             continue
         shares, price = _kr_num(cells[4]), _kr_num(cells[6])
         if shares is None or shares <= 0:
             continue
         out.append({"line": i, "owner": owner, "role": role, "trade_date": _kr_date(cells[1]),
                     "shares": shares, "price": price, "value": shares * price if price is not None else None,
-                    "owned_after": _kr_num(cells[5]), "direct": True, "plan": False})
+                    "owned_after": _kr_num(cells[5]), "direct": True, "plan": False, "reason": cells[0]})
     return out

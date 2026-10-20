@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from collectors import dart_client as dart
-from src.collectors.insider_trades import parse_form4, parse_kr_ownership, raw_xml_name
+from src.collectors.insider_trades import clean_role, parse_form4, parse_kr_ownership, raw_xml_name
 from src.db.data_store import get_db
 
 KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
@@ -227,8 +227,8 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         e = ele_cache[cc].get(i["rcept_no"])
         if not e:
             return None
-        parts = [p for p in (e.get("isu_exctv_ofcps"), e.get("isu_main_shrholdr")) if p and p.strip() not in ("-", "")]
-        return (e.get("repror") or i.get("flr_nm") or "-").strip(), " · ".join(p.strip() for p in parts) or "-"
+        parts = [p for p in (clean_role(e.get("isu_exctv_ofcps")), clean_role(e.get("isu_main_shrholdr"))) if p]
+        return (e.get("repror") or i.get("flr_nm") or "-").strip(), " · ".join(parts) or "-"
 
     for i in reports:
         if i["rcept_no"] in have:
@@ -255,7 +255,7 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
         for b in buys:
             stats["buys"] += 1
             if not save:
-                _log(f"  {i['corp_name']} {b['trade_date']} {b['owner']} ({b['role']}) {b['shares']:,.0f}주 x {b['price']}원")
+                _log(f"  {i['corp_name']} {b['trade_date']} {b['owner']} ({b['role']}) {b['shares']:,.0f}주 x {b['price']}원 [{b.get('reason')}]")
                 continue
             _insert(conn, "KR", i["stock_code"], i["rcept_no"], filed, b, "DART", now)
         if save:
