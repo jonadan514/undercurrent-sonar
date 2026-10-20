@@ -140,6 +140,19 @@ def kr_role(rows: list[str]) -> str:
     return " · ".join(parts) or "-"
 
 
+# 웹 뷰어가 UTF-8 글자를 CP949로 잘못 읽어 '장내'·'장외'가 늘 같은 모양으로 깨진다(2026-10-21 실제 로그) - 원래 글자로 되돌린다.
+_GARBLED = {"?옣?궡": "장내", "?옣?쇅": "장외"}
+
+
+def is_open_market_buy(reason: str) -> bool:
+    """보고사유가 '장내매수'인가. 장외매수(블록딜 등)·주식매수선택권·증여는 아니다.
+    깨진 글자로 장내인지 알 수 없으면 넣지 않는다(잘못 넣는 것보다 빠뜨리는 쪽)."""
+    r = reason.replace(" ", "")
+    for k, v in _GARBLED.items():
+        r = r.replace(k, v)
+    return r.startswith("장내매수")
+
+
 def parse_kr_ownership(rows: list[str]) -> list[dict]:
     """웹 뷰어 표 행 -> 장내 매수 줄. 줄 모양: 보고사유 | 변동일 | 종류 | 변동전 | 증감 | 변동후 | 단가 | 비고 | ..."""
     owner = _after_cell(rows, "보고자") or "-"
@@ -147,12 +160,7 @@ def parse_kr_ownership(rows: list[str]) -> list[dict]:
     out = []
     for i, r in enumerate(rows):
         cells = [c.strip() for c in r.split("|")]
-        reason = cells[0].replace(" ", "") if cells else ""
-        # 장내매수(+)만. 주식매수선택권(+)(스톡옵션)도 "매수"가 들어가 있어 "선택"으로 걸러낸다
-        # 장외매수(블록딜·상속 정리 등)는 뺀다 - 장내에서 자기 돈으로 산 것만
-        if not (reason.startswith("장내매수") or (reason.endswith("매수(+)") and "선택" not in reason
-                                                  and "장외" not in reason and not reason.startswith("주식"))) \
-                or len(cells) < 7:
+        if not is_open_market_buy(cells[0]) or len(cells) < 7:
             continue
         shares, price = _kr_num(cells[4]), _kr_num(cells[6])
         if shares is None or shares <= 0:

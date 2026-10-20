@@ -92,3 +92,10 @@ def test_clean_role():
     from src.collectors.insider_trades import clean_role
     assert clean_role("10%?씠?긽주주") == "10% 이상 주주" and clean_role("대표?씠?궗") is None
     assert clean_role("대표이사") == "대표이사" and clean_role("-") is None
+
+
+def test_open_market_buy_reason():
+    from src.collectors.insider_trades import is_open_market_buy
+    assert is_open_market_buy("장내매수(+)") and is_open_market_buy("?옣?궡매수(+)")
+    assert not is_open_market_buy("?옣?쇅매수(+)") and not is_open_market_buy("장외매수(+)")
+    assert not is_open_market_buy("주식매수선택권행사(+)") and not is_open_market_buy("?옣?궡매도(-)")

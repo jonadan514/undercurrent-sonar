@@ -535,6 +535,51 @@ function NarrativeSection({ c }: { c: Candidate }) {
 // ── 종목 정성 체크리스트 (종목별 독립 저장) ──────────────────────────────────
 interface ChecklistItem { id: string; text: string; checked: boolean }
 
+// 내부자 장내 매수(2026-10-21) - 최근 180일 공시. 없으면 칸을 숨긴다. 금액은 공시 단가 × 주식 수.
+interface InsiderTrade { filing_id: string; filed_on: string; trade_date: string | null; owner: string; role: string | null;
+  shares: number | null; price: number | null; value: number | null; plan: number | boolean | null }
+function InsiderSection({ c }: { c: Candidate }) {
+  const [trades, setTrades] = useState<InsiderTrade[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/watchlist/insider?market=${c.market}&symbol=${encodeURIComponent(c.symbol)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setTrades(d.trades ?? []); })
+      .catch(() => { if (!cancelled) setTrades([]); });
+    return () => { cancelled = true; };
+  }, [c.market, c.symbol]);
+  if (trades.length === 0) return null;
+  const kr = c.market === "KR";
+  const money = (v: number | null) => v == null ? "-" : kr
+    ? (v >= 1e8 ? `${(v / 1e8).toFixed(1)}억원` : `${Math.round(v / 1e4).toLocaleString()}만원`)
+    : (v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : `$${Math.round(v / 1e3).toLocaleString()}K`);
+  const buyers = new Set(trades.map((t) => t.owner)).size;
+  return (
+    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}` }}>
+      <p className="text-[12px] font-semibold mb-1.5" style={{ color: TEXT_SECONDARY }}>
+        내부자 장내 매수 — 최근 6개월 {buyers}명 · {trades.length}건
+      </p>
+      <div className="space-y-0.5">
+        {trades.map((t, i) => (
+          <p key={`${t.filing_id}-${i}`} className="text-[12px] flex flex-wrap gap-x-2" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ color: TEXT_SECONDARY }}>{(t.trade_date ?? t.filed_on).slice(2)}</span>
+            <span className="text-white">{t.owner}</span>
+            {t.role && t.role !== "-" && <span style={{ color: TEXT_SECONDARY }}>{t.role}</span>}
+            <span>{t.shares != null ? `${Math.round(t.shares).toLocaleString()}주` : "-"}
+              {t.price != null && <span style={{ color: TEXT_SECONDARY }}> @{kr ? Math.round(t.price).toLocaleString() : t.price.toFixed(2)}</span>}
+            </span>
+            <span style={{ color: GOOD }}>{money(t.value)}</span>
+            {Boolean(t.plan) && <span style={{ color: TEXT_SECONDARY }} title="10b5-1: 미리 정해 둔 계획 매수">계획 매수</span>}
+          </p>
+        ))}
+      </div>
+      <p className="text-[11px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
+        {kr ? "DART 임원ㆍ주요주주 소유보고" : "SEC Form 4"} · 장내에서 직접 산 것만(스톡옵션·증여·장외 제외)
+      </p>
+    </div>
+  );
+}
+
 function ChecklistSection({ c }: { c: Candidate }) {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -943,6 +988,8 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
               )}
             </div>
           </div>
+
+          <InsiderSection c={c} />
 
           {/* 정성 체크 (구 투자 워크북) */}
           <ChecklistSection c={c} />

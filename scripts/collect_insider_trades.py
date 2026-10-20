@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from collectors import dart_client as dart
-from src.collectors.insider_trades import clean_role, parse_form4, parse_kr_ownership, raw_xml_name
+from src.collectors.insider_trades import clean_role, is_open_market_buy, parse_form4, parse_kr_ownership, raw_xml_name
 from src.db.data_store import get_db
 
 KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
@@ -243,6 +243,12 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
             continue
         filed = f"{i['rcept_dt'][:4]}-{i['rcept_dt'][4:6]}-{i['rcept_dt'][6:8]}"
         buys = parse_kr_ownership(rows)
+        # 깨진 글자라 장내인지 못 가린 '매수' 줄 - 빠뜨린 것이 있는지 보이게 남긴다(넣지는 않는다)
+        odd = [r.split("|")[0].strip() for r in rows if "매수(+)" in r.split("|")[0] and "?" in r.split("|")[0]
+               and not is_open_market_buy(r.split("|")[0]) and "?옣?쇅" not in r.split("|")[0]]
+        if odd:
+            stats["unknown_reason"] = stats.get("unknown_reason", 0) + len(odd)
+            _log(f"  {i['corp_name']} {i['rcept_no']} 사유 판독 불가 {len(odd)}줄: {odd[:3]}")
         if buys:
             w = who(i)
             if not save:

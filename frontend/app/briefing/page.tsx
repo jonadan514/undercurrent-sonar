@@ -45,7 +45,13 @@ interface Briefing {
   // termination(계약 해지)·amend(계약금액 정정)는 2026-10-21부터
   kr_disclosures?: { contract: { count: number; items: DisclosureItem[] }; prelim: { count: number; items: DisclosureItem[] };
                      termination?: { count: number; items: DisclosureItem[] }; amend?: { count: number; items: DisclosureItem[] } } | null;
+  insider_week?: { total: number; by_market: Record<string, number>; items: InsiderItem[] } | null;
 }
+// 내부자 장내 매수 지난 7일(2026-10-21부터, SEC Form 4 · DART 임원ㆍ주요주주 소유보고). 공시 숫자 합계일 뿐 점수 아님.
+interface InsiderItem { market: string; symbol: string; name?: string | null; owners: string[]; roles: string[]; buyers: number;
+  value: number | null; trades: number; last_date: string | null; all_plan: boolean; tags: string[] }
+const insiderMoney = (v: number | null, market: string) => v == null ? "-" : market === "KR" ? (v >= 1e8 ? `${eok(v)}원` : `${Math.round(v / 1e4).toLocaleString()}만원`)
+  : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3).toLocaleString()}K`;
 // 한국 공시 지난 7일(2026-10-17부터, DART 원문 표 값 그대로). 유니버스(시총 3000억+) 또는 관심 표시 종목만.
 interface DisclosureItem { symbol: string; name?: string | null; date: string; rcept_no: string; tags: string[]; summary: string;
   amount_before?: number | null; amount_after?: number | null; pct_before?: number | null; pct_after?: number | null;
@@ -153,6 +159,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
     ...(b.turnaround ? [["turnaround", "실적 반전"] as [string, string]] : []),
     ...(b.earnings_week && b.earnings_week.total > 0 ? [["earnings", "실적 발표"] as [string, string]] : []),
     ...(discTotal(b) > 0 ? [["disclosures", "한국 공시"] as [string, string]] : []),
+    ...((b.insider_week?.total ?? 0) > 0 ? [["insider", "내부자 매수"] as [string, string]] : []),
     ...(b.sentiment_heating?.length > 0 ? [["sentiment", "관심도"] as [string, string]] : []),
     ...(b.catalysts?.length > 0 ? [["catalysts", "촉매"] as [string, string]] : []),
   ];
@@ -423,6 +430,36 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               )}
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
                 시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 종목 상세, 원문↗은 DART 공시
+              </p>
+            </div>
+          )}
+
+          {b.insider_week && b.insider_week.total > 0 && (
+            <div id={sid("insider")} style={{ scrollMarginTop: 72 }}>
+              <p className="text-[12px] font-bold mb-1.5" style={{ color: "var(--text-muted)" }}>
+                내부자 장내 매수 (지난 7일 공시) — {Object.entries(b.insider_week.by_market).sort(([a], [c]) => c.localeCompare(a)).map(([m, n]) => `${m === "KR" ? "한국" : "미국"} ${n}종목`).join(" · ")}
+              </p>
+              <div className="space-y-1">
+                {b.insider_week.items.map((x) => (
+                  <div key={`${x.market}:${x.symbol}`} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
+                    style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                    <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{x.last_date ? x.last_date.slice(5).replace("-", "/") : "-"}</span>
+                    <StockLabel s={x} />
+                    <span className="text-white">{insiderMoney(x.value, x.market)}</span>
+                    <span style={{ color: x.buyers > 1 ? "#4ade80" : "var(--text-secondary)" }}>
+                      {x.buyers > 1 ? `${x.buyers}명` : x.owners[0]}{x.buyers === 1 && x.roles[0] && x.roles[0] !== "-" ? ` (${x.roles[0]})` : ""}
+                    </span>
+                    <span style={{ color: "var(--text-muted)" }}>{x.trades}건</span>
+                    {x.all_plan && <span style={{ color: "var(--text-muted)" }} title="10b5-1: 미리 정해 둔 계획 매수">계획 매수</span>}
+                    <DiscTags tags={x.tags} />
+                  </div>
+                ))}
+              </div>
+              {b.insider_week.total > b.insider_week.items.length && (
+                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.insider_week.items.length}종목까지</p>
+              )}
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 관심 종목(워치리스트·내 관심·노트·테마) 대상 · 금액은 공시 단가 × 주식 수 합계
               </p>
             </div>
           )}
