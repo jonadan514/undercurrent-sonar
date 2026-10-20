@@ -1,0 +1,40 @@
+name: Compute Theme Events
+
+# 테마별 소속 기업 이벤트(2026-10-21) - 한국 공시·미국 8-K·내부자 매수를 테마 소속(direct+partial)으로 묶어 센다.
+# 매일 14:00 UTC - 한국 공시(11:30)·내부자 매수(13:00)·미국 8-K(13:20) 수집 뒤. 테마 레이더 화면이 가장 최근 실행을 읽는다.
+on:
+  schedule:
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compute
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/compute_theme_events.py
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
