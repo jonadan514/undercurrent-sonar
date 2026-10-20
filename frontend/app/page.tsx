@@ -43,7 +43,8 @@ interface WeekBrief {
   earnings_week?: { total: number; by_market: Record<string, number>; items: { market: string; tags: string[] }[] } | null;
   kr_disclosures?: { contract: { count: number; items: { tags: string[] }[] }; prelim: { count: number; items: { tags: string[] }[] };
                      termination?: { count: number; items: { tags: string[] }[] }; amend?: { count: number; items: { tags: string[] }[] } } | null;
-  insider_week?: { by_market: Record<string, number>; items: { market: string }[]; discovery?: { market: string }[]; discovery_count?: number } | null;
+  insider_week?: { by_market: Record<string, number>; items: { market: string }[]; discovery?: { market: string }[]; discovery_count?: number;
+                   split_by_market?: Record<string, { tagged: number; discovery: number }> } | null;
   observation_reviews?: unknown[];
 }
 
@@ -173,8 +174,10 @@ export default function HomePage() {
           })()}
           {(() => {
             const ins = brief?.insider_week;
-            const mine = (ins?.items ?? []).filter(x => x.market === market).length;
-            const fresh = (ins?.discovery ?? []).filter(x => x.market === market).length;
+            // 목록은 30개에서 잘린다 - 시장별 전체 수가 있으면 그것을(10/21 리뷰)
+            const sp = ins?.split_by_market?.[market];
+            const mine = sp ? sp.tagged : (ins?.items ?? []).filter(x => x.market === market).length;
+            const fresh = sp ? sp.discovery : (ins?.discovery ?? []).filter(x => x.market === market).length;
             return <ChangeTile href="/briefing#insider" label="내부자 장내 매수 (7일)" value={ins ? `${ins.by_market[market] ?? 0}` : "-"}
               sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 밖 ${fresh}` : `종목 ${ins.by_market[market] ?? 0}`) : "브리핑 전"}
               hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 밖은 관심 표시 없는 유니버스 종목(새 이름 찾기용)." />;

@@ -208,6 +208,7 @@ def test_insider_week_grouping_and_telegram():
     ins = g.insider_week_items(rows, {"KR:043200": ["theme"]}, {"KR:043200": "파루"},
                                {"US:OXY": {"status": "pass", "piotroski": 7, "reasons": []}})
     assert [x["symbol"] for x in ins["items"]] == ["043200"] and ins["tagged_count"] == 1
+    assert ins["split_by_market"] == {"KR": {"tagged": 1, "discovery": 0}, "US": {"tagged": 0, "discovery": 2}}
     # 관심 밖: 계획 매수만 있는 DVN(2명)은 뒤로, OXY 먼저
     assert [x["symbol"] for x in ins["discovery"]] == ["OXY", "DVN"] and ins["discovery_count"] == 2
     kr = ins["items"][0]

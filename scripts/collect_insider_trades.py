@@ -194,7 +194,7 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
     # (2026-10-21 60일 채우기에서 4,000건에서 잘린 것을 보고 고침).
     items: list[dict] = []
     end = today
-    while end > today - timedelta(days=days):
+    while end >= today - timedelta(days=days):   # >= - 기간 첫날까지(> 였을 땐 첫날 하루가 빠졌다, 10/21 리뷰)
         start = max(end - timedelta(days=13), today - timedelta(days=days))
         items += dart.list_disclosures(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), pblntf_ty="D")
         end = start - timedelta(days=1)

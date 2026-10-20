@@ -477,7 +477,9 @@ def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict
     by_market: dict[str, int] = {}
     for g in groups:
         by_market[g["market"]] = by_market.get(g["market"], 0) + 1
-    return {"total": len(groups), "by_market": by_market, "items": tagged[:INSIDER_WEB_MAX],
+    split = {m: {"tagged": sum(1 for g in tagged if g["market"] == m), "discovery": sum(1 for g in other if g["market"] == m)}
+             for m in by_market}
+    return {"total": len(groups), "by_market": by_market, "split_by_market": split, "items": tagged[:INSIDER_WEB_MAX],
             "tagged_count": len(tagged), "discovery": other[:INSIDER_WEB_MAX], "discovery_count": len(other)}
 
 

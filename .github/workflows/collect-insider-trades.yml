@@ -45,12 +45,15 @@ jobs:
           MARKET: ${{ inputs.market || 'ALL' }}
           DAYS: ${{ inputs.days || '14' }}
           TICKERS: ${{ inputs.tickers }}
+        # 한 시장이 실패해도 다른 시장은 돌고, 끝에서 실패로 알린다(bash -e라 예전엔 미국 실패 시 한국을 건너뛰었다, 10/21 리뷰)
         run: |
+          rc=0
           for m in US KR; do
             if [ "$MARKET" = "ALL" ] || [ "$MARKET" = "$m" ]; then
-              python scripts/collect_insider_trades.py --market "$m" --days "$DAYS" ${TICKERS:+--tickers $TICKERS}
+              python scripts/collect_insider_trades.py --market "$m" --days "$DAYS" ${TICKERS:+--tickers $TICKERS} || rc=1
             fi
           done
+          exit $rc
       # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'
