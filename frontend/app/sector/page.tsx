@@ -5,19 +5,9 @@ import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import FlagIcon from "@/src/components/FlagIcon";
 
-const CYCLE_COLOR: Record<string, string> = {
-  early:     "#6fb3b8",
-  mid:       "#ffb020",
-  late:      "#facc15",
-  recession: "#f87171",
-};
-
-const CYCLE_KO: Record<string, { label: string; desc: string }> = {
-  early:     { label: "회복기 (Early)",     desc: "경기 바닥 이후 반등. 금융·부동산·소비재 강세" },
-  mid:       { label: "성장기 (Mid)",       desc: "확장 지속. IT·산업재·소재 강세" },
-  late:      { label: "과열기 (Late)",      desc: "성장 둔화 시작. 에너지·원자재·헬스케어 강세" },
-  recession: { label: "침체기 (Recession)", desc: "수요 위축. 유틸리티·필수소비재·채권 강세" },
-};
+// 경기 사이클 판정(회복기·성장기 등)은 2026-10-20에 화면에서 뺐다 - 대표 섹터 3개씩의 1달 RS 평균 중 최댓값을
+// 고르는 단일 판정이라 원칙 1(단일 판정 없음)과 어긋나고, 에너지·소재가 두 단계에 겹쳐 구분력도 약했다.
+// 대신 3달·1달 상대강도 방향이 엇갈리는 섹터를 숫자 그대로 보여준다(판정이 아니라 조건 일치 목록).
 
 const PERIOD_TABS = ["1d", "1w", "1m", "3m"] as const;
 type Period = typeof PERIOD_TABS[number];
@@ -69,10 +59,6 @@ export default function SectorPage() {
   );
 
   const isKR = market === "KR";
-  const cycle       = data.current_cycle ?? "mid";
-  const cycleLabel  = CYCLE_KO[cycle]?.label ?? data.cycle_label ?? "Mid Cycle";
-  const cycleColor  = CYCLE_COLOR[cycle] ?? "#ffb020";
-  const scores      = data.cycle_scores ?? {};
 
   const rows: any[]       = isKR ? (data.sector_data ?? []) : (data.etf_data ?? []);
   const rsHistory: any[]  = data.rs_history ?? [];
@@ -81,11 +67,22 @@ export default function SectorPage() {
   const lagging: any[]    = data.lagging ?? [];
   const benchmarkRet      = isKR ? data.kospi_ret : data.spy_ret;
 
-  const maxAbsScore = Math.max(...(Object.values(scores) as number[]).map(Math.abs), 1);
-
   function rowKey(row: any) { return isKR ? row.sector : row.ticker; }
   function rowLabel(row: any) { return isKR ? row.sector : row.ticker; }
   function rowSubLabel(row: any) { return isKR ? "" : row.name; }
+
+  // 전환 중인 섹터 - 3달 상대강도와 1달 상대강도의 부호가 다른 섹터. 주간 추이에서 최근 2주가 같은 방향이면 함께 표시.
+  const histByKey: Record<string, any> = Object.fromEntries(rsHistory.map((h: any) => [isKR ? h.sector : h.ticker, h]));
+  const turning = (dir: "up" | "down") => rows
+    .filter((r: any) => r.rs_3m != null && r.rs_1m != null && (dir === "up" ? r.rs_3m < 0 && r.rs_1m > 0 : r.rs_3m > 0 && r.rs_1m < 0))
+    .sort((a: any, b: any) => dir === "up" ? b.rs_1m - a.rs_1m : a.rs_1m - b.rs_1m)
+    .map((r: any) => {
+      const h = histByKey[rowKey(r)];
+      const twoWeeks = h && h.w0 != null && h.w1 != null && (dir === "up" ? h.w0 > 0 && h.w1 > 0 : h.w0 < 0 && h.w1 < 0);
+      return { row: r, twoWeeks };
+    });
+  const turningUp = turning("up");
+  const turningDown = turning("down");
 
   return (
     <div className="space-y-2">
@@ -118,42 +115,41 @@ export default function SectorPage() {
           : "11개 SPDR ETF 기반 섹터 순환 분석입니다. SPY 대비 상대 강도(RS)로 경기 사이클을 판단합니다."} />
       </div>
 
-      {/* 경기 사이클 */}
+      {/* 전환 중인 섹터 + 선행·후행 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
-        {/* 사이클 판단 */}
-        <div className="bg-card rounded-xl p-3">
-          <div className="flex items-center gap-1.5 mb-1">
-            <p className="text-[14px] font-bold text-white">경기 사이클 판단</p>
-            <InfoTooltip content="각 섹터 ETF의 최근 상대강도(RS)를 종합해 현재 경기가 어느 단계인지 자동 판별합니다. 사이클 단계별로 강세를 보이는 섹터가 다릅니다." />
+        {/* 전환 중인 섹터 - 3달과 1달 상대강도 방향이 엇갈림 */}
+        <div className="bg-card rounded-xl p-3 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <p className="text-[14px] font-bold text-white">전환 중인 섹터</p>
+            <InfoTooltip content={`3달 상대강도와 1달 상대강도의 방향이 다른 섹터입니다. 3달은 시장(${isKR ? "KOSPI" : "SPY"})보다 약했는데 최근 1달은 강하면 '돌아서는 중', 그 반대면 '꺾이는 중'. 주간 추이에서 최근 2주가 같은 방향이면 함께 표시합니다. 판정이 아니라 조건에 맞는 섹터 목록입니다.`} />
           </div>
-          <p className="text-[11px] mb-2" style={{ color: "var(--text-faint)" }}>
-            {CYCLE_KO[cycle]?.desc ?? ""}
-          </p>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">→</span>
-            <p className="text-[22px] font-black leading-none" style={{ color: cycleColor }}>{cycleLabel}</p>
-          </div>
-          <div className="space-y-1.5">
-            {Object.entries(scores).map(([cyc, val]: any) => {
-              const isActive = cyc === cycle;
-              const barW = Math.round((Math.abs(val) / maxAbsScore) * 100);
-              const c = CYCLE_COLOR[cyc] ?? "#a39c88";
-              return (
-                <div key={cyc}>
-                  <div className="flex justify-between text-[12px] mb-0.5">
-                    <span style={{ color: isActive ? c : "var(--text-muted)", fontWeight: isActive ? 700 : 400 }}>
-                      {CYCLE_KO[cyc]?.label ?? cyc.toUpperCase()}
-                    </span>
-                    <span style={{ color: val > 0 ? "#4ade80" : "#f87171" }}>{pct(val)}</span>
-                  </div>
-                  <div className="h-1 rounded-full" style={{ background: "var(--bg-inset)" }}>
-                    <div className="h-1 rounded-full" style={{ width: `${barW}%`, background: isActive ? c : "#453b1f" }} />
-                  </div>
+          {([["up", "↗ 돌아서는 중", "3달 약세 → 최근 1달 강세", turningUp, "#4ade80"],
+             ["down", "↘ 꺾이는 중", "3달 강세 → 최근 1달 약세", turningDown, "#f87171"]] as const).map(([k, title, sub, list, color]) => (
+            <div key={k}>
+              <p className="text-[12px] font-bold" style={{ color }}>{title} <span className="font-normal text-[11px]" style={{ color: "var(--text-faint)" }}>{sub}</span></p>
+              {list.length === 0 ? (
+                <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>없음</p>
+              ) : (
+                <div className="mt-1 space-y-1">
+                  {list.map(({ row, twoWeeks }) => (
+                    <div key={rowKey(row)} className="flex items-center gap-2 flex-wrap text-[12px]">
+                      <span className="font-bold text-white">{rowLabel(row)}</span>
+                      {rowSubLabel(row) && <span style={{ color: "var(--text-muted)" }}>{rowSubLabel(row)}</span>}
+                      <span style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                        3달 {pct(row.rs_3m)} → 1달 {pct(row.rs_1m)}
+                      </span>
+                      {twoWeeks && (
+                        <span className="text-[11px] px-1.5 rounded" style={{ background: color + "18", color }}>
+                          최근 2주 연속 {k === "up" ? "+" : "−"}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* 선행 / 후행 섹터 */}
@@ -308,7 +304,7 @@ export default function SectorPage() {
                           }} />
                       )}
                     </div>
-                    <span className="w-14 text-right text-[12px] font-semibold"
+                    <span className="w-16 text-right text-[12px] font-semibold whitespace-nowrap"
                       style={{ color: rs == null ? "var(--text-muted)" : rs >= 0 ? "#4ade80" : "#f87171" }}>
                       {pct(rs)}
                     </span>
