@@ -172,7 +172,14 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
             targets_set |= {i["symbol"] for i in json.loads(KR_UNIVERSE.read_text(encoding="utf-8")).get("items", [])}
         except Exception:  # noqa: BLE001
             _log("유니버스 파일 없음 - 관심 종목만")
-    items = dart.list_disclosures((today - timedelta(days=days)).strftime("%Y%m%d"), today.strftime("%Y%m%d"), pblntf_ty="D")
+    # 지분공시는 2주에 1,100건 안팎 - 목록 함수가 4,000건(40쪽)에서 멈추므로 긴 기간은 14일씩 나눠 받는다
+    # (2026-10-21 60일 채우기에서 4,000건에서 잘린 것을 보고 고침).
+    items: list[dict] = []
+    end = today
+    while end > today - timedelta(days=days):
+        start = max(end - timedelta(days=13), today - timedelta(days=days))
+        items += dart.list_disclosures(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), pblntf_ty="D")
+        end = start - timedelta(days=1)
     reports = [i for i in items if KR_REPORT in i.get("report_nm", "") and "정정" not in i["report_nm"]
                and i.get("stock_code") in targets_set]
     have = _seen(conn, "KR") if save else set()
@@ -236,6 +243,7 @@ def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
             _mark(conn, "KR", i["rcept_no"], len(buys), now)
             if stats["new"] % 25 == 0:
                 conn.commit()
+                _log(f"  진행 {stats}")
     if save:
         conn.commit()
     return stats

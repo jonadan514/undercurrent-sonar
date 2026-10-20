@@ -61,6 +61,67 @@ interface Member {
   finance: { status: string; piotroski: number | null; reasons?: string[] };
 }
 
+// 소속 기업 이벤트(2026-10-21, /api/radar/events) - 한국 공시·미국 8-K·내부자 장내 매수를 테마 소속(direct+partial)으로 묶은 것.
+// 세 축의 화살표·라벨에 들어가지 않는다 - 옆에 놓는 건수와 공시 원문 값(점수 아님).
+interface ThemeEventItem { date: string; ticker: string; name?: string | null; type: "disclosure" | "insider"; kind: string;
+  text: string; warn: boolean; url?: string | null; value?: number | null; excerpt?: string | null }
+interface ThemeEvents {
+  counts: { disclosure_7d: number; disclosure_30d: number; warn_30d: number; insider_cos_7d: number; insider_cos_30d: number;
+            companies_30d: number; members: number };
+  items: ThemeEventItem[];
+}
+const hasRecent = (ev?: ThemeEvents) => !!ev && (ev.counts.disclosure_7d > 0 || ev.counts.insider_cos_7d > 0);
+
+function EventChip({ ev }: { ev?: ThemeEvents }) {
+  if (!hasRecent(ev)) return null;
+  const c = ev!.counts;
+  const parts = [c.disclosure_7d > 0 ? `공시 ${c.disclosure_7d}` : null, c.insider_cos_7d > 0 ? `내부자 매수 ${c.insider_cos_7d}개사` : null]
+    .filter(Boolean).join(" · ");
+  return (
+    <span className="whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px]" title="최근 7일 소속 기업 공시·내부자 장내 매수 (세 축과 별개)"
+      style={{ border: "1px solid var(--border-ctrl)", color: "var(--text-secondary)", fontFamily: MONO }}>
+      📄 {parts}
+    </span>
+  );
+}
+
+function eventMoney(v: number | null | undefined, market: string): string {
+  if (v == null) return "";
+  if (market === "KR") return v >= 1e8 ? `${(v / 1e8).toFixed(1)}억원` : `${Math.round(v / 1e4).toLocaleString()}만원`;
+  return v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3).toLocaleString()}K`;
+}
+
+function EventList({ ev, market }: { ev?: ThemeEvents; market: string }) {
+  if (!ev || ev.items.length === 0) return null;
+  const c = ev.counts;
+  return (
+    <div className="mt-3 rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      <p className="text-[12px] font-semibold" style={{ color: MUTED }}>
+        소속 기업 이벤트 (최근 30일) — 공시 {c.disclosure_30d}건 · 내부자 매수 {c.insider_cos_30d}개사 · 소속 {c.members}개 중 {c.companies_30d}개사
+      </p>
+      <div className="mt-1.5 space-y-1">
+        {ev.items.map((e, i) => (
+          <div key={`${e.ticker}-${e.date}-${i}`} className="text-[12px]">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span style={{ color: FAINT, fontFamily: MONO }}>{e.date.slice(5).replace("-", "/")}</span>
+              <StockLink market={market} symbol={e.ticker} className="font-bold" style={{ color: "var(--text-primary)" }}>
+                {e.name || (market === "KR" ? krStockName(e.ticker) : null) || e.ticker}
+              </StockLink>
+              <span style={{ color: e.warn ? "#f87171" : e.type === "insider" ? "#4ade80" : "var(--text-secondary)" }}>{e.kind}</span>
+              <span style={{ color: MUTED }}>{e.text}{e.value != null ? ` · ${eventMoney(e.value, market)}` : ""}</span>
+              {e.url && <a href={e.url} target="_blank" rel="noreferrer" className="text-[11px] hover:underline" style={{ color: FAINT }}>원문↗</a>}
+            </div>
+            {e.excerpt && <p className="text-[11px] line-clamp-1" style={{ color: FAINT }} title={e.excerpt}>{e.excerpt}</p>}
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px]" style={{ color: FAINT }}>
+        {market === "KR" ? "DART 공급계약·계약 해지·계약금액 정정·잠정실적" : "SEC 8-K(실적 발표만 있는 것 제외)"} · 내부자 장내 매수 · 세 축 계산에는 들어가지 않습니다
+      </p>
+    </div>
+  );
+}
+
 interface Article {
   title: string;
   url: string;
@@ -347,8 +408,8 @@ function NewsList({ articles, loading }: { articles: Article[]; loading: boolean
   );
 }
 
-function ThemeCard({ signal, market, compact = false }:
-  { signal: ThemeSignal; market: string; compact?: boolean }) {
+function ThemeCard({ signal, market, compact = false, ev }:
+  { signal: ThemeSignal; market: string; compact?: boolean; ev?: ThemeEvents }) {
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState<Member[] | null>(null);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -428,6 +489,7 @@ function ThemeCard({ signal, market, compact = false }:
           </>
         )}
         {signal.label && <LabelBadge label={signal.label} />}
+        <EventChip ev={ev} />
         <span className="ml-auto shrink-0 text-[13px] transition-transform" style={{ color: FAINT, transform: open ? "rotate(90deg)" : "none" }}>▸</span>
       </button>
 
@@ -486,6 +548,7 @@ function ThemeCard({ signal, market, compact = false }:
             </div>
           </div>
           <MembersTable members={members ?? []} loading={loadingMembers} market={market} />
+          <EventList ev={ev} market={market} />
 
           <button
             onClick={toggleNews}
@@ -534,6 +597,7 @@ export default function RadarPage() {
   const [signals, setSignals] = useState<ThemeSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
+  const [events, setEvents] = useState<Record<string, ThemeEvents>>({});
 
   useEffect(() => {
     setCollapsedStages(loadCollapsedStages());
@@ -557,6 +621,10 @@ export default function RadarPage() {
       })
       .catch(() => { setWeekStart(null); setSignals([]); })
       .finally(() => setLoading(false));
+    fetch(`/api/radar/events?market=${market}`)
+      .then((r) => r.json())
+      .then((d) => setEvents(d.themes ?? {}))
+      .catch(() => setEvents({}));
   }, [market]);
 
   const anyMoving = (s: ThemeSignal) =>
@@ -566,6 +634,10 @@ export default function RadarPage() {
   const unlabeledMoving = signals.filter((s) => !s.label && anyMoving(s));
   const movingCount = signals.filter(anyMoving).length;
   const quietCount = signals.length - movingCount;
+  // 세 축이 다 조용한데 최근 7일 소속 기업 공시·내부자 매수가 있는 테마 - 실적 축보다 먼저 나오는 신호라 따로 보인다.
+  // 순서는 이벤트가 있었던 소속 기업 수(공시 원문 건수 그대로) - 점수가 아니다.
+  const quietWithEvents = signals.filter((s) => !anyMoving(s) && hasRecent(events[s.theme_id]))
+    .sort((a, b) => events[b.theme_id].counts.companies_30d - events[a.theme_id].counts.companies_30d);
 
   // 단계별로 묶되, 라벨 순서는 STAGES 정의 순서를 따른다.
   const stageGroups = STAGES.map((stage) => ({
@@ -670,7 +742,7 @@ export default function RadarPage() {
                   <>
                     <p className="mb-3 max-w-[70ch] text-[12.5px]" style={{ color: MUTED }}>{stage.desc}</p>
                     {items.length > 0 ? (
-                      items.map((s) => <ThemeCard key={s.theme_id} signal={s} market={market} />)
+                      items.map((s) => <ThemeCard key={s.theme_id} signal={s} market={market} ev={events[s.theme_id]} />)
                     ) : (
                       <div className="rounded-xl px-4 py-3 text-[12.5px]"
                            style={{ border: "1px dashed var(--border-ctrl)", background: "var(--bg-inset)", color: MUTED }}>
@@ -694,7 +766,25 @@ export default function RadarPage() {
               </p>
               <div className="overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
                 {unlabeledMoving.map((s) => (
-                  <ThemeCard key={s.theme_id} signal={s} market={market} compact />
+                  <ThemeCard key={s.theme_id} signal={s} market={market} compact ev={events[s.theme_id]} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {quietWithEvents.length > 0 && (
+            <div className="mt-10">
+              <div className="mb-1 flex items-baseline gap-2.5">
+                <h2 className="text-[15px] font-bold">축은 조용, 소속 기업 공시는 있음</h2>
+                <span className="text-[12px]" style={{ color: FAINT, fontFamily: MONO }}>{quietWithEvents.length}개</span>
+              </div>
+              <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>
+                뉴스·실적·주가는 움직이지 않았지만 최근 7일 소속 기업에 공급계약·중요 계약·내부자 장내 매수 같은 공시가 있었던 테마입니다.
+                실적 축은 분기 공시가 나와야 움직여서, 계약·내부자 매수가 먼저 보일 수 있습니다 — 눌러서 공시 목록을 보세요.
+              </p>
+              <div className="overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
+                {quietWithEvents.map((s) => (
+                  <ThemeCard key={s.theme_id} signal={s} market={market} compact ev={events[s.theme_id]} />
                 ))}
               </div>
             </div>
@@ -704,7 +794,7 @@ export default function RadarPage() {
             <div className="mt-3 rounded-xl px-4 py-3 text-[12.5px]"
                  style={{ border: "1px dashed var(--border-ctrl)", background: "var(--bg-inset)", color: MUTED }}>
               조용한 테마 <b style={{ fontFamily: MONO, color: "var(--text-secondary)" }}>{quietCount}개</b>
-              {" "}— 세 축 모두 움직임이 없어 표시하지 않았습니다.
+              {" "}— 세 축 모두 움직임이 없어 표시하지 않았습니다{quietWithEvents.length > 0 ? ` (그중 공시가 있었던 ${quietWithEvents.length}개는 위에)` : ""}.
             </div>
           )}
         </>
