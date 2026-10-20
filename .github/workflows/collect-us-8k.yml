@@ -1,0 +1,52 @@
+name: Collect US 8-K
+
+# 미국 8-K 주요 공시(2026-10-21) - 관심 종목의 중요 계약·해지·인수·임원 변동·손상 등. 항목 번호로 나누고 원문 첫머리만 잘라 둔다.
+# 매일 13:20 UTC - 내부자 매수 수집(13:00) 다음. 최근 14일을 다시 훑고 이미 받은 공시는 건너뛴다.
+on:
+  schedule:
+    - cron: "20 13 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "공시일 기준 며칠 전까지 (처음 채우기 90)"
+        required: false
+        default: "14"
+      tickers:
+        description: "확인용: 몇 종목만(공백 구분, 저장 안 함)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          DAYS: ${{ inputs.days || '14' }}
+          TICKERS: ${{ inputs.tickers }}
+        run: python scripts/collect_us_8k.py --days "$DAYS" ${TICKERS:+--tickers $TICKERS}
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py

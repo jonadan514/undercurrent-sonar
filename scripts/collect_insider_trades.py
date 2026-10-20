@@ -4,7 +4,7 @@
 이력 표라 덮어쓰지 않는다(원칙 5): (시장, 공시번호, 줄)이 키, 이미 받은 공시는 다시 받지 않는다.
 
 미국: SEC submissions(회사별 최근 공시 목록)에서 기간 안의 Form 4만 골라 원본 XML을 읽는다.
-      SEC는 User-Agent에 연락처 필수(SEC_USER_AGENT, Secrets), 초당 10회 한도 -> 호출 사이 0.15초.
+      SEC 호출 규칙(연락처 User-Agent·초당 한도)은 src/collectors/sec_client.py.
 한국: DART 지분공시 목록(pblntf_ty=D)에서 "임원ㆍ주요주주특정증권등소유상황보고서"(정정 제외)를 골라 웹 뷰어 원문 표를 읽는다.
       대상은 위 목록 + 한국 유니버스(시총 3000억+) - 새 종목 아이디어용. 웹 뷰어는 조회 사이 0.5초.
 읽은 공시는 insider_filings_seen에 남겨 매수가 없던 공시도 다시 받지 않는다.
@@ -16,19 +16,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from collectors import dart_client as dart
+from src.collectors import sec_client as sec
 from src.collectors.insider_trades import clean_role, is_open_market_buy, parse_form4, parse_kr_ownership, raw_xml_name
 from src.db.data_store import get_db
 
@@ -36,10 +35,6 @@ KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
 KR_REPORT = "임원ㆍ주요주주특정증권등소유상황보고서"
 VIEWER_SLEEP = 0.5
 
-SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
-SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
-SEC_DOC_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
-SEC_SLEEP = 0.15
 
 INSIDER_TRADES_DDL = """
 CREATE TABLE IF NOT EXISTS insider_trades (
@@ -110,33 +105,6 @@ def targets(conn, market: str) -> list[str]:
 
 # ── 미국 (SEC Form 4) ─────────────────────────────────────────────────────────
 
-def _sec_session() -> requests.Session:
-    ua = os.environ.get("SEC_USER_AGENT", "").strip()
-    if not ua:
-        raise SystemExit("SEC_USER_AGENT 환경변수가 없다 (GitHub Secrets)")
-    s = requests.Session()
-    s.headers.update({"User-Agent": ua, "Accept-Encoding": "gzip, deflate"})
-    return s
-
-
-def _sec_get(s: requests.Session, url: str, as_json: bool = True):
-    for attempt in range(4):
-        try:
-            r = s.get(url, timeout=60)
-            if r.status_code == 404:
-                return None
-            if r.status_code in (403, 429) or r.status_code >= 500:
-                time.sleep(2 ** (attempt + 1))
-                continue
-            r.raise_for_status()
-            return r.json() if as_json else r.text
-        except (requests.Timeout, requests.ConnectionError, ValueError):
-            time.sleep(2 ** (attempt + 1))
-        finally:
-            time.sleep(SEC_SLEEP)
-    raise RuntimeError(f"SEC 호출 실패 {url}")
-
-
 def recent_form4(sub: dict, since: str) -> list[tuple[str, str, str]]:
     """submissions JSON -> [(accession, 공시일, 원본 XML 이름)] - 기간 안의 Form 4만(4/A 정정은 뺀다)."""
     rec = (sub.get("filings") or {}).get("recent") or {}
@@ -149,18 +117,18 @@ def recent_form4(sub: dict, since: str) -> list[tuple[str, str, str]]:
 
 
 def collect_us(conn, tickers: list[str], since: str, save: bool) -> dict:
-    s = _sec_session()
-    ciks = {str(v["ticker"]).upper(): int(v["cik_str"]) for v in (_sec_get(s, SEC_TICKERS_URL) or {}).values()}
+    s = sec.session()
+    ciks = sec.ticker_ciks(s)
     have = _seen(conn, "US") if save else set()
     stats = {"companies": 0, "no_cik": 0, "form4": 0, "buys": 0, "errors": 0}
     now = datetime.utcnow().isoformat()
     for n, t in enumerate(tickers, 1):
-        cik = ciks.get(t.upper()) or ciks.get(t.upper().replace(".", "-"))
+        cik = sec.cik_for(ciks, t)
         if not cik:
             stats["no_cik"] += 1
             continue
         try:
-            sub = _sec_get(s, SEC_SUBMISSIONS_URL.format(cik=cik)) or {}
+            sub = sec.get(s, sec.SEC_SUBMISSIONS_URL.format(cik=cik)) or {}
         except Exception as e:  # noqa: BLE001 - 한 회사 실패로 전체를 멈추지 않는다
             stats["errors"] += 1
             _log(f"  {t}: 공시 목록 실패 {type(e).__name__}")
@@ -171,7 +139,7 @@ def collect_us(conn, tickers: list[str], since: str, save: bool) -> dict:
                 continue
             stats["form4"] += 1
             try:
-                xml = _sec_get(s, SEC_DOC_URL.format(cik=cik, acc=acc.replace("-", ""), doc=doc), as_json=False)
+                xml = sec.get(s, sec.doc_url(cik, acc, doc), as_json=False)
                 buys = parse_form4(xml) if xml else []
             except Exception as e:  # noqa: BLE001
                 stats["errors"] += 1
