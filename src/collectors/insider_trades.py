@@ -5,9 +5,12 @@
 
 미국: SEC Form 4 XML(ownershipDocument). 거래코드 P(Open market or private purchase)만.
       10b5-1 계획 매수(aff10b5One=1)는 미리 정해 둔 매수라 표시만 해 둔다(plan=True).
+한국: DART 임원ㆍ주요주주특정증권등소유상황보고서. 개인이 내는 보고라 document.xml이 없어 웹 뷰어 원문 표를 읽는다
+      (dart_client.viewer_rows). "세부변동내역"의 보고사유가 "장내매수(+)"인 줄만 - 주식매수선택권·증여·상속 등은 뺀다.
 """
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 
 
@@ -88,3 +91,61 @@ def raw_xml_name(primary_document: str) -> str:
 def cluster_buyers(trades: list[dict]) -> int:
     """같은 종목을 산 서로 다른 내부자 수 - 여러 명이 함께 사면 따로 표시한다(판단이 아니라 셈)."""
     return len({t["owner"] for t in trades})
+
+
+# ── 한국 (DART 임원ㆍ주요주주 소유상황 보고, 웹 뷰어 표) ────────────────────────
+
+_KR_DATE = re.compile(r"(\d{4})\s*[년.\-]\s*(\d{1,2})\s*[월.\-]\s*(\d{1,2})")
+
+
+def _kr_date(s: str | None) -> str | None:
+    m = _KR_DATE.search(s or "")
+    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else None
+
+
+def _kr_num(s: str | None) -> float | None:
+    t = (s or "").strip().replace(",", "")
+    try:
+        return float(t) if t and t != "-" else None
+    except ValueError:
+        return None
+
+
+def _after_cell(rows: list[str], label: str) -> str | None:
+    for r in rows:
+        cells = [c.strip() for c in r.split("|")]
+        for i, c in enumerate(cells[:-1]):
+            if c.replace(" ", "").startswith(label):
+                v = cells[i + 1]
+                return None if not v or v == "-" else v
+    return None
+
+
+def kr_role(rows: list[str]) -> str:
+    """보고자 관계 -> 짧은 직함. 직위명이 있으면 그것, 주요주주면 그 구분."""
+    parts = []
+    title = _after_cell(rows, "직위명")
+    if title:
+        parts.append(title)
+    major = _after_cell(rows, "주요주주")
+    if major:
+        parts.append(major)
+    return " · ".join(parts) or "-"
+
+
+def parse_kr_ownership(rows: list[str]) -> list[dict]:
+    """웹 뷰어 표 행 -> 장내 매수 줄. 줄 모양: 보고사유 | 변동일 | 종류 | 변동전 | 증감 | 변동후 | 단가 | 비고 | ..."""
+    owner = _after_cell(rows, "보고자") or "-"
+    role = kr_role(rows)
+    out = []
+    for i, r in enumerate(rows):
+        cells = [c.strip() for c in r.split("|")]
+        if not cells or not cells[0].replace(" ", "").startswith("장내매수") or len(cells) < 7:
+            continue
+        shares, price = _kr_num(cells[4]), _kr_num(cells[6])
+        if shares is None or shares <= 0:
+            continue
+        out.append({"line": i, "owner": owner, "role": role, "trade_date": _kr_date(cells[1]),
+                    "shares": shares, "price": price, "value": shares * price if price is not None else None,
+                    "owned_after": _kr_num(cells[5]), "direct": True, "plan": False})
+    return out

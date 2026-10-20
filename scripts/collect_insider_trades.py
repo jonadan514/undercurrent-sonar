@@ -5,6 +5,9 @@
 
 미국: SEC submissions(회사별 최근 공시 목록)에서 기간 안의 Form 4만 골라 원본 XML을 읽는다.
       SEC는 User-Agent에 연락처 필수(SEC_USER_AGENT, Secrets), 초당 10회 한도 -> 호출 사이 0.15초.
+한국: DART 지분공시 목록(pblntf_ty=D)에서 "임원ㆍ주요주주특정증권등소유상황보고서"(정정 제외)를 골라 웹 뷰어 원문 표를 읽는다.
+      대상은 위 목록 + 한국 유니버스(시총 3000억+) - 새 종목 아이디어용. 웹 뷰어는 조회 사이 0.5초.
+읽은 공시는 insider_filings_seen에 남겨 매수가 없던 공시도 다시 받지 않는다.
 
     python scripts/collect_insider_trades.py --market US --days 14
     python scripts/collect_insider_trades.py --market US --tickers MU NVDA   # 확인용(저장 안 함)
@@ -12,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -24,8 +28,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from src.collectors.insider_trades import parse_form4, raw_xml_name
+from collectors import dart_client as dart
+from src.collectors.insider_trades import parse_form4, parse_kr_ownership, raw_xml_name
 from src.db.data_store import get_db
+
+KR_UNIVERSE = ROOT / "data" / "kr_universe.json"
+KR_REPORT = "임원ㆍ주요주주특정증권등소유상황보고서"
+VIEWER_SLEEP = 0.5
 
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
@@ -53,6 +62,32 @@ CREATE TABLE IF NOT EXISTS insider_trades (
   PRIMARY KEY (market, filing_id, line)
 )
 """
+SEEN_DDL = """
+CREATE TABLE IF NOT EXISTS insider_filings_seen (
+  market     TEXT NOT NULL,
+  filing_id  TEXT NOT NULL,
+  buys       INTEGER NOT NULL,   -- 그 공시에서 찾은 장내 매수 줄 수
+  checked_at TEXT NOT NULL,
+  PRIMARY KEY (market, filing_id)
+)
+"""
+
+
+def _insert(conn, market: str, symbol: str, filing_id: str, filed: str, b: dict, source: str, now: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO insider_trades (market, symbol, filing_id, line, filed_on, trade_date, owner, role, "
+        "shares, price, value, owned_after, direct, plan, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (market, symbol, filing_id, b["line"], filed, b["trade_date"], b["owner"], b["role"], b["shares"], b["price"],
+         b["value"], b["owned_after"], int(b["direct"]), int(b["plan"]), source, now))
+
+
+def _seen(conn, market: str) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT filing_id FROM insider_filings_seen WHERE market = ?", (market,)).fetchall()}
+
+
+def _mark(conn, market: str, filing_id: str, buys: int, now: str) -> None:
+    conn.execute("INSERT OR IGNORE INTO insider_filings_seen (market, filing_id, buys, checked_at) VALUES (?, ?, ?, ?)",
+                 (market, filing_id, buys, now))
 
 
 def _log(msg: str) -> None:
@@ -116,9 +151,7 @@ def recent_form4(sub: dict, since: str) -> list[tuple[str, str, str]]:
 def collect_us(conn, tickers: list[str], since: str, save: bool) -> dict:
     s = _sec_session()
     ciks = {str(v["ticker"]).upper(): int(v["cik_str"]) for v in (_sec_get(s, SEC_TICKERS_URL) or {}).values()}
-    have = set()
-    if save:
-        have = {r[0] for r in conn.execute("SELECT DISTINCT filing_id FROM insider_trades WHERE market = 'US'").fetchall()}
+    have = _seen(conn, "US") if save else set()
     stats = {"companies": 0, "no_cik": 0, "form4": 0, "buys": 0, "errors": 0}
     now = datetime.utcnow().isoformat()
     for n, t in enumerate(tickers, 1):
@@ -150,15 +183,55 @@ def collect_us(conn, tickers: list[str], since: str, save: bool) -> dict:
                     _log(f"  {t} {b['trade_date']} {b['owner']} ({b['role']}) {b['shares']:,.0f}주 x ${b['price']} "
                          f"= ${b['value'] or 0:,.0f}{' [10b5-1]' if b['plan'] else ''}")
                     continue
-                conn.execute(
-                    "INSERT OR IGNORE INTO insider_trades (market, symbol, filing_id, line, filed_on, trade_date, owner, role, "
-                    "shares, price, value, owned_after, direct, plan, source, fetched_at) "
-                    "VALUES ('US', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SEC', ?)",
-                    (t, acc, b["line"], filed, b["trade_date"], b["owner"], b["role"], b["shares"], b["price"], b["value"],
-                     b["owned_after"], int(b["direct"]), int(b["plan"]), now))
+                _insert(conn, "US", t, acc, filed, b, "SEC", now)
+            if save:
+                _mark(conn, "US", acc, len(buys), now)
         if save and n % 25 == 0:
             conn.commit()
             _log(f"  진행 {n}/{len(tickers)} {stats}")
+    if save:
+        conn.commit()
+    return stats
+
+
+# ── 한국 (DART 임원ㆍ주요주주 소유상황 보고) ───────────────────────────────────
+
+def collect_kr(conn, tickers: list[str], days: int, save: bool) -> dict:
+    today = date.today()
+    targets_set = set(tickers)
+    if save:   # 정기 실행은 유니버스(시총 3000억+)도 - 새 종목 아이디어용
+        try:
+            targets_set |= {i["symbol"] for i in json.loads(KR_UNIVERSE.read_text(encoding="utf-8")).get("items", [])}
+        except Exception:  # noqa: BLE001
+            _log("유니버스 파일 없음 - 관심 종목만")
+    items = dart.list_disclosures((today - timedelta(days=days)).strftime("%Y%m%d"), today.strftime("%Y%m%d"), pblntf_ty="D")
+    reports = [i for i in items if KR_REPORT in i.get("report_nm", "") and "정정" not in i["report_nm"]
+               and i.get("stock_code") in targets_set]
+    have = _seen(conn, "KR") if save else set()
+    stats = {"reports": len(reports), "new": 0, "buys": 0, "no_table": 0}
+    _log(f"지분공시 {len(items)}건 중 대상 임원·주요주주 보고 {len(reports)}건")
+    now = datetime.utcnow().isoformat()
+    for i in reports:
+        if i["rcept_no"] in have:
+            continue
+        stats["new"] += 1
+        rows = dart.viewer_rows(i["rcept_no"])
+        time.sleep(VIEWER_SLEEP)
+        if not rows:
+            stats["no_table"] += 1
+            continue
+        filed = f"{i['rcept_dt'][:4]}-{i['rcept_dt'][4:6]}-{i['rcept_dt'][6:8]}"
+        buys = parse_kr_ownership(rows)
+        for b in buys:
+            stats["buys"] += 1
+            if not save:
+                _log(f"  {i['corp_name']} {b['trade_date']} {b['owner']} ({b['role']}) {b['shares']:,.0f}주 x {b['price']}원")
+                continue
+            _insert(conn, "KR", i["stock_code"], i["rcept_no"], filed, b, "DART", now)
+        if save:
+            _mark(conn, "KR", i["rcept_no"], len(buys), now)
+            if stats["new"] % 25 == 0:
+                conn.commit()
     if save:
         conn.commit()
     return stats
@@ -176,19 +249,21 @@ def main() -> int:
     conn = get_db()
     if save:
         conn.execute(INSIDER_TRADES_DDL)
+        conn.execute(SEEN_DDL)
         conn.commit()
     tickers = args.tickers or targets(conn, args.market)
     _log(f"{args.market} 대상 {len(tickers)}종목, {since} 이후 공시")
     if args.market == "US":
         stats = collect_us(conn, tickers, since, save)
     else:
-        _log("KR 수집은 아직 준비 중 - 건너뜀")
-        conn.close()
-        return 0
+        stats = collect_kr(conn, tickers, args.days, save)
     _log(f"완료 {stats}")
     conn.close()
-    if save and len(tickers) >= 20 and stats.get("companies", 0) == 0:
+    if save and args.market == "US" and len(tickers) >= 20 and stats.get("companies", 0) == 0:
         _log("회사 목록을 하나도 못 받음 - 실패로 끝낸다")
+        return 1
+    if save and args.market == "KR" and stats["new"] >= 10 and stats["no_table"] == stats["new"]:
+        _log("웹 뷰어 원문을 하나도 못 읽음 - 실패로 끝낸다")
         return 1
     return 0
 

@@ -291,13 +291,14 @@ def viewer_rows(rcept_no: str) -> list[str]:
     """DART 웹 뷰어에서 원문 HTML을 받아 document_rows와 같은 '칸 | 칸' 행으로. 못 받으면 빈 목록."""
     headers = {"User-Agent": "Mozilla/5.0 (U-Sonar research)"}
     try:
-        page = requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).text
+        page = _decode(requests.get(VIEWER_MAIN, params={"rcpNo": rcept_no}, headers=headers, timeout=30).content)
         m = _DCM_RE.search(page)
         if not m:
             return []
         dcm = m.group(1) or m.group(2)
-        html = requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
-                                                "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).text
+        # 응답 헤더의 문자셋과 실제 인코딩이 달라 .text가 깨진다(2026-10-21) - 바이트를 직접 utf-8 우선으로 푼다
+        html = _decode(requests.get(VIEWER_DOC, params={"rcpNo": rcept_no, "dcmNo": dcm, "eleId": "0", "offset": "0",
+                                                        "length": "0", "dtd": "HTML"}, headers=headers, timeout=30).content)
     except (requests.Timeout, requests.ConnectionError):
         return []
     text = _STYLE_RE.sub(" ", html)
@@ -306,7 +307,7 @@ def viewer_rows(rcept_no: str) -> list[str]:
     text = _ROW_END_RE.sub("\n", text)
     rows = []
     for line in _TAG_RE.sub(" ", text).split("\n"):
-        line = re.sub(r"[ \t\xa0]+", " ", line).replace("&nbsp;", " ").strip(" |")
+        line = re.sub(r"[ \t\xa0]+", " ", line.replace("&nbsp;", " ").replace("&amp;cr;", " ").replace("&cr;", " ")).strip(" |")
         if line:
             rows.append(line)
     return rows

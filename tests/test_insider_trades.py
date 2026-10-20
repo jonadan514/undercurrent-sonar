@@ -63,3 +63,26 @@ def test_recent_form4_filter():
                                   "filingDate": ["2026-10-15", "2026-10-16", "2026-10-16", "2026-09-01"],
                                   "primaryDocument": ["xslF345X05/f.xml", "x.xml", "k.htm", "old.xml"]}}}
     assert m.recent_form4(sub, "2026-10-01") == [("a1", "2026-10-15", "f.xml")]
+
+
+KR_ROWS = [
+    "보고의무발생일 : | 2026년 10월 14일",
+    "보고자 : | (주)지본",
+    "임원(등기여부) | - | 직위명 | -",
+    "주요주주 | 10%이상주주",
+    "직전보고서 | 2026년 10월 14일 | 5,025,520 | 24.04 | 5,025,520 | 24.04",
+    "장내매수(+) | 2026년 10월 14일 | 보통주 | 5,025,520 | 113,000 | 5,138,520 | 1,339.72 | - | 2026년 08월 25일",
+    "장내매수(+) | 2026.10.15 | 보통주 | 5,138,520 | 30,000 | 5,168,520 | 1,322.15 | - | 2026.08.25",
+    "주식매수선택권(+) | 2026년 10월 13일 | 보통주 | 49,000 | 21,000 | 70,000 | 3,000 | - | -",
+    "합 계 | 5,025,520 | 186,000 | 5,211,520 | 1,327.84 | -",
+]
+
+
+def test_kr_ownership_only_open_market_buys():
+    from src.collectors.insider_trades import parse_kr_ownership
+    t = parse_kr_ownership(KR_ROWS)
+    assert [x["trade_date"] for x in t] == ["2026-10-14", "2026-10-15"]     # 스톡옵션·합계 줄은 뺀다
+    assert t[0]["owner"] == "(주)지본" and t[0]["role"] == "10%이상주주"
+    assert t[0]["shares"] == 113_000 and t[0]["price"] == 1339.72 and t[0]["owned_after"] == 5_138_520
+    rows = [r.replace("임원(등기여부) | - | 직위명 | -", "임원(등기여부) | 등기임원 | 직위명 | 대표이사").replace("주요주주 | 10%이상주주", "주요주주 | -") for r in KR_ROWS]
+    assert parse_kr_ownership(rows)[0]["role"] == "대표이사"
