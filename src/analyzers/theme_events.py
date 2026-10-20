@@ -29,8 +29,10 @@ def kr_event(row: dict, summary: str) -> dict | None:
     kind, p = row["kind"], row["payload"]
     if kind not in KR_KINDS or (kind == "amend" and not p.get("amount_changed")):
         return None
+    label = KR_KINDS[kind]
+    text = summary[len(label):].strip() if summary.startswith(label) else summary   # 종류 이름이 요약 앞에도 있어 겹치지 않게
     return {"date": row["rcept_dt"], "ticker": row["stock_code"], "name": row.get("corp_name"), "type": "disclosure",
-            "kind": KR_KINDS[kind], "text": summary, "warn": kind in WARN_KINDS,
+            "kind": label, "text": text, "warn": kind in WARN_KINDS,
             "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={row['rcept_no']}"}
 
 

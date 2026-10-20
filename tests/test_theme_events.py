@@ -8,7 +8,7 @@ TODAY = date(2026, 10, 21)
 def test_kr_event_kinds():
     base = {"rcept_no": "1", "rcept_dt": "2026-10-16", "stock_code": "089790", "corp_name": "제이티"}
     e = kr_event({**base, "kind": "contract", "payload": {}}, "공급계약 57억")
-    assert e["kind"] == "공급계약" and not e["warn"] and e["url"].endswith("rcpNo=1")
+    assert e["kind"] == "공급계약" and e["text"] == "57억" and not e["warn"] and e["url"].endswith("rcpNo=1")
     assert kr_event({**base, "kind": "termination", "payload": {}}, "x")["warn"]
     assert kr_event({**base, "kind": "amend", "payload": {"amount_changed": False}}, "x") is None
     assert kr_event({**base, "kind": "notice", "payload": {}}, "x") is None

@@ -57,6 +57,7 @@
 | Collect KR Disclosures | 매일 11:30 UTC | DART 공급계약·잠정실적·결산실적 공시예고 → 관심 종목은 바로 텔레그램, 브리핑 "한국 공시" (2026-10-17) |
 | Collect Insider Trades | 매일 13:00 UTC | 관심 종목(워치리스트·내 관심·노트·테마) 내부자 장내 매수 - 미국 SEC Form 4(거래코드 P), 한국 DART 임원ㆍ주요주주 소유보고(장내매수만) → 브리핑 "내부자 장내 매수", 워치리스트 상세 카드 (2026-10-21) |
 | Collect US 8-K | 매일 13:20 UTC | 관심 종목 미국 8-K - 항목 번호로 종류(중요 계약·해지·인수·차입·구조조정·손상·임원 변동 등) + 원문 첫머리 → 브리핑 "미국 주요 공시", 워치리스트 상세 카드 (2026-10-21) |
+| Compute Theme Events | 매일 14:00 UTC | 한국 공시·미국 8-K·내부자 매수를 테마 소속(direct+partial)으로 묶어 7일·30일 건수와 목록 → 테마 레이더 📄 표시·"축은 조용, 소속 기업 공시는 있음" (2026-10-21) |
 | Weekly Market Analysis | 월요일 22:00 UTC | US/KR 섹터 분석 갱신 → 텔레그램 요약 발송 |
 | Performance Tracking | 일요일 23:00 UTC | 과거 후보들의 30~730일 후 실제 수익률 계산 (성적표) |
 | Collect Theme News → Compute Theme Earnings → Compute Theme Price → Compute Theme Labels → Send Radar Digest | 일요일 22:00~23:00 UTC (15분 간격 순차) | 테마 레이더 뉴스·실적·주가 세 축 계산 → 라벨 부여 → 텔레그램 발송. Weekly Watchlist Screen과 별개 워크플로우라 브리핑 생성 시점엔 아직 이번 주 라벨이 안 끝나 있을 수 있음(주간 브리핑은 그래서 실제 계산 완료 주를 그대로 표시). |
