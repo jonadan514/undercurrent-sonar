@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts.compute_pick_returns import _kr_yf_symbol, _load_kr_universe
-from src.analyzers.signal_check import HORIZONS, fwd_return, median_return
+from src.analyzers.signal_check import HORIZONS, distribution, fwd_return, median_return
 from src.collectors.us_price_fetcher import USPriceFetcher
 from src.db.data_store import get_db
 
@@ -59,6 +59,7 @@ def main() -> int:
     todo = [r for r in rows if tuple(r[:4]) not in done]
     _log(f"기간이 지난 신호 {len(rows)}건 중 채울 것 {len(todo)}건")
     if not todo:
+        summarize(conn)
         return 0
 
     need: dict[str, set[str]] = {"US": set(), "KR": set()}
@@ -113,9 +114,34 @@ def main() -> int:
             (week, kind, market, symbol, *[vals[c] for c in COLS], n_priced))
         filled += int(vals[f"ret_{HORIZONS[0]}d"] is not None)
     conn.commit()
-    conn.close()
     _log(f"완료 - {len(todo)}건 중 4주 결과 있는 것 {filled}건")
+    summarize(conn)
+    conn.close()
     return 0
+
+
+def summarize(conn) -> None:
+    """로그용 요약 - 성적표 화면(/api/data/signals)과 같은 묶음, 초과수익(신호 - 지수) 분포."""
+    rows = conn.execute(
+        "SELECT l.market, l.kind, l.detail, " + ", ".join(f"o.ret_{h}d, o.bench_{h}d" for h in HORIZONS) + " FROM signal_log l "
+        "JOIN signal_outcomes o ON o.week = l.week AND o.kind = l.kind AND o.market = l.market AND o.symbol = l.symbol").fetchall()
+    groups: dict[str, dict[int, list[float]]] = {}
+    for r in rows:
+        market, kind, detail = r[0], r[1], json.loads(r[2])
+        name = f"{market} {kind}" + ({True: "·관심", False: "·관심 밖"}[bool(detail.get("watched"))] if kind == "insider_buy" else "")
+        names = [name] + ([f"{market} theme_busier·축 조용"] if kind == "theme_busier" and detail.get("quiet_axes") else [])
+        for i, h in enumerate(HORIZONS):
+            a, b = r[3 + 2 * i], r[4 + 2 * i]
+            if a is not None and b is not None:
+                for n in names:
+                    groups.setdefault(n, {}).setdefault(h, []).append(a - b)
+    for name in sorted(groups):
+        parts = []
+        for h in HORIZONS:
+            d = distribution(groups[name].get(h, []))
+            parts.append(f"{h}일 n={d['n']}" + ("" if not d["n"] else
+                         f" 중앙 {d['median'] * 100:+.1f}% ({d['q1'] * 100:+.1f}~{d['q3'] * 100:+.1f}%)"))
+        _log(f"  {name}: " + " | ".join(parts))
 
 
 if __name__ == "__main__":
