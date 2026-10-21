@@ -262,9 +262,9 @@ export default function ScorecardPage() {
         </div>
       </div>
 
-      {/* 기간 선택 — 등급별/게이트별 카드에 공통 적용 */}
+      {/* 기간 선택 — F-Score 구간별 카드에 적용(게이트는 2026-08에 없앴다 - 문구만 남아 있던 것을 10-21 정리) */}
       <div className="bg-card rounded-xl p-3 flex items-center gap-2">
-        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>등급·게이트별 기준 기간</span>
+        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>F-Score 구간별 기준 기간</span>
         <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
           {HORIZONS.map((h) => (
             <button

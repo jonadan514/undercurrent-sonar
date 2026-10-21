@@ -1028,6 +1028,29 @@ def build_telegram_summary(b: dict) -> str:
     return "\n".join(l for i, l in enumerate(lines) if l or (i > 0 and lines[i - 1]))
 
 
+TELEGRAM_MAX = 3900   # 텔레그램 한 메시지 4,096자 - 여유를 둔다
+
+
+def split_telegram(text: str, limit: int = TELEGRAM_MAX) -> list[str]:
+    """칸(빈 줄로 나뉜 블록) 단위로 limit 안에 들어가게 나눈다. 한 칸이 limit보다 길면 줄 단위로.
+    태그(<b>…</b>)는 줄마다 닫혀 있어 줄·칸 경계에서 잘라도 깨지지 않는다(2026-10-21 - 칸이 늘어 길이 초과 위험)."""
+    blocks = text.split("\n\n")
+    parts: list[str] = []
+    cur = ""
+    for blk in blocks:
+        pieces = [blk] if len(blk) <= limit else blk.split("\n")
+        for piece in pieces:
+            sep = "\n\n" if piece is blk else "\n"
+            if cur and len(cur) + len(sep) + len(piece) > limit:
+                parts.append(cur)
+                cur = piece[:limit]
+            else:
+                cur = f"{cur}{sep}{piece}" if cur else piece[:limit]
+    if cur:
+        parts.append(cur)
+    return parts
+
+
 def send_telegram_summary(b: dict) -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
@@ -1035,18 +1058,20 @@ def send_telegram_summary(b: dict) -> None:
         logger.info("텔레그램 미설정 — 발송 건너뜀")
         return
 
-    body = json.dumps({"chat_id": chat_id, "text": build_telegram_summary(b), "parse_mode": "HTML",
-                       "disable_web_page_preview": True}).encode()
-    req = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        data=body, headers={"Content-Type": "application/json"}, method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            resp.read()
-        logger.info("텔레그램 주간 요약 발송 완료")
-    except Exception as e:
-        logger.error("텔레그램 발송 실패: %s", e)
+    parts = split_telegram(build_telegram_summary(b))
+    for i, text in enumerate(parts, 1):
+        body = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML",
+                           "disable_web_page_preview": True}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=body, headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp.read()
+            logger.info("텔레그램 주간 요약 발송 완료 (%d/%d, %d자)", i, len(parts), len(text))
+        except Exception as e:
+            logger.error("텔레그램 발송 실패 (%d/%d): %s", i, len(parts), e)
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

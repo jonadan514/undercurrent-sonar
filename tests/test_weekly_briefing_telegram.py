@@ -268,3 +268,12 @@ def test_my_stocks_week_collects_from_sections():
     text = g.build_telegram_summary(_briefing(my_stocks_week=my))
     assert text.index("관심 종목에 생긴 일</b> 3종목") < text.index("지난 1주")
     assert "🇰🇷 티케이지휴켐스 ⚠️한국 공시 계약 해지 2,939억 · 내부자 매수 대표이사 3.0억" in text
+
+
+def test_split_telegram_keeps_blocks_and_limit():
+    text = "\n\n".join(f"<b>칸{i}</b>\n" + "\n".join(f"  줄 {i}-{j} " + "가" * 40 for j in range(20)) for i in range(8))
+    parts = g.split_telegram(text, limit=1500)
+    assert all(len(p) <= 1500 for p in parts) and len(parts) > 1
+    assert "\n\n".join(parts).replace("\n\n", "\n") .count("줄 ") == 160          # 줄을 잃지 않는다
+    assert all(p.count("<b>") == p.count("</b>") for p in parts)                  # 태그가 칸 사이에서 갈리지 않는다
+    assert g.split_telegram("짧은 글") == ["짧은 글"]
