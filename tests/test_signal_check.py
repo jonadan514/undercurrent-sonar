@@ -48,3 +48,33 @@ def test_median_return_and_distribution():
     d = distribution([0.1, -0.1, 0.0, 0.2, 0.3])
     assert d["n"] == 5 and d["median"] == 0.1 and d["q1"] == 0.0 and d["q3"] == 0.2
     assert distribution([]) == {"n": 0, "median": None, "q1": None, "q3": None}
+
+
+def test_kr_disclosure_signals_big_contract_and_termination():
+    from src.analyzers.signal_check import kr_disclosure_signals
+    rows = [{"stock_code": "089790", "kind": "contract", "payload": {"pct_of_revenue": 14.8, "amount": 5.7e9}},
+            {"stock_code": "089790", "kind": "contract", "payload": {"pct_of_revenue": 12.0, "amount": 3e9}},   # 같은 주 같은 종목 → 하나
+            {"stock_code": "215090", "kind": "contract", "payload": {"pct_of_revenue": 8.2}},                   # 10% 미만 → 아님
+            {"stock_code": "000001", "kind": "contract", "payload": {"pct_of_revenue": None, "withheld": True}},  # 비율 없음 → 아님
+            {"stock_code": "069260", "kind": "termination", "payload": {"pct_of_revenue": 41.0}}]
+    sig = {(s["kind"], s["symbol"]): s for s in kr_disclosure_signals(rows)}
+    assert set(sig) == {("kr_contract_big", "089790"), ("kr_termination", "069260")}
+    assert sig[("kr_contract_big", "089790")]["detail"]["filings"] == 2 and sig[("kr_contract_big", "089790")]["detail"]["pct"] == 14.8
+
+
+def test_us8k_signals_warn_and_contract():
+    from src.analyzers.signal_check import us8k_signals
+    rows = [{"symbol": "TSLA", "detail": {"items": [{"item": "1.01", "warn": False}, {"item": "1.02", "warn": True}]}},
+            {"symbol": "MU", "detail": {"items": [{"item": "5.02", "warn": False}]}},
+            {"symbol": "SBUX", "detail": {"items": [{"item": "2.05", "warn": True}]}}]
+    got = sorted((s["kind"], s["symbol"]) for s in us8k_signals(rows))
+    assert got == [("us_8k_contract", "TSLA"), ("us_8k_warn", "SBUX"), ("us_8k_warn", "TSLA")]
+
+
+def test_sentiment_signals_rise_within_week():
+    from src.analyzers.signal_check import sentiment_signals
+    rows = [{"market": "US", "symbol": "MU", "sentiment": "WARM"}, {"market": "US", "symbol": "MU", "sentiment": "HOT"},
+            {"market": "KR", "symbol": "005930", "sentiment": "HOT"}, {"market": "KR", "symbol": "005930", "sentiment": "WARM"},
+            {"market": "US", "symbol": "T", "sentiment": "COLD"}]
+    s = sentiment_signals(rows)
+    assert [(x["symbol"], x["detail"]["path"]) for x in s] == [("MU", "WARM→HOT")]

@@ -7,6 +7,10 @@
 - insider_buy  : 그 주(월요일 전 7일)에 공시된 내부자 장내 매수 - 관심 종목(watched)과 관심 밖(새 이름)을 나눠 적는다.
 - turnaround_new : 실적 반전 목록에 새로 들어온 종목(주간 스냅샷 비교).
 - theme_busier : 소속 기업 공시·내부자 매수가 평소의 2배 이상이었던 테마(theme_events.busier). 결과는 소속 기업 주가 중앙값.
+브리핑 다른 칸(2026-10-21 추가):
+- kr_contract_big : 한국 매출 대비 10% 이상 공급계약.   - kr_termination : 한국 공급계약 해지(기대 방향 하락).
+- us_8k_contract  : 미국 8-K 1.01 중요 계약 체결.        - us_8k_warn : 미국 8-K 주의 종류(해지·손상·구조조정 등, 기대 방향 하락).
+- sentiment_heating : 관심도 상승(워치리스트 후보 네러티브 관심도가 그 주에 올라감).
 
 결과는 분포(건수·중앙값·사분위)로만 보여준다 - "적중률"이나 신호 점수를 만들지 않는다(원칙 1). 신호를 더하거나 뺄 근거로 쓰는 기록이다.
 """
@@ -66,6 +70,65 @@ def theme_signals(market: str, result: dict[str, dict], members: dict[str, list[
                     "detail": {"busier": [k for k, v in b.items() if v], "quiet_axes": quiet.get(theme_id),
                                "disclosure_weeks": w["disclosure"]["weeks"], "insider_weeks": w["insider"]["weeks"],
                                "members": sorted(set(members.get(theme_id, [])))}})
+    return out
+
+
+# ── 브리핑 다른 칸 (2026-10-21 추가, 사용자 결정: 신호 종류 더하기) ─────────────────
+# 브리핑에 나오는 칸을 같은 잣대로 보려고. 나쁜 쪽 신호(해지·8-K 주의 종류)는 '기대 방향이 하락'이라
+# 초과수익이 마이너스면 신호가 맞은 쪽 - 화면에 기대 방향을 같이 적는다(판정·점수 아님).
+KR_CONTRACT_BIG_PCT = 10.0   # 매출 대비 10% 이상 공급계약 - 브리핑에서 초록으로 강조하는 기준과 같다
+SENTIMENT_RANK = {"COLD": 0, "WARM": 1, "HOT": 2}   # generate_weekly_briefing.SENTIMENT_RANK와 같아야 한다
+
+
+def _one_per_symbol(sigs: list[dict]) -> list[dict]:
+    """같은 주 같은 종목의 여러 공시는 신호 하나로(건수만 detail에). 결과는 종목 단위라 겹쳐 세면 그 종목만 무거워진다."""
+    by: dict[tuple, dict] = {}
+    for s in sigs:
+        key = (s["kind"], s["market"], s["symbol"])
+        if key in by:
+            by[key]["detail"]["filings"] += 1
+        else:
+            by[key] = {**s, "detail": {**s["detail"], "filings": 1}}
+    return list(by.values())
+
+
+def kr_disclosure_signals(rows: list[dict]) -> list[dict]:
+    """kr_disclosures 그 주분 -> kr_contract_big(매출 대비 10% 이상 공급계약), kr_termination(공급계약 해지 - 기대 방향 하락)."""
+    out = []
+    for r in rows:
+        p = r["payload"]
+        if r["kind"] == "contract" and (p.get("pct_of_revenue") or 0) >= KR_CONTRACT_BIG_PCT:
+            out.append({"kind": "kr_contract_big", "market": "KR", "symbol": r["stock_code"],
+                        "detail": {"pct": p.get("pct_of_revenue"), "amount": p.get("amount")}})
+        elif r["kind"] == "termination":
+            out.append({"kind": "kr_termination", "market": "KR", "symbol": r["stock_code"],
+                        "detail": {"pct": p.get("pct_of_revenue"), "amount": p.get("amount")}})
+    return _one_per_symbol(out)
+
+
+def us8k_signals(rows: list[dict]) -> list[dict]:
+    """us_8k_filings 그 주분 -> us_8k_warn(해지·파산·사이버 사고·구조조정·손상·상장 기준 미달·감사인 교체·재무제표 신뢰 불가 - 기대 방향 하락),
+    us_8k_contract(1.01 중요 계약 체결). 한 공시에 둘 다 있으면 둘 다 적는다."""
+    out = []
+    for r in rows:
+        items = r["detail"].get("items", [])
+        warn = [x["item"] for x in items if x.get("warn")]
+        if warn:
+            out.append({"kind": "us_8k_warn", "market": "US", "symbol": r["symbol"], "detail": {"items": warn}})
+        if any(x["item"] == "1.01" for x in items):
+            out.append({"kind": "us_8k_contract", "market": "US", "symbol": r["symbol"], "detail": {"items": ["1.01"]}})
+    return _one_per_symbol(out)
+
+
+def sentiment_signals(rows: list[dict]) -> list[dict]:
+    """narrative_sentiment_history 그 주분(날짜순) -> 관심도가 올라간 종목(주 첫 값보다 마지막 값이 높음 - 브리핑 '관심도 상승'과 같은 규칙)."""
+    seq: dict[tuple, list[str]] = {}
+    for r in rows:
+        seq.setdefault((r["market"], r["symbol"]), []).append(r["sentiment"])
+    out = []
+    for (market, symbol), s in seq.items():
+        if len(s) >= 2 and SENTIMENT_RANK.get(s[-1], 1) > SENTIMENT_RANK.get(s[0], 1):
+            out.append({"kind": "sentiment_heating", "market": market, "symbol": symbol, "detail": {"path": f"{s[0]}→{s[-1]}"}})
     return out
 
 

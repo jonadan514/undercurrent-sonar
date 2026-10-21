@@ -37,12 +37,17 @@ function pctColor(v: number | null): string {
 // ── 신호 사후 확인(2026-10-21) ─────────────────────────────────────────────
 // 브리핑·테마 레이더가 보여준 신호가 4주·12주 뒤 지수보다 어땠는지. 분포(건수·중앙값·사분위)만 - 적중률·점수 없음(원칙 1).
 type Dist = { n: number; median: number | null; q1: number | null; q3: number | null };
-type SignalGroup = { key: string; label: string; desc: string; logged: number; backfilled: number; weeks: number;
+type SignalGroup = { key: string; label: string; desc: string; expect?: "down" | null; logged: number; backfilled: number; weeks: number;
   horizons: Record<string, Dist>; horizons_univ?: Record<string, Dist> };
 type SignalRecent = { week: string; kind: string; symbol: string; backfilled: boolean; watched: boolean | null;
   ret_28d: number | null; ex_28d: number | null; ex_84d: number | null; exu_28d?: number | null; exu_84d?: number | null };
 type SignalData = { first_week: string | null; last_week: string | null; groups: SignalGroup[]; recent: SignalRecent[] };
-const KIND_KO: Record<string, string> = { insider_buy: "내부자 매수", turnaround_new: "실적 반전 새로", theme_busier: "테마 공시 많음" };
+const KIND_KO: Record<string, string> = { insider_buy: "내부자 매수", turnaround_new: "실적 반전 새로", theme_busier: "테마 공시 많음",
+  kr_contract_big: "큰 공급계약", kr_termination: "계약 해지", us_8k_contract: "8-K 중요 계약", us_8k_warn: "8-K 주의", sentiment_heating: "관심도 상승" };
+// 기대 방향이 하락인 신호 - 초과수익이 마이너스여야 신호가 맞은 쪽
+const ExpectDown = ({ g }: { g: SignalGroup }) => g.expect === "down"
+  ? <span className="ml-1 text-[10px] px-1 rounded" style={{ color: "#f87171", border: "1px solid #f8717155" }} title="나쁜 소식 신호 - 초과수익이 마이너스면 신호가 맞은 쪽">기대: 하락</span>
+  : null;
 
 function SignalSection({ market }: { market: string }) {
   const [d, setD] = useState<SignalData | null>(null);
@@ -87,7 +92,7 @@ function SignalSection({ market }: { market: string }) {
         <div className="sm:hidden space-y-1.5">
           {d.groups.map((g) => (
             <div key={g.key} className="rounded-lg px-2.5 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-              <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}</div>
+              <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}<ExpectDown g={g} /></div>
               <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
               <div className="mt-1 text-[12px] font-mono space-y-0.5">
                 <div><span style={{ color: "var(--text-muted)" }}>4주 후 초과 </span>{cell(hz(g)["28"])}</div>
@@ -113,7 +118,7 @@ function SignalSection({ market }: { market: string }) {
               {d.groups.map((g) => (
                 <tr key={g.key} style={{ borderTop: "1px solid var(--border)" }}>
                   <td className="py-2 pr-3">
-                    <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}</div>
+                    <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}<ExpectDown g={g} /></div>
                     <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
                   </td>
                   <td className="text-right font-mono whitespace-nowrap">{cell(hz(g)["28"])}</td>

@@ -24,14 +24,16 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.collect_insider_trades import targets
 from scripts.compute_theme_events import events_for, members_by_theme
-from src.analyzers.signal_check import insider_signals, theme_signals, turnaround_signals, week_window
+from src.analyzers.signal_check import (insider_signals, kr_disclosure_signals, sentiment_signals, theme_signals,
+                                        turnaround_signals, us8k_signals, week_window)
 from src.analyzers.theme_events import FETCH_DAYS, by_theme
 from src.db.data_store import get_db
 
 DDL = """
 CREATE TABLE IF NOT EXISTS signal_log (
   week       TEXT NOT NULL,     -- 브리핑 주차(월요일). 결과는 이날 이후 첫 거래일 종가부터 잰다
-  kind       TEXT NOT NULL,     -- insider_buy | turnaround_new | theme_busier
+  kind       TEXT NOT NULL,     -- insider_buy | turnaround_new | theme_busier | kr_contract_big | kr_termination
+                                --  | us_8k_contract | us_8k_warn | sentiment_heating (뒤 다섯은 2026-10-21 추가)
   market     TEXT NOT NULL,
   symbol     TEXT NOT NULL,     -- 종목코드, theme_busier는 테마 id
   detail     TEXT NOT NULL,     -- 그때의 값 JSON (관심 여부·산 사람 수·금액, 소속 기업 목록 등)
@@ -84,6 +86,21 @@ def week_signals(conn, week: str) -> list[dict]:
                           "(SELECT MAX(week_start) FROM theme_signals WHERE market = ? AND week_start <= ?)", (market, market, week)):
                 quiet[theme_id] = not ({na, ea, pa} & MOVING)
             out += theme_signals(market, result, members, quiet)
+
+    # 브리핑 다른 칸(2026-10-21 추가) - 한국 큰 공급계약·해지, 미국 8-K 중요 계약·주의 종류, 관심도 상승
+    kr = [dict(zip(("stock_code", "kind", "payload"), r)) for r in _rows(
+        conn, "SELECT stock_code, kind, payload FROM kr_disclosures WHERE kind IN ('contract', 'termination') AND rcept_dt BETWEEN ? AND ?",
+        (start, end))]
+    for r in kr:
+        r["payload"] = json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
+    out += kr_disclosure_signals(kr)
+    u8 = [{"symbol": r[0], "detail": json.loads(r[1])} for r in _rows(
+        conn, "SELECT symbol, detail FROM us_8k_filings WHERE filed_on BETWEEN ? AND ?", (start, end))]
+    out += us8k_signals(u8)
+    sent = [dict(zip(("market", "symbol", "sentiment"), r)) for r in _rows(
+        conn, "SELECT market, symbol, sentiment FROM narrative_sentiment_history WHERE substr(date, 1, 10) BETWEEN ? AND ? ORDER BY market, symbol, date",
+        (start, end))]
+    out += sentiment_signals(sent)
 
     snaps = {r[0]: json.loads(r[1]) for r in _rows(conn, "SELECT week, payload FROM turnaround_weekly_snapshots WHERE week <= ? "
                                                          "ORDER BY week DESC LIMIT 2", (week,))}

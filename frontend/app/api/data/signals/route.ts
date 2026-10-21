@@ -22,12 +22,20 @@ function distribution(values: number[]): Dist {
   return { n, median: q(0.5), q1: q(0.25), q3: q(0.75) };
 }
 
-const GROUPS: { key: string; label: string; desc: string; kind: string; test?: (d: Record<string, unknown>) => boolean }[] = [
+// market: 그 시장에만 있는 신호. expect: 기대 방향이 하락인 신호(해지·주의 종류)는 초과수익이 마이너스여야 '맞은 쪽' - 화면에 같이 적는다.
+const GROUPS: { key: string; label: string; desc: string; kind: string; market?: "US" | "KR"; expect?: "down";
+                test?: (d: Record<string, unknown>) => boolean }[] = [
   { key: "insider_new", label: "내부자 장내 매수 · 관심 밖", desc: "브리핑 '🆕 새 이름'", kind: "insider_buy", test: (d) => !d.watched },
   { key: "insider_watched", label: "내부자 장내 매수 · 관심 종목", desc: "워치리스트·내 관심·노트·테마 종목", kind: "insider_buy", test: (d) => !!d.watched },
   { key: "turnaround_new", label: "실적 반전 새로 들어옴", desc: "워치리스트 실적 반전 목록 신규", kind: "turnaround_new" },
   { key: "theme_quiet", label: "테마 공시 평소보다 많음 · 축은 조용", desc: "테마 레이더 '축은 조용' 칸 (소속 기업 중앙값)", kind: "theme_busier", test: (d) => d.quiet_axes === true },
   { key: "theme_all", label: "테마 공시 평소보다 많음 · 전체", desc: "축이 움직인 테마 포함 (소속 기업 중앙값)", kind: "theme_busier" },
+  // 브리핑 다른 칸(2026-10-21 추가)
+  { key: "kr_contract_big", label: "공급계약 · 매출 대비 10% 이상", desc: "브리핑 한국 공시 칸", kind: "kr_contract_big", market: "KR" },
+  { key: "kr_termination", label: "공급계약 해지", desc: "브리핑 한국 공시 칸", kind: "kr_termination", market: "KR", expect: "down" },
+  { key: "us_8k_contract", label: "8-K 중요 계약 체결 (1.01)", desc: "브리핑 미국 8-K 칸", kind: "us_8k_contract", market: "US" },
+  { key: "us_8k_warn", label: "8-K 주의 종류", desc: "해지·손상·구조조정·감사인 교체 등 (붉은 칸)", kind: "us_8k_warn", market: "US", expect: "down" },
+  { key: "sentiment_heating", label: "관심도 상승", desc: "브리핑 관심도 칸 (워치리스트 후보)", kind: "sentiment_heating" },
 ];
 
 export async function GET(request: Request) {
@@ -56,14 +64,14 @@ export async function GET(request: Request) {
       }
       return { week: String(r.week), kind: String(r.kind), symbol: String(r.symbol), detail, backfilled: Boolean(r.backfilled), ex, exU, ret };
     });
-    const groups = GROUPS.map((g) => {
+    const groups = GROUPS.filter((g) => !g.market || g.market === market).map((g) => {
       const mine = rows.filter((r) => r.kind === g.kind && (!g.test || g.test(r.detail)));
       const byH: Record<string, Dist> = {}, byU: Record<string, Dist> = {};
       for (const h of HORIZONS) {
         byH[h] = distribution(mine.map((r) => r.ex[h]).filter((x): x is number => x != null));
         byU[h] = distribution(mine.map((r) => r.exU[h]).filter((x): x is number => x != null));
       }
-      return { key: g.key, label: g.label, desc: g.desc, logged: mine.length, backfilled: mine.filter((r) => r.backfilled).length,
+      return { key: g.key, label: g.label, desc: g.desc, expect: g.expect ?? null, logged: mine.length, backfilled: mine.filter((r) => r.backfilled).length,
                weeks: Array.from(new Set(mine.map((r) => r.week))).length, horizons: byH, horizons_univ: byU };
     });
     const recent = rows.filter((r) => r.ex[28] != null).slice(0, 40).map((r) => ({
