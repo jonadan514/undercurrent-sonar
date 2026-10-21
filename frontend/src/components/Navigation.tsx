@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useMarket } from "@/src/contexts/MarketContext";
 
 // 사이드바 그룹 — 보는 주기와 흐름 순서 (2026-10-04 재구성)
 // 이번 주(월요일 갱신) → 분기(실적 주기) → 종목 → 돌아보기. 가이드는 도움말이라 맨 아래 따로.
@@ -42,30 +41,25 @@ const NAV_GROUPS = [
 
 const HELP_ITEM = { href: "/guide", label: "가이드", emoji: "📖", color: "#ffb020" } as const;
 
-// 주 1회(월요일) 실행 체제 — 7일까지는 정상, 그 이후만 지연으로 표시
-function staleness(dateStr: string | null): { label: string; color: string } {
-  if (!dateStr) return { label: "데이터 없음", color: "#423e33" };
-  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
-  if (days === 0) return { label: "오늘 업데이트", color: "#4ade80" };
-  if (days <= 7)  return { label: `${days}일 전 업데이트`, color: "#4ade80" };
-  if (days <= 9)  return { label: `${days}일 전 업데이트`, color: "#facc15" };
-  return { label: `${days}일 전 업데이트`, color: "#f87171" };
+// 데이터 상태 요약(2026-10-21) - 정기 수집 20여 개의 마지막 저장 시각(/api/data/health). 누르면 /status.
+// 예전에는 옛 표(data_costs) 하나의 날짜를 보고 "Weekly Market Analysis 실행 권장"을 띄웠다 - 지금 화면을 움직이는 수집과 무관했다.
+type HealthSummary = { total: number; ok: number; late: number; missing: number };
+function healthLabel(h: HealthSummary | null): { label: string; sub: string | null; color: string } {
+  if (!h) return { label: "데이터 상태 확인 중", sub: null, color: "#423e33" };
+  if (h.late === 0 && h.missing === 0) return { label: `데이터 ${h.total}개 모두 정상`, sub: null, color: "#4ade80" };
+  const parts = [h.late > 0 ? `지연 ${h.late}` : null, h.missing > 0 ? `없음 ${h.missing}` : null].filter(Boolean).join(" · ");
+  return { label: `데이터 ${h.total}개 중 ${parts}`, sub: "눌러서 어떤 칸인지 보기", color: h.late > 0 ? "#facc15" : "#f87171" };
 }
 
 function SidebarInner({
   onClose,
-  lastDate,
-  market,
+  health,
 }: {
   onClose?: () => void;
-  lastDate: string | null;
-  market: string;
+  health: HealthSummary | null;
 }) {
   const pathname = usePathname();
-  const { label: freshnessLabel, color: freshnessColor } = staleness(lastDate);
-  const isStale = lastDate
-    ? Math.floor((Date.now() - new Date(lastDate).getTime()) / 86_400_000) > 8
-    : true;
+  const { label: freshnessLabel, sub: freshnessSub, color: freshnessColor } = healthLabel(health);
 
   return (
     <>
@@ -163,7 +157,9 @@ function SidebarInner({
 
       {/* Bottom: data freshness */}
       <div className="shrink-0 border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
-        <div
+        <Link
+          href="/status"
+          onClick={onClose}
           className="px-3 py-2 flex items-center gap-2"
           style={{ background: "#0e0d08", border: "1px solid #262112" }}
         >
@@ -175,13 +171,13 @@ function SidebarInner({
             <p className="text-[11px] font-medium truncate" style={{ color: freshnessColor }}>
               {freshnessLabel}
             </p>
-            {isStale && (
-              <p className="text-[11px] truncate" style={{ color: "#fb923c" }}>
-                Actions에서 Weekly Market Analysis 실행 권장
+            {freshnessSub && (
+              <p className="text-[11px] truncate" style={{ color: "#726b58" }}>
+                {freshnessSub}
               </p>
             )}
           </div>
-        </div>
+        </Link>
       </div>
     </>
   );
@@ -189,19 +185,16 @@ function SidebarInner({
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { market } = useMarket();
-  const [lastDate, setLastDate] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthSummary | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
+  // 페이지를 옮길 때마다 다시 읽는다 - 가벼운 조회(표마다 MAX 하나)
   useEffect(() => {
-    fetch("/api/data/status")
+    fetch("/api/data/health")
       .then((r) => r.json())
-      .then((d) => {
-        const date = market === "KR" ? (d.lastKrAnalysis ?? null) : (d.lastAnalysis ?? null);
-        setLastDate(date);
-      })
+      .then((d) => setHealth(d.summary ?? null))
       .catch(() => {});
-  }, [market]);
+  }, [pathname]);
 
   // 페이지 이동 시 모바일 메뉴 닫기
   useEffect(() => {
@@ -215,7 +208,7 @@ export default function Navigation() {
         className="hidden md:flex w-56 shrink-0 flex-col border-r h-full overflow-hidden"
         style={{ background: "#0a0a08", borderColor: "var(--border)" }}
       >
-        <SidebarInner lastDate={lastDate} market={market} />
+        <SidebarInner health={health} />
       </aside>
 
       {/* ── 모바일: 햄버거 버튼 ── */}
@@ -246,7 +239,7 @@ export default function Navigation() {
         }`}
         style={{ background: "#0a0a08", borderColor: "var(--border)" }}
       >
-        <SidebarInner onClose={() => setIsOpen(false)} lastDate={lastDate} market={market} />
+        <SidebarInner onClose={() => setIsOpen(false)} health={health} />
       </aside>
     </>
   );
