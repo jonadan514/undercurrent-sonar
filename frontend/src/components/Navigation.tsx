@@ -213,7 +213,7 @@ export default function Navigation() {
 
       {/* ── 모바일: 햄버거 버튼 ── */}
       <button
-        className="md:hidden fixed top-0 left-0 z-[60] flex items-center justify-center w-14 h-20"
+        className="md:hidden fixed top-0 left-0 z-[60] flex items-center justify-center w-14 h-14"
         onClick={() => setIsOpen(true)}
         aria-label="메뉴 열기"
       >

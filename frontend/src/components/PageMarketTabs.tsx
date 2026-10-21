@@ -6,7 +6,8 @@ import US from "country-flag-icons/react/3x2/US";
 import KR from "country-flag-icons/react/3x2/KR";
 
 // 시장(미국/한국) 구분이 있는 페이지에서만 탭 노출
-const MARKET_PAGES = ["/sector", "/radar", "/quarterly"];
+// 성적표도 시장별 화면인데 빠져 있어 다른 화면에서 바꾸고 와야 했다(2026-10-21 외형 점검)
+const MARKET_PAGES = ["/sector", "/radar", "/quarterly", "/scorecard"];
 
 export default function PageMarketTabs() {
   const pathname = usePathname();

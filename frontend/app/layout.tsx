@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR, Inter } from "next/font/google";
 import Navigation from "@/src/components/Navigation";
-import DailyQuote from "@/src/components/DailyQuote";
+import TopBar from "@/src/components/TopBar";
 import PageMarketTabs from "@/src/components/PageMarketTabs";
 import { MarketProvider } from "@/src/contexts/MarketContext";
 import "./globals.css";
@@ -31,10 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Navigation />
           {/* Right side: header + content */}
           <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Top header bar */}
-            <header className="flex h-20 shrink-0 items-center gap-4 border-b px-4 pl-14 md:pl-4" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
-              <DailyQuote />
-            </header>
+            {/* Top header bar - 명언은 개요에만(2026-10-21) */}
+            <TopBar />
             {/* Page content */}
             {/* 모든 페이지를 같은 1280px 가운데 컨테이너에 둔다(2026-10-04). 예전엔 페이지마다 폭 제한이
                 없거나(개요·섹터·성적표) 왼쪽 정렬(브리핑·가이드)이라, 넓은 화면에서 시장 탭과 본문이 어긋났다.

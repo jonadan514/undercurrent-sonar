@@ -126,14 +126,15 @@ export default function HomePage() {
   return (
     <div className="space-y-3">
       {/* Title */}
-      <div className="flex items-center gap-3">
-        <span className="text-[13px] font-bold px-2 py-0.5 rounded" style={{ background: "#262112", color: "#726b58" }}>
+      {/* 휴대폰에서 배지·칩이 두 줄로 접히지 않게 줄바꿈은 칸 단위로(2026-10-21 외형 점검) */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="whitespace-nowrap text-[13px] font-bold px-2 py-0.5 rounded" style={{ background: "#262112", color: "#726b58" }}>
           <FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{indexName}
         </span>
-        <h1 className="text-xl font-bold text-white">
+        <h1 className="text-lg sm:text-xl font-bold text-white">
           {isKR ? "한국 시장 · 이번 주 물밑 흐름" : "미국 시장 · 이번 주 물밑 흐름"}
         </h1>
-        <span className="rounded px-2 py-0.5 text-[13px] font-bold" style={{ background: "#ffb02022", color: "#ffb020", border: "1px solid #ffb02044" }}>
+        <span className="whitespace-nowrap rounded px-2 py-0.5 text-[13px] font-bold" style={{ background: "#ffb02022", color: "#ffb020", border: "1px solid #ffb02044" }}>
           주간 갱신
         </span>
       </div>
