@@ -4,7 +4,8 @@ import { getClient } from "@/src/lib/db";
 export const dynamic = "force-dynamic";
 
 // 신호 사후 확인(2026-10-21, scripts/log_signals.py·compute_signal_outcomes.py).
-// 신호가 나온 뒤 4주·12주 초과수익(신호 - 같은 날짜 지수)의 분포만 돌려준다 - 건수·중앙값·사분위. 적중률·점수 없음(원칙 1).
+// 신호가 나온 뒤 4주·12주 초과수익의 분포만 돌려준다 - 건수·중앙값·사분위. 적중률·점수 없음(원칙 1).
+// 기준 두 가지: 같은 유니버스 전체 종목 수익률 중앙값(signal_universe_returns - 중소형주 효과를 걷어낸 것), 지수(SPY·KOSPI).
 // 표가 아직 없으면(첫 일요일 배치 전) 빈 값.
 const HORIZONS = [28, 84] as const;
 
@@ -34,36 +35,41 @@ export async function GET(request: Request) {
   try {
     const rs = await getClient().execute({
       sql: `SELECT l.week, l.kind, l.symbol, l.detail, l.backfilled,
-                   o.ret_28d, o.bench_28d, o.ret_84d, o.bench_84d, o.n_priced
+                   o.ret_28d, o.bench_28d, o.ret_84d, o.bench_84d, o.n_priced, u.univ_28d, u.univ_84d
             FROM signal_log l LEFT JOIN signal_outcomes o
               ON o.week = l.week AND o.kind = l.kind AND o.market = l.market AND o.symbol = l.symbol
+            LEFT JOIN signal_universe_returns u ON u.market = l.market AND u.week = l.week
             WHERE l.market = ? ORDER BY l.week DESC`,
       args: [market],
     });
     type Row = { week: string; kind: string; symbol: string; detail: Record<string, unknown>; backfilled: boolean;
-                 ex: Record<number, number | null>; ret: Record<number, number | null> };
+                 ex: Record<number, number | null>; exU: Record<number, number | null>; ret: Record<number, number | null> };
     const rows: Row[] = rs.rows.map((r) => {
       let detail: Record<string, unknown> = {};
       try { detail = JSON.parse(String(r.detail)); } catch { /* 빈 detail */ }
-      const ex: Record<number, number | null> = {}, ret: Record<number, number | null> = {};
+      const ex: Record<number, number | null> = {}, exU: Record<number, number | null> = {}, ret: Record<number, number | null> = {};
       for (const h of HORIZONS) {
-        const a = r[`ret_${h}d`] as number | null, b = r[`bench_${h}d`] as number | null;
+        const a = r[`ret_${h}d`] as number | null, b = r[`bench_${h}d`] as number | null, u = r[`univ_${h}d`] as number | null;
         ret[h] = a;
         ex[h] = a != null && b != null ? a - b : null;
+        exU[h] = a != null && u != null ? a - u : null;
       }
-      return { week: String(r.week), kind: String(r.kind), symbol: String(r.symbol), detail, backfilled: Boolean(r.backfilled), ex, ret };
+      return { week: String(r.week), kind: String(r.kind), symbol: String(r.symbol), detail, backfilled: Boolean(r.backfilled), ex, exU, ret };
     });
     const groups = GROUPS.map((g) => {
       const mine = rows.filter((r) => r.kind === g.kind && (!g.test || g.test(r.detail)));
-      const byH: Record<string, Dist> = {};
-      for (const h of HORIZONS) byH[h] = distribution(mine.map((r) => r.ex[h]).filter((x): x is number => x != null));
+      const byH: Record<string, Dist> = {}, byU: Record<string, Dist> = {};
+      for (const h of HORIZONS) {
+        byH[h] = distribution(mine.map((r) => r.ex[h]).filter((x): x is number => x != null));
+        byU[h] = distribution(mine.map((r) => r.exU[h]).filter((x): x is number => x != null));
+      }
       return { key: g.key, label: g.label, desc: g.desc, logged: mine.length, backfilled: mine.filter((r) => r.backfilled).length,
-               weeks: Array.from(new Set(mine.map((r) => r.week))).length, horizons: byH };
+               weeks: Array.from(new Set(mine.map((r) => r.week))).length, horizons: byH, horizons_univ: byU };
     });
     const recent = rows.filter((r) => r.ex[28] != null).slice(0, 40).map((r) => ({
       week: r.week, kind: r.kind, symbol: r.symbol, backfilled: r.backfilled,
       watched: r.kind === "insider_buy" ? !!r.detail.watched : null,
-      ret_28d: r.ret[28], ex_28d: r.ex[28], ex_84d: r.ex[84],
+      ret_28d: r.ret[28], ex_28d: r.ex[28], ex_84d: r.ex[84], exu_28d: r.exU[28], exu_84d: r.exU[84],
     }));
     const weeks = Array.from(new Set(rows.map((r) => r.week))).sort();
     return NextResponse.json({ market, first_week: weeks[0] ?? null, last_week: weeks[weeks.length - 1] ?? null, groups, recent });

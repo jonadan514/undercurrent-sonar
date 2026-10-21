@@ -37,19 +37,24 @@ function pctColor(v: number | null): string {
 // ── 신호 사후 확인(2026-10-21) ─────────────────────────────────────────────
 // 브리핑·테마 레이더가 보여준 신호가 4주·12주 뒤 지수보다 어땠는지. 분포(건수·중앙값·사분위)만 - 적중률·점수 없음(원칙 1).
 type Dist = { n: number; median: number | null; q1: number | null; q3: number | null };
-type SignalGroup = { key: string; label: string; desc: string; logged: number; backfilled: number; weeks: number; horizons: Record<string, Dist> };
+type SignalGroup = { key: string; label: string; desc: string; logged: number; backfilled: number; weeks: number;
+  horizons: Record<string, Dist>; horizons_univ?: Record<string, Dist> };
 type SignalRecent = { week: string; kind: string; symbol: string; backfilled: boolean; watched: boolean | null;
-  ret_28d: number | null; ex_28d: number | null; ex_84d: number | null };
+  ret_28d: number | null; ex_28d: number | null; ex_84d: number | null; exu_28d?: number | null; exu_84d?: number | null };
 type SignalData = { first_week: string | null; last_week: string | null; groups: SignalGroup[]; recent: SignalRecent[] };
 const KIND_KO: Record<string, string> = { insider_buy: "내부자 매수", turnaround_new: "실적 반전 새로", theme_busier: "테마 공시 많음" };
 
 function SignalSection({ market }: { market: string }) {
   const [d, setD] = useState<SignalData | null>(null);
+  // 비교 기준 - 기본은 유니버스 중앙값(신호 종목이 대부분 중소형주라 지수와만 비교하면 중소형주 효과가 섞인다, 2026-10-21)
+  const [base, setBase] = useState<"univ" | "index">("univ");
   useEffect(() => {
     setD(null);
     fetch(`/api/data/signals?market=${market}`).then((r) => r.json()).then(setD).catch(() => setD({ first_week: null, last_week: null, groups: [], recent: [] }));
   }, [market]);
   const indexName = market === "KR" ? "KOSPI" : "SPY";
+  const univName = market === "KR" ? "한국 유니버스(시총 3000억+)" : "S&P 500·400";
+  const hz = (g: SignalGroup) => (base === "univ" ? g.horizons_univ : g.horizons) ?? {};
   const cell = (x: Dist | undefined) => !x || x.n === 0
     ? <span style={{ color: "var(--text-faint)" }}>—</span>
     : <span title={`사분위 ${pct(x.q1)} ~ ${pct(x.q3)}`}>
@@ -63,9 +68,21 @@ function SignalSection({ market }: { market: string }) {
         <InfoTooltip content="브리핑·테마 레이더가 보여준 신호를 그 주에 그대로 적어 두고, 4주·12주 뒤 수익률에서 같은 기간 지수 수익률을 뺀 값(초과수익)의 분포를 봅니다. 중앙값과 사분위(가운데 절반이 놓인 범위)만 - 신호를 더하거나 뺄 근거로 쓰는 기록이지 점수가 아닙니다." />
       </div>
       <p className="text-[12px] mb-2" style={{ color: "var(--text-muted)" }}>
-        {d?.first_week ? `${d.first_week} ~ ${d.last_week} 주 신호 · 시작가는 신호 주 월요일 이후 첫 거래일 종가 · ${indexName} 대비 초과수익 중앙값 (사분위)`
+        {d?.first_week ? `${d.first_week} ~ ${d.last_week} 주 신호 · 시작가는 신호 주 월요일 이후 첫 거래일 종가 · ${base === "univ" ? `${univName} 전체 종목 같은 기간 수익률 중앙값` : indexName} 대비 초과수익 중앙값 (사분위)`
           : d ? "아직 적힌 신호가 없습니다 - 매주 일요일 성적표 배치 때 적고, 4주가 지나면 결과가 채워집니다." : "불러오는 중…"}
       </p>
+      {d && d.groups.length > 0 && (
+        <div className="flex items-center gap-1.5 mb-2 text-[11px]">
+          <span style={{ color: "var(--text-muted)" }}>비교 기준</span>
+          {([["univ", "유니버스 중앙값"], ["index", indexName]] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setBase(k)} className="px-2 py-0.5 rounded font-semibold"
+              style={{ border: "1px solid var(--border)", background: base === k ? "#ffb02022" : "transparent", color: base === k ? "#ffb020" : "var(--text-faint)" }}>
+              {label}
+            </button>
+          ))}
+          <InfoTooltip content="유니버스 중앙값: 같은 유니버스 전체 종목의 같은 기간 수익률 중앙값과 비교합니다. 신호 종목은 대부분 중소형주라, 대형주 비중이 큰 지수와만 비교하면 그 기간 중소형주가 강했는지 약했는지가 섞입니다. 신호 자체의 차이를 보려면 유니버스 기준이 맞습니다." />
+        </div>
+      )}
       {d && d.groups.length > 0 && (
         <div className="sm:hidden space-y-1.5">
           {d.groups.map((g) => (
@@ -73,8 +90,8 @@ function SignalSection({ market }: { market: string }) {
               <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}</div>
               <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
               <div className="mt-1 text-[12px] font-mono space-y-0.5">
-                <div><span style={{ color: "var(--text-muted)" }}>4주 후 초과 </span>{cell(g.horizons["28"])}</div>
-                <div><span style={{ color: "var(--text-muted)" }}>12주 후 초과 </span>{cell(g.horizons["84"])}</div>
+                <div><span style={{ color: "var(--text-muted)" }}>4주 후 초과 </span>{cell(hz(g)["28"])}</div>
+                <div><span style={{ color: "var(--text-muted)" }}>12주 후 초과 </span>{cell(hz(g)["84"])}</div>
                 <div style={{ color: "var(--text-faint)" }}>적힌 신호 {g.logged}건 · {g.weeks}주{g.backfilled > 0 ? ` · 소급 ${g.backfilled}` : ""}</div>
               </div>
             </div>
@@ -99,8 +116,8 @@ function SignalSection({ market }: { market: string }) {
                     <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}</div>
                     <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
                   </td>
-                  <td className="text-right font-mono whitespace-nowrap">{cell(g.horizons["28"])}</td>
-                  <td className="text-right font-mono whitespace-nowrap">{cell(g.horizons["84"])}</td>
+                  <td className="text-right font-mono whitespace-nowrap">{cell(hz(g)["28"])}</td>
+                  <td className="text-right font-mono whitespace-nowrap">{cell(hz(g)["84"])}</td>
                   <td className="text-right font-mono text-[12px] whitespace-nowrap" style={{ color: "var(--text-faint)" }}>
                     {g.logged}건 · {g.weeks}주{g.backfilled > 0 && <div>소급 {g.backfilled}</div>}
                   </td>
@@ -122,8 +139,11 @@ function SignalSection({ market }: { market: string }) {
                   ? <span style={{ color: "var(--text-primary)" }}>{themeName(r.symbol).ko}</span>
                   : <StockLink market={market} symbol={r.symbol} className="font-bold" style={{ color: "var(--text-primary)" }}>{r.symbol}</StockLink>}
                 <span>4주 {pct(r.ret_28d)}</span>
-                <span style={{ color: pctColor(r.ex_28d) }}>초과 {pct(r.ex_28d)}</span>
-                {r.ex_84d != null && <span style={{ color: pctColor(r.ex_84d) }}>12주 초과 {pct(r.ex_84d)}</span>}
+                {(() => { const e4 = base === "univ" ? r.exu_28d ?? null : r.ex_28d, e12 = base === "univ" ? r.exu_84d ?? null : r.ex_84d;
+                  return <>
+                    <span style={{ color: pctColor(e4) }}>초과 {pct(e4)}</span>
+                    {e12 != null && <span style={{ color: pctColor(e12) }}>12주 초과 {pct(e12)}</span>}
+                  </>; })()}
                 {r.backfilled && <span style={{ color: "var(--text-faint)" }}>소급</span>}
               </div>
             ))}
