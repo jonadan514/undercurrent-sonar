@@ -1,6 +1,6 @@
 from datetime import date
 
-from src.analyzers.theme_events import by_theme, insider_events, kr_event, us8k_event
+from src.analyzers.theme_events import busier, by_theme, insider_events, kr_event, us8k_event, week_index, weekly
 
 TODAY = date(2026, 10, 21)
 
@@ -37,7 +37,33 @@ def test_by_theme_counts_and_window():
               {"date": "2026-10-19", "ticker": "Z", "type": "disclosure", "warn": False}]  # 소속 아님
     r = by_theme({"ship": ["A", "B", "C"], "none": ["C"]}, events, TODAY)
     c = r["ship"]["counts"]
-    assert c == {"disclosure_7d": 1, "disclosure_30d": 2, "warn_30d": 1, "insider_cos_7d": 1, "insider_cos_30d": 1,
-                 "companies_30d": 2, "members": 3}
+    assert {k: c[k] for k in ("disclosure_7d", "disclosure_30d", "warn_30d", "insider_cos_7d", "insider_cos_30d", "companies_30d", "members")} \
+        == {"disclosure_7d": 1, "disclosure_30d": 2, "warn_30d": 1, "insider_cos_7d": 1, "insider_cos_30d": 1, "companies_30d": 2, "members": 3}
+    assert c["weekly"]["disclosure"]["weeks"] == [1, 0, 1, 0, 0]   # 10/19 이번 주, 10/01 = 20일 전 → 2주 전(칸 2)
     assert [e["date"] for e in r["ship"]["items"]] == ["2026-10-19", "2026-10-18", "2026-10-01"]
     assert r["none"]["counts"]["companies_30d"] == 0 and r["none"]["items"] == []
+
+
+def test_week_index_buckets():
+    assert week_index("2026-10-21", TODAY) == 0 and week_index("2026-10-15", TODAY) == 0
+    assert week_index("2026-10-14", TODAY) == 1 and week_index("2026-09-17", TODAY) == 4
+    assert week_index("2026-09-16", TODAY) is None
+
+
+def test_weekly_counts_coverage_and_busier():
+    marks = [("A", "2026-10-20"), ("A", "2026-10-19"), ("B", "2026-10-18"), ("C", "2026-10-16"),   # 이번 주 4건
+             ("A", "2026-10-10"), ("B", "2026-10-02"), ("C", "2026-09-25")]                      # 1·2·3주 전 1건씩
+    w = weekly(marks, TODAY, None, distinct=False)
+    assert w["weeks"] == [4, 1, 1, 1, 0] and w["base_weeks"] == 4 and w["avg"] == 0.75
+    assert busier(w, "disclosure")                      # 4 >= 3 이고 4 >= 2 x 0.75
+    # 데이터가 10/01부터면 3·4주 전(9/24~9/30, 9/17~9/23)은 '데이터 없음' - 0으로 치지 않는다
+    w2 = weekly(marks, TODAY, "2026-10-01", distinct=False)
+    assert w2["weeks"] == [4, 1, 1, None, None] and w2["base_weeks"] == 2 and w2["avg"] == 1.0
+    # 직전 주가 하나뿐이면 비교 기준 부족
+    w3 = weekly(marks, TODAY, "2026-10-08", distinct=False)
+    assert w3["weeks"][2:] == [None, None, None] and w3["avg"] is None and not busier(w3, "disclosure")
+    # 내부자: 같은 종목 여러 줄은 한 회사
+    wi = weekly([("A", "2026-10-20"), ("A", "2026-10-19"), ("B", "2026-10-18")], TODAY, None, distinct=True)
+    assert wi["weeks"] == [2, 0, 0, 0, 0] and busier(wi, "insider")
+    # 평소에도 많은 테마는 '평소보다 많음'이 아니다
+    assert not busier({"weeks": [6, 4, 5, 3, 4], "avg": 4.0}, "disclosure")

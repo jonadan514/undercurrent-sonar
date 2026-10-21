@@ -65,23 +65,57 @@ interface Member {
 // 세 축의 화살표·라벨에 들어가지 않는다 - 옆에 놓는 건수와 공시 원문 값(점수 아님).
 interface ThemeEventItem { date: string; ticker: string; name?: string | null; type: "disclosure" | "insider"; kind: string;
   text: string; warn: boolean; url?: string | null; value?: number | null; excerpt?: string | null }
+// 주별 변화(2026-10-21): weeks = [이번 주, 1주 전 ... 4주 전], 데이터가 없던 주는 null. avg = 데이터 있던 직전 주 평균(2주 미만이면 null).
+// busier = 이번 주가 평소의 2배 이상이면서 최소 건수(공시 3·내부자 2개사) 이상 - 조건 일치일 뿐 점수·라벨 아님.
+interface WeeklyCount { weeks: (number | null)[]; base_weeks: number; avg: number | null }
 interface ThemeEvents {
   counts: { disclosure_7d: number; disclosure_30d: number; warn_30d: number; insider_cos_7d: number; insider_cos_30d: number;
-            companies_30d: number; members: number };
+            companies_30d: number; members: number;
+            weekly?: { disclosure: WeeklyCount; insider: WeeklyCount }; busier?: { disclosure: boolean; insider: boolean } };
   items: ThemeEventItem[];
 }
+// "축은 조용" 칸 순서 - 주별 변화가 있으면 이번 주 공시가 평소의 몇 배인지(평소 0이면 1로 나눔), 없으면 이벤트 있던 소속 기업 수.
+// 공시 숫자를 그대로 나눈 값일 뿐 점수가 아니다.
+const quietOrder = (ev?: ThemeEvents) => {
+  const w = ev?.counts.weekly?.disclosure;
+  return w && w.avg != null ? (w.weeks[0] ?? 0) / Math.max(w.avg, 1) : ev?.counts.companies_30d ?? 0;
+};
 const hasRecent = (ev?: ThemeEvents) => !!ev && (ev.counts.disclosure_7d > 0 || ev.counts.insider_cos_7d > 0);
+const isBusier = (ev?: ThemeEvents) => !!ev?.counts.busier && (ev.counts.busier.disclosure || ev.counts.busier.insider);
+const avgText = (w?: WeeklyCount) => w?.avg == null ? "" : `·평소 ${w.avg < 10 ? w.avg.toFixed(1) : Math.round(w.avg)}`;
 
 function EventChip({ ev }: { ev?: ThemeEvents }) {
   if (!hasRecent(ev)) return null;
   const c = ev!.counts;
-  const parts = [c.disclosure_7d > 0 ? `공시 ${c.disclosure_7d}` : null, c.insider_cos_7d > 0 ? `내부자 매수 ${c.insider_cos_7d}개사` : null]
-    .filter(Boolean).join(" · ");
+  const b = c.busier;
+  const parts: [string, boolean][] = [];
+  if (c.disclosure_7d > 0) parts.push([`공시 ${c.disclosure_7d}${avgText(c.weekly?.disclosure)}`, !!b?.disclosure]);
+  if (c.insider_cos_7d > 0) parts.push([`내부자 매수 ${c.insider_cos_7d}개사${avgText(c.weekly?.insider)}`, !!b?.insider]);
+  const busy = parts.some(([, x]) => x);
   return (
-    <span className="whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px]" title="최근 7일 소속 기업 공시·내부자 장내 매수 (세 축과 별개)"
-      style={{ border: "1px solid var(--border-ctrl)", color: "var(--text-secondary)", fontFamily: MONO }}>
-      📄 {parts}
+    <span className="whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px]"
+      title={"최근 7일 소속 기업 공시·내부자 장내 매수 (세 축과 별개). 평소 = 직전 4주 주당 평균" + (busy ? " · 굵은 항목은 평소의 2배 이상" : "")}
+      style={{ border: `1px solid ${busy ? ACCENT + "88" : "var(--border-ctrl)"}`, color: "var(--text-secondary)", fontFamily: MONO }}>
+      📄 {parts.map(([t, x], i) => (
+        <span key={i}>{i > 0 && " · "}<span style={x ? { color: ACCENT, fontWeight: 700 } : undefined}>{t}</span></span>
+      ))}
     </span>
+  );
+}
+
+function WeekRow({ label, w, unit }: { label: string; w?: WeeklyCount; unit: string }) {
+  if (!w) return null;
+  const names = ["이번 주", "1주 전", "2주 전", "3주 전", "4주 전"];
+  return (
+    <div className="flex flex-wrap gap-x-2 text-[11.5px]" style={{ color: MUTED, fontFamily: MONO }}>
+      <span style={{ color: FAINT }}>{label}</span>
+      {w.weeks.map((n, i) => (
+        <span key={i} style={i === 0 ? { color: "var(--text-primary)", fontWeight: 700 } : undefined}>
+          {names[i]} {n == null ? "–" : `${n}${unit}`}
+        </span>
+      ))}
+      <span style={{ color: FAINT }}>{w.avg == null ? "· 비교 기준 부족(데이터 2주 미만)" : `· 평소 주 ${w.avg}${unit}`}</span>
+    </div>
   );
 }
 
@@ -99,6 +133,12 @@ function EventList({ ev, market }: { ev?: ThemeEvents; market: string }) {
       <p className="text-[12px] font-semibold" style={{ color: MUTED }}>
         소속 기업 이벤트 (최근 30일) — 공시 {c.disclosure_30d}건 · 내부자 매수 {c.insider_cos_30d}개사 · 소속 {c.members}개 중 {c.companies_30d}개사
       </p>
+      {c.weekly && (
+        <div className="mt-1 space-y-0.5">
+          <WeekRow label="공시" w={c.weekly.disclosure} unit="건" />
+          <WeekRow label="내부자" w={c.weekly.insider} unit="개사" />
+        </div>
+      )}
       <div className="mt-1.5 space-y-1">
         {ev.items.map((e, i) => (
           <div key={`${e.ticker}-${e.date}-${i}`} className="text-[12px]">
@@ -636,8 +676,10 @@ export default function RadarPage() {
   const quietCount = signals.length - movingCount;
   // 세 축이 다 조용한데 최근 7일 소속 기업 공시·내부자 매수가 있는 테마 - 실적 축보다 먼저 나오는 신호라 따로 보인다.
   // 순서는 이벤트가 있었던 소속 기업 수(공시 원문 건수 그대로) - 점수가 아니다.
-  const quietWithEvents = signals.filter((s) => !anyMoving(s) && hasRecent(events[s.theme_id]))
-    .sort((a, b) => events[b.theme_id].counts.companies_30d - events[a.theme_id].counts.companies_30d);
+  // 주별 변화가 있으면(2026-10-21부터) "평소보다 많음"인 테마만 - 공시가 원래 흔한 테마가 늘 걸리지 않게. 예전 계산값이면 최근 7일 이벤트 유무로.
+  const hasWeekly = Object.values(events).some((e) => !!e.counts.weekly);
+  const quietWithEvents = signals.filter((s) => !anyMoving(s) && (hasWeekly ? isBusier(events[s.theme_id]) : hasRecent(events[s.theme_id])))
+    .sort((a, b) => quietOrder(events[b.theme_id]) - quietOrder(events[a.theme_id]));
 
   // 단계별로 묶되, 라벨 순서는 STAGES 정의 순서를 따른다.
   const stageGroups = STAGES.map((stage) => ({
@@ -775,11 +817,13 @@ export default function RadarPage() {
           {quietWithEvents.length > 0 && (
             <div className="mt-10">
               <div className="mb-1 flex items-baseline gap-2.5">
-                <h2 className="text-[15px] font-bold">축은 조용, 소속 기업 공시는 있음</h2>
+                <h2 className="text-[15px] font-bold">{hasWeekly ? "축은 조용, 소속 기업 공시는 평소보다 많음" : "축은 조용, 소속 기업 공시는 있음"}</h2>
                 <span className="text-[12px]" style={{ color: FAINT, fontFamily: MONO }}>{quietWithEvents.length}개</span>
               </div>
               <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>
-                뉴스·실적·주가는 움직이지 않았지만 최근 7일 소속 기업에 공급계약·중요 계약·내부자 장내 매수 같은 공시가 있었던 테마입니다.
+                {hasWeekly
+                  ? "뉴스·실적·주가는 움직이지 않았지만 최근 7일 소속 기업 공시(공급계약·중요 계약 등)나 내부자 장내 매수가 그 테마의 평소(직전 4주 주당 평균)의 2배 이상인 테마입니다(공시 3건·내부자 2개사 이상일 때만). "
+                  : "뉴스·실적·주가는 움직이지 않았지만 최근 7일 소속 기업에 공급계약·중요 계약·내부자 장내 매수 같은 공시가 있었던 테마입니다. "}
                 실적 축은 분기 공시가 나와야 움직여서, 계약·내부자 매수가 먼저 보일 수 있습니다 — 눌러서 공시 목록을 보세요.
               </p>
               <div className="overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
@@ -794,7 +838,7 @@ export default function RadarPage() {
             <div className="mt-3 rounded-xl px-4 py-3 text-[12.5px]"
                  style={{ border: "1px dashed var(--border-ctrl)", background: "var(--bg-inset)", color: MUTED }}>
               조용한 테마 <b style={{ fontFamily: MONO, color: "var(--text-secondary)" }}>{quietCount}개</b>
-              {" "}— 세 축 모두 움직임이 없어 표시하지 않았습니다{quietWithEvents.length > 0 ? ` (그중 공시가 있었던 ${quietWithEvents.length}개는 위에)` : ""}.
+              {" "}— 세 축 모두 움직임이 없어 표시하지 않았습니다{quietWithEvents.length > 0 ? ` (그중 ${hasWeekly ? "공시가 평소보다 많았던" : "공시가 있었던"} ${quietWithEvents.length}개는 위에)` : ""}.
             </div>
           )}
         </>

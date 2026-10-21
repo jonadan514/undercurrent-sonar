@@ -12,8 +12,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 WINDOW_DAYS = 30     # 펼쳤을 때 보이는 목록 기간
-RECENT_DAYS = 7      # 줄에 붙는 건수 기간
 ITEMS_MAX = 40       # 테마당 목록 길이
+FETCH_DAYS = 35      # 원본 표에서 읽는 기간 - 이번 주 + 직전 4주(주별 변화)
 
 # 한국 공시 종류 -> 이벤트 종류. 금액 정정은 금액이 바뀐 것만(날짜·문구 정정은 뺀다 - 브리핑과 같은 기준).
 KR_KINDS = {"contract": "공급계약", "termination": "계약 해지", "amend": "계약금액 정정", "prelim": "잠정실적"}
@@ -69,30 +69,94 @@ def insider_events(rows: list[dict]) -> list[dict]:
     return out
 
 
-def by_theme(members: dict[str, list[str]], events: list[dict], today: date) -> dict[str, dict]:
-    """테마 -> 최근 7일·30일 건수와 30일 목록. 이벤트가 하나도 없는 테마도 0으로 둔다(빈 것과 데이터 없음을 구분하려고 -
-    수집이 안 된 시장은 호출하는 쪽이 아예 넣지 않는다)."""
-    recent, window = _since(today, RECENT_DAYS), _since(today, WINDOW_DAYS)
+# ── 주별 변화 (2026-10-21, 사용자 결정: 다음 작업 1번) ─────────────────────────
+# 건수만 보면 공시가 원래 흔한 테마(한국 인프라 건설: 소속 13개 중 12개사)가 늘 많아 보인다 - 그 테마 자신의 평소와 비교한다.
+# 뉴스 축과 같은 방식(직전 4주 대비)이지만 화살표·라벨·점수는 만들지 않는다(원칙 1) - 주별 숫자와 "평소보다 많음" 조건 일치만.
+BASE_WEEKS = 4        # 비교 기준: 직전 4주
+BASE_MIN_WEEKS = 2    # 데이터가 있는 직전 주가 이보다 적으면 비교하지 않는다(기준 부족 - 0으로 치지 않는다, 원칙 4)
+BUSY_RATIO = 2.0      # "평소보다 많음": 이번 주가 직전 주 평균의 2배 이상이면서
+BUSY_MIN = {"disclosure": 3, "insider": 2}   # 최소 건수(공시 3건, 내부자 매수 2개사) - 평소 0~1건인 테마가 1~2건으로 튀는 것은 빼려고
+
+
+def week_index(d: str, today: date) -> int | None:
+    """날짜 -> 몇 주 전인가. 0 = 최근 7일(오늘 포함), 1 = 그 전 7일 ... BASE_WEEKS까지. 범위 밖이면 None."""
+    days = (today - date.fromisoformat(d[:10])).days
+    if days < 0:
+        return 0
+    k = days // 7
+    return k if k <= BASE_WEEKS else None
+
+
+def _week_covered(k: int, today: date, start: str | None) -> bool:
+    """k주 전 칸 전체에 데이터가 있었나 - 수집 시작일(start)이 그 주 첫날보다 늦으면 그 주는 '데이터 없음'."""
+    if start is None:
+        return True
+    first_day = today - timedelta(days=7 * k + 6)
+    return date.fromisoformat(start[:10]) <= first_day
+
+
+def weekly(marks: list[tuple[str, str]], today: date, start: str | None, distinct: bool) -> dict:
+    """(종목, 날짜) 목록 -> 주별 건수 [이번 주, 1주 전 ... 4주 전]. distinct면 종목 수(내부자 매수 '몇 개사').
+    데이터가 없던 주는 None. 평균은 데이터가 있던 직전 주만으로."""
+    buckets: list[set | int] = [set() if distinct else 0 for _ in range(BASE_WEEKS + 1)]
+    for ticker, d in marks:
+        k = week_index(d, today)
+        if k is None:
+            continue
+        if distinct:
+            buckets[k].add(ticker)
+        else:
+            buckets[k] += 1
+    weeks = [len(b) if distinct else b for b in buckets]
+    weeks = [w if k == 0 or _week_covered(k, today, start) else None for k, w in enumerate(weeks)]
+    base = [w for w in weeks[1:] if w is not None]
+    avg = sum(base) / len(base) if len(base) >= BASE_MIN_WEEKS else None
+    return {"weeks": weeks, "base_weeks": len(base), "avg": round(avg, 2) if avg is not None else None}
+
+
+def busier(w: dict, kind: str) -> bool:
+    """이번 주가 평소보다 많은가 - 조건 일치일 뿐 판정·점수 아님. 비교 기준이 부족하면 False."""
+    now, avg = w["weeks"][0], w["avg"]
+    return avg is not None and now >= BUSY_MIN[kind] and now >= BUSY_RATIO * avg
+
+
+def by_theme(members: dict[str, list[str]], events: list[dict], today: date,
+             marks: dict[str, list[tuple[str, str]]] | None = None, coverage: dict[str, str | None] | None = None) -> dict[str, dict]:
+    """테마 -> 최근 7일·30일 건수, 주별 변화, 30일 목록. 이벤트가 하나도 없는 테마도 0으로 둔다(빈 것과 데이터 없음을 구분하려고 -
+    수집이 안 된 시장은 호출하는 쪽이 아예 넣지 않는다).
+    marks: 주별로 셀 (종목, 날짜) - {"disclosure": [...], "insider": [...]}. 내부자는 공시 줄마다(목록은 사람별로 묶여 날짜가 하나뿐이라).
+           없으면 events에서 만든다. coverage: 출처별 데이터 시작일 - 그보다 이른 주는 '데이터 없음'."""
+    window = _since(today, WINDOW_DAYS)
+    if marks is None:
+        marks = {"disclosure": [(e["ticker"], e["date"]) for e in events if e["type"] != "insider"],
+                 "insider": [(e["ticker"], e["date"]) for e in events if e["type"] == "insider"]}
+    coverage = coverage or {}
     by_ticker: dict[str, list[dict]] = {}
     for e in events:
         if e["date"] >= window:
             by_ticker.setdefault(e["ticker"], []).append(e)
+    marks_by = {kind: {} for kind in marks}
+    for kind, ms in marks.items():
+        for t, d in ms:
+            marks_by[kind].setdefault(t, []).append((t, d))
     out = {}
     for theme_id, tickers in members.items():
-        evs = sorted((e for t in set(tickers) for e in by_ticker.get(t, [])), key=lambda e: (e["date"], e["ticker"]), reverse=True)
-        cnt = {"disclosure_7d": 0, "disclosure_30d": 0, "warn_30d": 0}
-        ins7, ins30, cos30 = set(), set(), set()
+        tset = set(tickers)
+        evs = sorted((e for t in tset for e in by_ticker.get(t, [])), key=lambda e: (e["date"], e["ticker"]), reverse=True)
+        cnt = {"disclosure_30d": 0, "warn_30d": 0}
+        ins30, cos30 = set(), set()
         for e in evs:
             cos30.add(e["ticker"])
             if e["type"] == "insider":
                 ins30.add(e["ticker"])
-                if e["date"] >= recent:
-                    ins7.add(e["ticker"])
             else:
                 cnt["disclosure_30d"] += 1
-                cnt["disclosure_7d"] += int(e["date"] >= recent)
             cnt["warn_30d"] += int(e["warn"])
-        cnt.update({"insider_cos_7d": len(ins7), "insider_cos_30d": len(ins30), "companies_30d": len(cos30),
-                    "members": len(set(tickers))})
+        wk = {kind: weekly([m for t in tset for m in marks_by.get(kind, {}).get(t, [])], today, coverage.get(kind),
+                           distinct=(kind == "insider"))
+              for kind in ("disclosure", "insider")}
+        cnt.update({"disclosure_7d": wk["disclosure"]["weeks"][0], "insider_cos_7d": wk["insider"]["weeks"][0],
+                    "insider_cos_30d": len(ins30), "companies_30d": len(cos30), "members": len(tset),
+                    "weekly": wk, "busier": {k: busier(wk[k], k) for k in wk}})
         out[theme_id] = {"counts": cnt, "items": evs[:ITEMS_MAX]}
     return out
