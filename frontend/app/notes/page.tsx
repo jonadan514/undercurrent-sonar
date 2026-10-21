@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { EXPECT_LABEL, ObservationCard, ObservationT, obsStatus } from "@/src/components/Observation";
+import PageHeader from "@/src/components/PageHeader";
 
 const MUTED = "var(--text-muted)";
 const FAINT = "var(--text-faint)";
@@ -61,12 +62,8 @@ export default function NotesPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 pb-10">
-      <div>
-        <h1 className="text-[24px] font-bold" style={{ color: "var(--text-primary)" }}>관찰 노트</h1>
-        <p className="mt-1 text-[13px]" style={{ color: MUTED }}>
-          테마·종목에 남긴 가설과, 4주·12주 뒤 그때와 지금. 판단은 직접 하고 배운 점을 한 줄씩 쌓습니다.
-        </p>
-      </div>
+      <PageHeader title="관찰 노트"
+        desc="테마·종목에 남긴 가설과, 4주·12주 뒤 그때와 지금. 판단은 직접 하고 배운 점을 한 줄씩 쌓습니다." />
 
       {judged + Object.keys(expectStats).length > 0 && (
         <div className="rounded-2xl p-4 text-[13px]" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>

@@ -7,6 +7,7 @@ import FlagIcon from "@/src/components/FlagIcon";
 import { BigChart, RangeBar, Sparkline, lastN, type Point } from "@/src/components/MacroChart";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO } from "@/src/lib/labelNames";
+import PageHeader, { IndexBadge } from "@/src/components/PageHeader";
 
 // radar/page.tsx의 편집 방침과 같은 순서 (SPEC §6.2) — 페이지별 상수 유지 관행.
 const LABEL_ORDER = ["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment", "Overheated Buzz", "Full Decline"];
@@ -126,18 +127,9 @@ export default function HomePage() {
   return (
     <div className="space-y-3">
       {/* Title */}
-      {/* 휴대폰에서 배지·칩이 두 줄로 접히지 않게 줄바꿈은 칸 단위로(2026-10-21 외형 점검) */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="whitespace-nowrap text-[13px] font-bold px-2 py-0.5 rounded" style={{ background: "#262112", color: "#726b58" }}>
-          <FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{indexName}
-        </span>
-        <h1 className="text-lg sm:text-xl font-bold text-white">
-          {isKR ? "한국 시장 · 이번 주 물밑 흐름" : "미국 시장 · 이번 주 물밑 흐름"}
-        </h1>
-        <span className="whitespace-nowrap rounded px-2 py-0.5 text-[13px] font-bold" style={{ background: "#ffb02022", color: "#ffb020", border: "1px solid #ffb02044" }}>
-          주간 갱신
-        </span>
-      </div>
+      {/* 공통 머리말(2026-10-21 외형 점검) - 시장은 위 탭에 있어 제목에서 뺐다. 갱신 주기는 칸마다 기준일 표시가 있다. */}
+      <PageHeader title="이번 주 물밑 흐름"
+        prefix={<IndexBadge><FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{indexName}</IndexBadge>} />
 
       {/* 이번 주 변화 - 무엇이 새로 생겼나만 모아 해당 화면으로 보낸다(2026-10-20). 숫자는 워치리스트·주간 브리핑 값 그대로. */}
       <div className="bg-card rounded-lg p-3">

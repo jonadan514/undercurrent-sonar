@@ -110,7 +110,7 @@ export function ObservationForm({ kind, market, themeId, ticker, title, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
         onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start gap-2">

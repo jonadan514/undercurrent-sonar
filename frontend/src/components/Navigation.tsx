@@ -192,7 +192,7 @@ export default function Navigation() {
   useEffect(() => {
     fetch("/api/data/health")
       .then((r) => r.json())
-      .then((d) => setHealth(d.summary ?? null))
+      .then((d) => setHealth(d && typeof d.summary?.total === "number" ? d.summary : null))
       .catch(() => {});
   }, [pathname]);
 

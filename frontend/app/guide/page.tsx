@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PageHeader from "@/src/components/PageHeader";
 
 const GUIDE_SECTIONS = [
   { href: "/",           icon: "⊡", label: "개요",        desc: "접속 시작점. 맨 위 \"이번 주 변화\" 칸(후보·실적 반전·실적 발표·한국 공시·내부자 매수·노트 회고)을 누르면 해당 목록으로. 매크로 카드는 1년 그래프·범위까지." },
@@ -38,13 +39,7 @@ export default function GuidePage() {
 
       {/* Header */}
       <div>
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-base font-bold text-white">Undercurrent Sonar 사용 설명서</h1>
-          <Badge text="GUIDE" color="#ffb020" />
-        </div>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-          미국(S&amp;P 500) · 한국(KOSPI) 개인 투자자용 테마·재무 리서치 대시보드
-        </p>
+        <PageHeader title="사용 설명서" desc="미국(S&P 500·400) · 한국(시총 3000억+) 개인 투자자용 테마·재무 리서치 대시보드" />
         <div className="flex flex-wrap gap-2 mt-3">
           <Link
             href="/guide/playbook"

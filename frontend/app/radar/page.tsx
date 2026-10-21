@@ -9,6 +9,7 @@ import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO, labelWithKo } from "@/src/lib/labelNames";
+import PageHeader from "@/src/components/PageHeader";
 
 // globals.css의 앱 전역 토큰을 그대로 쓴다 (워치리스트 페이지와 같은 터미널·앰버 룩).
 const ACCENT = "var(--accent)";
@@ -692,15 +693,9 @@ export default function RadarPage() {
   // 폭: 896px(max-w-4xl)에서 다른 화면과 같은 1280px로(2026-10-04). 설명 문단은 읽기 좋게 ch 단위 폭을 유지한다.
   return (
     <div className="mx-auto max-w-[1280px]" style={{ color: "var(--text-primary)" }}>
-      <div className="mb-2">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <h1 className="text-[22px] font-bold" style={{ letterSpacing: "-0.01em" }}>이번 주 움직인 테마</h1>
-          {!loading && <AsOf date={weekStart} cadence="매주 월요일 아침" staleDays={14} />}
-        </div>
-        <p className="mt-1 max-w-[62ch] text-[14px]" style={{ color: MUTED }}>
-          종합 점수도, 매수 추천도 없습니다. 뉴스·실적·주가 세 축을 각각 보여주고, 정해진 조합에만 이름을 붙입니다 — 나머지는 화살표로만 남겨둡니다.
-        </p>
-      </div>
+      <PageHeader title="이번 주 움직인 테마"
+        asOf={!loading && <AsOf date={weekStart} cadence="매주 월요일 아침" staleDays={14} />}
+        desc="종합 점수도, 매수 추천도 없습니다. 뉴스·실적·주가 세 축을 각각 보여주고, 정해진 조합에만 이름을 붙입니다 — 나머지는 화살표로만 남겨둡니다." />
 
       {/* 라벨이 적은 게 "빈 화면"이 아니라 "걸러낸 결과"로 읽히도록 깔때기로 보여준다. */}
       {!loading && signals.length > 0 && (

@@ -6,6 +6,7 @@ import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { krStockName } from "@/src/lib/krStockNames";
+import PageHeader from "@/src/components/PageHeader";
 
 // docs/SPEC_quarterly_screen.md 구현. 색·톤은 app/radar/page.tsx의 토큰을 그대로 쓴다
 // (새로 만들지 않는다 - 이 파일이 별도 상수로 다시 갖고 있는 건 그 파일도 그렇게
@@ -501,13 +502,8 @@ export default function QuarterlyPage() {
   // 폭: 896px(max-w-4xl)이라 소속 기업 표가 좁고 줄바꿈이 많았다 - 워치리스트와 같은 1280px(2026-10-04)
   return (
     <div className="mx-auto max-w-[1280px]" style={{ color: "var(--text-primary)" }}>
-      <div className="mb-2">
-        <h1 className="text-[22px] font-bold" style={{ letterSpacing: "-0.01em" }}>이번 분기 테마 4칸 분류</h1>
-        <p className="mt-1 max-w-[62ch] text-[14px]" style={{ color: MUTED }}>
-          순위도, 매수 추천도 없습니다. 재무 신호와 뉴스 비율 두 축을 각각 보여주고,
-          두 축이 어긋나는 자리를 가장 먼저 보시라고 권합니다.
-        </p>
-      </div>
+      <PageHeader title="이번 분기 테마 4칸 분류"
+        desc="순위도, 매수 추천도 없습니다. 재무 신호와 뉴스 비율 두 축을 각각 보여주고, 두 축이 어긋나는 자리를 가장 먼저 보시라고 권합니다." />
 
       {!loading && fiscalYear != null && (
         <p className="mt-3 text-[11.5px]" style={{ color: FAINT }}>

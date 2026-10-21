@@ -5,6 +5,7 @@ import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
+import PageHeader from "@/src/components/PageHeader";
 
 // scripts/compute_pick_returns.py의 HORIZONS와 반드시 일치해야 함.
 const HORIZONS = [30, 60, 90, 180, 365, 730] as const;
@@ -55,7 +56,10 @@ function SignalSection({ market }: { market: string }) {
   const [base, setBase] = useState<"univ" | "index">("univ");
   useEffect(() => {
     setD(null);
-    fetch(`/api/data/signals?market=${market}`).then((r) => r.json()).then(setD).catch(() => setD({ first_week: null, last_week: null, groups: [], recent: [] }));
+    const empty: SignalData = { first_week: null, last_week: null, groups: [], recent: [] };
+    // 응답 모양이 다르면(배포 중·오류) 빈 값으로 - 예전엔 groups가 없으면 성적표 화면 전체가 하얗게 죽었다(2026-10-21 외형 점검)
+    fetch(`/api/data/signals?market=${market}`).then((r) => r.json())
+      .then((x) => setD(x && Array.isArray(x.groups) && Array.isArray(x.recent) ? x : empty)).catch(() => setD(empty));
   }, [market]);
   const indexName = market === "KR" ? "KOSPI" : "SPY";
   const univName = market === "KR" ? "한국 유니버스(시총 3000억+)" : "S&P 500·400";
@@ -186,8 +190,9 @@ export default function ScorecardPage() {
   if (error) {
     return (
       <div className="space-y-2">
+        <PageHeader title="성적표" desc="과거 워치리스트 후보의 수익률과, 브리핑·레이더 신호의 사후 확인." />
         <div className="bg-card rounded-lg p-3 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-          아직 집계된 데이터가 없습니다. 매주 일요일 자동 배치 실행 후 표시됩니다.
+          아직 집계된 후보 수익률이 없습니다. 매주 일요일 자동 배치 실행 후 표시됩니다.
         </div>
         <SignalSection market={market} />
       </div>
@@ -211,18 +216,11 @@ export default function ScorecardPage() {
 
   return (
     <div className="space-y-2">
-      {/* 헤더 */}
-      <div className="bg-card rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-[18px] font-black" style={{ color: "var(--text-primary)" }}>성적표</h1>
-          <InfoTooltip content="과거 픽/거래에 실제 주가를 대조한 사후 검증입니다. 결과가 기대와 다를 수 있고, 그게 이 화면의 목적입니다." />
-        </div>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-          {data.earliest_date && data.latest_date
-            ? `${data.earliest_date} ~ ${data.latest_date}  ·  픽 ${data.total_picks}개`
-            : "아직 집계된 데이터가 없습니다 (매주 일요일 자동 집계)."}
-        </p>
-      </div>
+      <PageHeader title="성적표"
+        asOf={<InfoTooltip content="과거 후보·신호에 실제 주가를 대조한 사후 검증입니다. 결과가 기대와 다를 수 있고, 그게 이 화면의 목적입니다." />}
+        desc={data.earliest_date && data.latest_date
+          ? `워치리스트 후보 ${data.earliest_date} ~ ${data.latest_date} · ${data.total_picks}개, 아래는 브리핑·레이더 신호의 사후 확인`
+          : "아직 집계된 데이터가 없습니다 (매주 일요일 자동 집계)."} />
 
       {/* 2-way 비교 — 30일~2년까지 한 번에 (단기 30/60/90 스윙 검증, 180일 이후는 장기 펀더멘털 검증) */}
       <div className="bg-card rounded-xl p-3">

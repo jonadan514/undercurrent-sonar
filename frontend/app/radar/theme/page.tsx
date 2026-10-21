@@ -271,7 +271,7 @@ function ThemeHistory() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <Link href="/radar" className="text-[12px]" style={{ color: MUTED }}>← 테마 레이더</Link>
-          <h1 className="mt-1 text-[24px] font-bold" style={{ color: "var(--text-primary)" }}>{ko}</h1>
+          <h1 className="mt-1 text-[20px] sm:text-[22px] font-bold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>{ko}</h1>
           <p className="text-[12px]" style={{ color: FAINT }}>{en} · {market === "US" ? "미국" : "한국"} · 흐름 이력 {WEEKS}주</p>
         </div>
       </div>

@@ -115,3 +115,9 @@
 @media (prefers-reduced-motion: reduce) {
   .slideover-panel { animation: none; }
 }
+
+/* 워치리스트(2026-10-21 외형 점검): 인라인 스타일로 만든 화면이라 모서리가 전부 각져 다른 화면과 달랐다 -
+   테두리 있는 상자·버튼·배지에 기본 둥글기. 표 칸은 빼고, 큰 카드는 화면 코드에서 10~12px로 따로 준다(인라인이 이긴다). */
+.wl-page [style*="border: 1px solid"]:not(td):not(th):not(tr) { border-radius: 6px; }
+.wl-page input, .wl-page select, .wl-page textarea { border-radius: 6px; }
+

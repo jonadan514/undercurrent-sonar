@@ -9,6 +9,7 @@ import { ObservationForm } from "@/src/components/Observation";
 import { TagBadges } from "@/src/components/TagBadge";
 import AsOf from "@/src/components/AsOf";
 import { labelWithKo } from "@/src/lib/labelNames";
+import PageHeader from "@/src/components/PageHeader";
 
 interface Candidate {
   market: string;
@@ -122,7 +123,7 @@ const BORDER_CTRL = "#453b1f"; // 체크박스·인풋 등 조작 요소 테두�
 
 const TEXT_PRIMARY   = "#ece7d8";
 const TEXT_BODY      = "#d6d0c0";
-const TEXT_SECONDARY = "#a39c88";
+const TEXT_SECONDARY = "#bcb4a2"; // 공용 --text-secondary와 같게(2026-10-21 외형 점검, 이전 #a39c88)
 const TEXT_MUTED     = "#8b8271"; // 공용 --text-muted와 같게(2026-10-04, 이전 #726b58)
 const TEXT_FAINT     = "#736b57"; // 공용 --text-faint와 같게(2026-10-04, 이전 #423e33 - 대비 1.9:1)
 
@@ -134,7 +135,6 @@ const BAD     = "#f87171"; // 취약/위험
 const INFO    = "#6fb3b8"; // 미국장/성장/COLD/필터 활성 등 보조색
 const NUM     = "#e3a63e"; // 시맨틱 판단이 없는 순수 숫자(시가총액 등) · 티커 강조
 
-const MONO = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace';
 
 // 지표가 null일 때 "-" 대신 사유 표시 (무차입=좋음, 자본잠식=주의)
 const NOTE_COLOR: Record<string, string> = {
@@ -394,8 +394,8 @@ function GrowthNumbers({ cagr3y, yoy }: { cagr3y?: number | null; yoy?: number |
 // ── 지표 설명 팝업 ────────────────────────────────────────────────────────────
 function InfoModal({ info, onClose }: { info: typeof INDICATOR_INFO[keyof typeof INDICATOR_INFO]; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
-      <div className="p-5 max-w-sm w-full space-y-3" style={{ background: PANEL_BG, border: `1px solid ${BORDER}` }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
+      <div className="p-5 max-w-sm w-full space-y-3" style={{ background: PANEL_BG, border: `1px solid ${BORDER}`, borderRadius: 12 }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-[14px] font-bold" style={{ color: TEXT_PRIMARY }}>{info.title}</h3>
           <button onClick={onClose} style={{ color: TEXT_MUTED }}><X size={15} /></button>
@@ -454,7 +454,7 @@ function NarrativeSection({ c }: { c: Candidate }) {
 
   return (
     <div>
-      <div className="p-3 space-y-2.5" style={{ background: INSET_BG, border: `1px solid ${BORDER}` }}>
+      <div className="p-3 space-y-2.5" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
         <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>네러티브 브리프 — 투자 논리</p>
 
         {loading && (
@@ -555,7 +555,7 @@ function InsiderSection({ c }: { c: Candidate }) {
     : (v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : `$${Math.round(v / 1e3).toLocaleString()}K`);
   const buyers = new Set(trades.map((t) => t.owner)).size;
   return (
-    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}` }}>
+    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
       <p className="text-[12px] font-semibold mb-1.5" style={{ color: TEXT_SECONDARY }}>
         내부자 장내 매수 — 최근 6개월 {buyers}명 · {trades.length}건
       </p>
@@ -596,7 +596,7 @@ function Us8kSection({ c }: { c: Candidate }) {
   }, [c.market, c.symbol]);
   if (filings.length === 0) return null;
   return (
-    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}` }}>
+    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
       <p className="text-[12px] font-semibold mb-1.5" style={{ color: TEXT_SECONDARY }}>주요 공시 8-K — 최근 6개월 {filings.length}건</p>
       <div className="space-y-1.5">
         {filings.map((f) => (
@@ -678,7 +678,7 @@ function ChecklistSection({ c }: { c: Candidate }) {
   const checkedCount = items.filter((it) => it.checked).length;
 
   return (
-    <div className="p-3 space-y-1.5" style={{ background: INSET_BG, border: `1px solid ${BORDER}` }}>
+    <div className="p-3 space-y-1.5" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
       <div className="flex items-center justify-between mb-0.5">
         <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>정성 체크</p>
         <span className="text-[12px]" style={{ color: checkedCount === items.length && items.length > 0 ? GOOD : TEXT_MUTED }}>
@@ -748,11 +748,11 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
 
   // 칸 제목. 예전엔 10px·대문자·넓은 자간이라 한글이 흩어져 보이고 거의 안 보였다(2026-10-04 사용자 지적).
   const eyebrow = "text-[12px] font-semibold";
-  const insetCard = { background: INSET_BG, border: `1px solid ${BORDER}` };
+  const insetCard = { background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 };
 
   return (
     // 우측 슬라이드오버 — 목록을 뒤에 남기고 상세만 오른쪽에서 밀려나온다
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex justify-end" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
       <div className="slideover-panel h-full w-full overflow-y-auto"
         style={{ maxWidth: 780, background: PANEL_BG, borderLeft: `1px solid ${BORDER_CTRL}`, boxShadow: "-24px 0 60px rgba(0,0,0,0.5)" }}
         onClick={(e) => e.stopPropagation()}>
@@ -1475,12 +1475,14 @@ export default function WatchlistPage() {
   const growthKnown = candidates.some((c) => c.growth_tier != null);
 
   const statStyle: React.CSSProperties = {
-    background: INSET_BG, border: `1px solid ${BORDER}`,
+    background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 12,
     padding: "10px 16px", textAlign: "center",
   };
 
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 0 24px", color: TEXT_PRIMARY, background: PAGE_BG, minHeight: "100vh", fontFamily: MONO }}>
+    // 외형 점검(2026-10-21): 페이지 전체가 고정폭 글꼴이라 한글 자간이 벌어져 다른 화면과 딴판이었다 - 기본 글꼴 + 숫자만 폭 고정(tabular-nums).
+    // 모서리도 여기만 각져 있었다 - wl-page 범위 규칙(globals.css)으로 테두리 있는 상자에 기본 둥글기, 큰 카드는 아래에서 따로.
+    <div className="wl-page" style={{ maxWidth: 1280, margin: "0 auto", padding: "0 0 24px", color: TEXT_PRIMARY, background: PAGE_BG, minHeight: "100vh", fontVariantNumeric: "tabular-nums" }}>
       {/* 팝업들 */}
       {selected && (
         <DetailModal
@@ -1510,15 +1512,9 @@ export default function WatchlistPage() {
       )}
 
       {/* 헤더 */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em", color: TEXT_PRIMARY }}>워치리스트</h1>
-          {!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
-        </div>
-        <p style={{ color: TEXT_MUTED, fontSize: 13, marginTop: 4 }}>
-          재무 건전성 필터(함정 필터) 통과 종목 전부, 순위 없이 리스트업
-        </p>
-      </div>
+      <PageHeader title="워치리스트"
+        asOf={!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
+        desc="재무 건전성 필터(트랩 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·네러티브를 한 화면에." />
 
       {/* 통계 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 24 }}>
@@ -1567,7 +1563,7 @@ export default function WatchlistPage() {
               placeholder="티커 또는 종목명 검색"
               style={{
                 width: "100%", boxSizing: "border-box", padding: "7px 30px",
-                fontSize: 13, fontFamily: MONO,
+                fontSize: 13,
                 background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`,
                 outline: "none",
               }}
@@ -1719,7 +1715,7 @@ export default function WatchlistPage() {
                     {label}
                     <input value={numFilter[k]} onChange={(e) => setNumFilter((f) => ({ ...f, [k]: e.target.value }))}
                       inputMode="decimal" placeholder={ph}
-                      style={{ width: 64, padding: "4px 6px", fontSize: 12, fontFamily: MONO, background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, outline: "none" }} />
+                      style={{ width: 64, padding: "4px 6px", fontSize: 12, background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, outline: "none" }} />
                     <span style={{ color: TEXT_MUTED }}>{dir}</span>
                   </label>
                 ))}
@@ -1775,7 +1771,7 @@ export default function WatchlistPage() {
                   return (
                     <div key={key} role="button" tabIndex={0} onClick={() => setSelected(c)}
                       onKeyDown={(e) => { if (e.key === "Enter") setSelected(c); }}
-                      style={{ background: INSET_BG, border: `1px solid ${BORDER}`, padding: "10px 12px", cursor: "pointer" }}>
+                      style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 12px", cursor: "pointer" }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>{renderName(c, inList)}</div>
                         <button onClick={(e) => { e.stopPropagation(); if (!inList) addToWatchlist(c); }} disabled={inList}
@@ -1892,7 +1888,7 @@ export default function WatchlistPage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {myList.map((item) => (
-              <div key={item.id} style={{ background: INSET_BG, border: `1px solid ${BORDER}`, padding: "12px 16px" }}>
+              <div key={item.id} style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ color: item.market === "US" ? INFO : BAD, fontSize: 11, fontWeight: 600, minWidth: 24 }}>{item.market}</span>
                   <span style={{ fontWeight: 700, fontSize: 15, minWidth: 60, color: NUM }}>{item.symbol}</span>
@@ -1945,14 +1941,14 @@ export default function WatchlistPage() {
                           value={holdDraft.bought_at}
                           onChange={(e) => setHoldDraft((d) => ({ ...d, bought_at: e.target.value }))}
                           placeholder="매수일 2026-10-02"
-                          style={{ width: 150, background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, padding: "5px 8px", fontSize: 12, outline: "none", fontFamily: MONO }}
+                          style={{ width: 150, background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, padding: "5px 8px", fontSize: 12, outline: "none" }}
                         />
                         <input
                           value={holdDraft.buy_price}
                           onChange={(e) => setHoldDraft((d) => ({ ...d, buy_price: e.target.value }))}
                           placeholder={item.market === "KR" ? "매수가 12300" : "매수가 45.20"}
                           inputMode="decimal"
-                          style={{ width: 150, background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, padding: "5px 8px", fontSize: 12, outline: "none", fontFamily: MONO }}
+                          style={{ width: 150, background: INPUT_BG, color: TEXT_PRIMARY, border: `1px solid ${BORDER_CTRL}`, padding: "5px 8px", fontSize: 12, outline: "none" }}
                         />
                       </div>
                       <input

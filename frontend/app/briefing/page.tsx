@@ -7,6 +7,7 @@ import { themeName } from "@/src/lib/themeNames";
 import { TagBadges } from "@/src/components/TagBadge";
 import AsOf from "@/src/components/AsOf";
 import { labelWithKo } from "@/src/lib/labelNames";
+import PageHeader from "@/src/components/PageHeader";
 
 interface StockRef {
   market: string;
@@ -623,15 +624,9 @@ export default function BriefingPage() {
 
   return (
     <div className="space-y-3 max-w-3xl">
-      <div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-base font-bold text-white">주간 브리핑</h1>
-          {!loading && <AsOf date={briefings[0]?.week} cadence="매주 월요일 아침" staleDays={8} />}
-        </div>
-        <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-          매주 월요일 아침, 지난주를 돌아보고 이번 주를 준비하는 문서 — 위 목차를 눌러 칸으로 바로 이동
-        </p>
-      </div>
+      <PageHeader title="주간 브리핑"
+        asOf={!loading && <AsOf date={briefings[0]?.week} cadence="매주 월요일 아침" staleDays={8} />}
+        desc="지난주를 돌아보고 이번 주를 준비하는 문서. 맨 위 ⭐ 관심 종목에 생긴 일부터 - 목차를 누르면 그 칸으로." />
 
       {loading ? (
         <div className="h-24 rounded-xl animate-pulse" style={{ background: "#111009" }} />
