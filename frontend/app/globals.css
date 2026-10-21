@@ -121,3 +121,6 @@
 .wl-page [style*="border: 1px solid"]:not(td):not(th):not(tr) { border-radius: 6px; }
 .wl-page input, .wl-page select, .wl-page textarea { border-radius: 6px; }
 
+
+/* Note(ⓘ 기준) 접기 - 사파리의 기본 삼각형 표시 숨김 */
+summary.list-none::-webkit-details-marker { display: none; }

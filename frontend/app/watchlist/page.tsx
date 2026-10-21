@@ -10,6 +10,7 @@ import { TagBadges } from "@/src/components/TagBadge";
 import AsOf from "@/src/components/AsOf";
 import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
+import EmptyState from "@/src/components/EmptyState";
 
 interface Candidate {
   market: string;
@@ -573,7 +574,7 @@ function InsiderSection({ c }: { c: Candidate }) {
           </p>
         ))}
       </div>
-      <p className="text-[11px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
+      <p className="text-[12px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
         {kr ? "DART 임원ㆍ주요주주 소유보고" : "SEC Form 4"} · 장내에서 직접 산 것만(스톡옵션·증여·장외 제외)
       </p>
     </div>
@@ -612,7 +613,7 @@ function Us8kSection({ c }: { c: Candidate }) {
           </div>
         ))}
       </div>
-      <p className="text-[11px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
+      <p className="text-[12px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
         SEC 8-K · 실적 발표만 있는 것은 뺌 · 임원 변동의 사임/선임은 원문 낱말로 나눈 것
       </p>
     </div>
@@ -1737,13 +1738,11 @@ export default function WatchlistPage() {
           {loading ? (
             <div style={{ color: TEXT_MUTED, textAlign: "center", padding: 60 }}>불러오는 중...</div>
           ) : sorted.length === 0 ? (
-            <div style={{ color: TEXT_MUTED, textAlign: "center", padding: 60 }}>
-              {candidates.length === 0
-                ? "스크리닝 데이터 없음."
-                : searchQuery.trim()
-                  ? "일치하는 종목 없음 - 함정 필터 통과 후보 275종목 중에만 검색합니다."
-                  : "필터 조건에 맞는 종목 없음."}
-            </div>
+            candidates.length === 0
+              ? <EmptyState title="스크리닝 데이터가 없습니다" hint="매주 월요일 아침(일요일 밤 실행) 트랩 필터 스크리닝 뒤 표시됩니다." />
+              : searchQuery.trim()
+                ? <EmptyState title="일치하는 종목이 없습니다" hint={`트랩 필터 통과 후보 ${candidates.length}종목 안에서만 찾습니다. 후보가 아닌 종목은 다른 화면의 종목 이름을 누르면 안내가 뜹니다.`} />
+                : <EmptyState title="필터 조건에 맞는 종목이 없습니다" hint="조합 보기나 지표 필터를 풀어 보세요." />
           ) : (
             <>
             {/* 휴대폰: 표 대신 종목 카드(2026-10-21). 열 제목이 없으니 정렬은 고르는 상자로 - 기본은 정렬 없음(순위 아님). */}

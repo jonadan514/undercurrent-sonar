@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { EXPECT_LABEL, ObservationCard, ObservationT, obsStatus } from "@/src/components/Observation";
 import PageHeader from "@/src/components/PageHeader";
+import EmptyState from "@/src/components/EmptyState";
 
 const MUTED = "var(--text-muted)";
 const FAINT = "var(--text-faint)";
@@ -98,12 +99,11 @@ export default function NotesPage() {
       {loading ? (
         <div className="py-16 text-center" style={{ color: MUTED }}>불러오는 중...</div>
       ) : items.length === 0 ? (
-        <div className="rounded-2xl p-6 text-[13px] leading-relaxed" style={{ border: "1px dashed var(--border-ctrl)", color: MUTED }}>
-          아직 남긴 관찰이 없습니다. <Link href="/radar" style={{ color: ACCENT }}>테마 레이더</Link>에서 테마를 펼쳐 &quot;흐름 이력 보기&quot;로 들어가거나,
-          <Link href="/watchlist" style={{ color: ACCENT }}> 워치리스트</Link> 종목 상세에서 &quot;관찰 남기기&quot;를 눌러 첫 가설을 적어 보세요.
-        </div>
+        <EmptyState title="아직 남긴 관찰이 없습니다"
+          hint={<><Link href="/radar" style={{ color: ACCENT }}>테마 레이더</Link>에서 테마를 펼쳐 &quot;흐름 이력 보기&quot;로 들어가거나,
+            <Link href="/watchlist" style={{ color: ACCENT }}> 워치리스트</Link> 종목 상세에서 &quot;관찰 남기기&quot;를 눌러 첫 가설을 적어 보세요.</>} />
       ) : shown.length === 0 ? (
-        <div className="py-10 text-center text-[13px]" style={{ color: FAINT }}>{TAB_LABEL[tab]} 관찰이 없습니다.</div>
+        <EmptyState title={`${TAB_LABEL[tab]} 관찰이 없습니다`} />
       ) : (
         <div className="space-y-3">
           {shown.map((o) => <ObservationCard key={o.id} o={o} currentWeek={currentWeek} onChanged={load} />)}

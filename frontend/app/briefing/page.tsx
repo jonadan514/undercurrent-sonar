@@ -8,6 +8,8 @@ import { TagBadges } from "@/src/components/TagBadge";
 import AsOf from "@/src/components/AsOf";
 import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
+import Note from "@/src/components/Note";
+import EmptyState from "@/src/components/EmptyState";
 
 interface StockRef {
   market: string;
@@ -148,10 +150,10 @@ function MacroRow({ label, m, fmt, chgFmt }: { label: string; m?: MacroItem | nu
   if (!m || m.value == null) return null;
   return (
     <div className="rounded-lg px-2.5 py-1.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-      <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
       <p className="text-[13px] font-bold text-white" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(m.value)}</p>
       {m.chg_1w != null && (
-        <p className="text-[11px]" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>주간 {chgFmt(m.chg_1w)}</p>
+        <p className="text-[12px]" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>주간 {chgFmt(m.chg_1w)}</p>
       )}
     </div>
   );
@@ -238,9 +240,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
-                아래 칸(실적 발표·한국 공시·미국 8-K·내부자 매수·실적 반전)과 노트 회고에서 내 관심·노트 종목 줄만 모았습니다 · 누르면 그 칸으로
-              </p>
+              <Note>아래 칸(실적 발표·한국 공시·미국 8-K·내부자 매수·실적 반전)과 노트 회고에서 내 관심·노트 종목 줄만 모았습니다 · 누르면 그 칸으로</Note>
             </div>
           )}
 
@@ -297,7 +297,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               <div className="rounded-xl p-3 space-y-2" style={{ background: "#ffb02008", border: "1px solid #ffb02022" }}>
                 {b.theme_labels.new_labels.length > 0 && (
                   <div>
-                    <p className="text-[11px] font-bold mb-1" style={{ color: "#ffb020" }}>+ 신규 라벨 ({b.theme_labels.new_labels.length})</p>
+                    <p className="text-[12px] font-bold mb-1" style={{ color: "#ffb020" }}>+ 신규 라벨 ({b.theme_labels.new_labels.length})</p>
                     {b.theme_labels.new_labels.map((t) => (
                       <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5">
                         <span className="mr-1">{t.market === "KR" ? "🇰🇷" : "🇺🇸"}</span>
@@ -309,7 +309,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 )}
                 {b.theme_labels.dropped_labels.length > 0 && (
                   <div>
-                    <p className="text-[11px] font-bold mb-1" style={{ color: "var(--text-faint)" }}>− 소멸 라벨 ({b.theme_labels.dropped_labels.length})</p>
+                    <p className="text-[12px] font-bold mb-1" style={{ color: "var(--text-faint)" }}>− 소멸 라벨 ({b.theme_labels.dropped_labels.length})</p>
                     {b.theme_labels.dropped_labels.map((t) => (
                       <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5" style={{ color: "var(--text-faint)" }}>
                         {t.market === "KR" ? "🇰🇷" : "🇺🇸"} {themeName(t.theme_id).ko} <span>({labelWithKo(t.label)})</span>
@@ -341,7 +341,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #ffb02022" }}>
-                  <p className="text-[11px] font-bold mb-1" style={{ color: "#ffb020" }}>+ 신규 진입 ({wl.added_count ?? wl.added.length})</p>
+                  <p className="text-[12px] font-bold mb-1" style={{ color: "#ffb020" }}>+ 신규 진입 ({wl.added_count ?? wl.added.length})</p>
                   {wl.added.map((s) => (
                     <p key={`${s.market}:${s.symbol}`} className="text-[12px] py-0.5">
                       <StockLabel s={s} />
@@ -352,7 +352,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                   {(wl.added_count ?? 0) > wl.added.length && <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>외 {(wl.added_count ?? 0) - wl.added.length}개 - 워치리스트 &quot;이번 회차 신규만&quot;에서 전체 보기</p>}
                 </div>
                 <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #f8717122" }}>
-                  <p className="text-[11px] font-bold mb-1" style={{ color: "#f87171" }}>− 탈락 ({wl.removed_count ?? wl.removed.length})</p>
+                  <p className="text-[12px] font-bold mb-1" style={{ color: "#f87171" }}>− 탈락 ({wl.removed_count ?? wl.removed.length})</p>
                   {wl.removed.map((s) => (
                     <p key={`${s.market}:${s.symbol}`} className="text-[12px] py-0.5"><StockLabel s={s} /></p>
                   ))}
@@ -388,9 +388,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                   {b.turnaround.has_prev ? "이번 주 새로 들어온 종목 없음" : "새로 들어온 종목 비교는 다음 주부터"}
                 </p>
               )}
-              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                매출 3년은 정체·역성장인데 최근 1년(4개 분기 합, 없으면 최근 분기)은 성장 — 워치리스트 &quot;실적 반전&quot; 버튼과 같은 조건
-              </p>
+              <Note label="조건">매출 3년은 정체·역성장인데 최근 1년(4개 분기 합, 없으면 최근 분기)은 성장 — 워치리스트 &quot;실적 반전&quot; 버튼과 같은 조건</Note>
             </div>
           )}
 
@@ -421,9 +419,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;), 한국은 결산실적 공시예고가 있으면 그 날짜 · 노란 칸이 내 관심·노트·실적 반전
-              </p>
+              <Note>워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;), 한국은 결산실적 공시예고가 있으면 그 날짜 · 노란 칸이 내 관심·노트·실적 반전</Note>
             </div>
           )}
 
@@ -437,7 +433,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               </p>
               {b.kr_disclosures.contract.items.length > 0 && (
                 <div className="mb-2">
-                  <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>공급계약 · 관심 종목 먼저, 그다음 매출 대비 큰 순</p>
+                  <p className="text-[12px] mb-1" style={{ color: "var(--text-muted)" }}>공급계약 · 관심 종목 먼저, 그다음 매출 대비 큰 순</p>
                   <div className="space-y-1">
                     {b.kr_disclosures.contract.items.map((d) => (
                       <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
@@ -455,7 +451,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               )}
               {((b.kr_disclosures.termination?.items.length ?? 0) + (b.kr_disclosures.amend?.items.length ?? 0)) > 0 && (
                 <div className="mb-2">
-                  <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>계약 해지 · 계약금액 정정 (날짜만 바뀐 정정은 뺌)</p>
+                  <p className="text-[12px] mb-1" style={{ color: "var(--text-muted)" }}>계약 해지 · 계약금액 정정 (날짜만 바뀐 정정은 뺌)</p>
                   <div className="space-y-1">
                     {[...(b.kr_disclosures.termination?.items ?? []), ...(b.kr_disclosures.amend?.items ?? [])].map((d) => (
                       <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
@@ -471,7 +467,7 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               )}
               {b.kr_disclosures.prelim.items.length > 0 && (
                 <div>
-                  <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>잠정실적 · 전년 같은 분기 대비, 회사가 공시한 증감률</p>
+                  <p className="text-[12px] mb-1" style={{ color: "var(--text-muted)" }}>잠정실적 · 전년 같은 분기 대비, 회사가 공시한 증감률</p>
                   <div className="space-y-1">
                     {b.kr_disclosures.prelim.items.map((d) => (
                       <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
@@ -488,11 +484,9 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 </div>
               )}
               {(b.kr_disclosures.contract.count > b.kr_disclosures.contract.items.length || b.kr_disclosures.prelim.count > b.kr_disclosures.prelim.items.length) && (
-                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 종류별 30건까지</p>
+                <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 종류별 30건까지</p>
               )}
-              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 종목 상세, 원문↗은 DART 공시
-              </p>
+              <Note>시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 종목 상세, 원문↗은 DART 공시</Note>
             </div>
           )}
 
@@ -524,12 +518,10 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 ))}
               </div>
               {b.us_8k_week.total > b.us_8k_week.items.length && (
-                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.us_8k_week.items.length}건까지</p>
+                <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.us_8k_week.items.length}건까지</p>
               )}
-              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                관심 종목(워치리스트·내 관심·노트·테마)의 8-K · 항목 번호로 나눈 종류, 아래 줄은 공시 원문 첫머리(번역·요약 없음) ·
-                실적 발표만 있는 8-K는 뺌 · 붉은 칸은 계약 해지·구조조정·손상·감사인 교체 등 · 임원 변동의 사임/선임은 낱말로 나눈 것
-              </p>
+              <Note>관심 종목(워치리스트·내 관심·노트·테마)의 8-K · 항목 번호로 나눈 종류, 아래 줄은 공시 원문 첫머리(번역·요약 없음) ·
+                실적 발표만 있는 8-K는 뺌 · 붉은 칸은 계약 해지·구조조정·손상·감사인 교체 등 · 임원 변동의 사임/선임은 낱말로 나눈 것</Note>
             </div>
           )}
 
@@ -542,13 +534,13 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
                 <>
                   {b.insider_week.items.length > 0 && (
                     <>
-                      <p className="text-[11px] mb-1" style={{ color: "var(--text-muted)" }}>관심 종목 {b.insider_week.tagged_count ?? b.insider_week.items.length}</p>
+                      <p className="text-[12px] mb-1" style={{ color: "var(--text-muted)" }}>관심 종목 {b.insider_week.tagged_count ?? b.insider_week.items.length}</p>
                       <div className="space-y-1">{b.insider_week.items.map((x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />)}</div>
                     </>
                   )}
                   {b.insider_week.discovery.length > 0 && (
                     <>
-                      <p className="text-[11px] mt-2 mb-1" style={{ color: "var(--text-muted)" }}>
+                      <p className="text-[12px] mt-2 mb-1" style={{ color: "var(--text-muted)" }}>
                         🆕 관심 밖 — 새 이름 {b.insider_week.discovery_count ?? b.insider_week.discovery.length} · 산 사람 수 → 금액 순, 계획 매수만 있는 종목은 뒤로
                       </p>
                       <div className="space-y-1">{b.insider_week.discovery.map((x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} showFinance />)}</div>
@@ -558,10 +550,8 @@ function BriefingCard({ b, defaultOpen }: { b: Briefing; defaultOpen: boolean })
               ) : (
                 <div className="space-y-1">{b.insider_week.items.map((x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />)}</div>
               )}
-              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 금액은 공시 단가 × 주식 수 합계 · 목록은 각 30종목까지
-                {b.insider_week.discovery && " · 관심 밖은 미국 S&P 500·400, 한국 시총 3000억+ 중 관심 표시 없는 종목, 재무는 트랩 필터 판정(통과·탈락·데이터부족)"}
-              </p>
+              <Note>임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 금액은 공시 단가 × 주식 수 합계 · 목록은 각 30종목까지
+                {b.insider_week.discovery && " · 관심 밖은 미국 S&P 500·400, 한국 시총 3000억+ 중 관심 표시 없는 종목, 재무는 트랩 필터 판정(통과·탈락·데이터부족)"}</Note>
             </div>
           )}
 
@@ -631,13 +621,8 @@ export default function BriefingPage() {
       {loading ? (
         <div className="h-24 rounded-xl animate-pulse" style={{ background: "#111009" }} />
       ) : briefings.length === 0 ? (
-        <div className="bg-card rounded-xl p-6 text-center">
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>아직 브리핑이 없어요.</p>
-          <p className="text-[12px] mt-1" style={{ color: "var(--text-faint)" }}>
-            매주 일요일 밤 워치리스트 스크리닝 후 자동 생성됩니다. 지금 만들려면:
-            GitHub → Actions → Weekly Watchlist Screen → Run workflow
-          </p>
-        </div>
+        <EmptyState title="아직 브리핑이 없어요"
+          hint="매주 일요일 밤 워치리스트 스크리닝 뒤 자동으로 만들어집니다. 지금 만들려면 GitHub → Actions → Weekly Watchlist Screen → Run workflow" />
       ) : (
         briefings.map((b, i) => <BriefingCard key={b.week} b={b} defaultOpen={i === 0} />)
       )}

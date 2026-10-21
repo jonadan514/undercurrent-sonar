@@ -7,6 +7,7 @@ import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import PageHeader, { IndexBadge } from "@/src/components/PageHeader";
+import EmptyState from "@/src/components/EmptyState";
 
 // 경기 사이클 판정(회복기·성장기 등)은 2026-10-20에 화면에서 뺐다 - 대표 섹터 3개씩의 1달 RS 평균 중 최댓값을
 // 고르는 단일 판정이라 원칙 1(단일 판정 없음)과 어긋나고, 에너지·소재가 두 단계에 겹쳐 구분력도 약했다.
@@ -49,15 +50,9 @@ export default function SectorPage() {
   if (!data) return (
     <div className="space-y-2">
       <PageHeader title="섹터 분석" />
-      <div className="bg-card rounded-xl p-3">
-        <p className="text-sm font-semibold text-white mb-1">데이터가 없습니다</p>
-        <p className="text-[12px] mb-2" style={{ color: "var(--text-muted)" }}>
-          일간 분석 실행 후 자동으로 계산됩니다.
-        </p>
-        <code className="block text-[12px] rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", color: "#ffb020" }}>
-          GitHub → Actions → Daily Analysis → Run workflow
-        </code>
-      </div>
+      {/* 예전 문구는 없는 작업(Daily Analysis)을 가리켰다 - 섹터는 Weekly Market Analysis(화요일 아침) */}
+      <EmptyState title="섹터 분석 데이터가 없습니다"
+        hint="매주 화요일 아침 자동으로 계산됩니다. 지금 만들려면 GitHub → Actions → Weekly Market Analysis → Run workflow" />
     </div>
   );
 

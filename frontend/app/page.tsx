@@ -52,9 +52,9 @@ interface WeekBrief {
 function ChangeTile({ href, label, value, sub, hint }: { href: string; label: string; value: string; sub?: string; hint?: string }) {
   return (
     <a href={href} className="rounded-lg p-2.5 block transition-colors hover:brightness-125" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }} title={hint}>
-      <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
       <p className="text-[20px] font-bold leading-tight mt-0.5" style={{ color: "var(--num)", fontVariantNumeric: "tabular-nums" }}>{value}</p>
-      {sub && <p className="text-[11px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{sub}</p>}
+      {sub && <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{sub}</p>}
     </a>
   );
 }
@@ -210,21 +210,7 @@ export default function HomePage() {
         </a>
       )}
 
-      {/* 이동 링크 */}
-      <div className="grid grid-cols-2 gap-2">
-        <a href="/briefing" className="bg-card rounded-lg p-3 block">
-          <p className="stat-label mb-1" style={{ fontSize: 13 }}>주간 브리핑</p>
-          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-            지난주 지수 흐름·워치리스트 변동·관심도 요약
-          </p>
-        </a>
-        <a href="/sector" className="bg-card rounded-lg p-3 block">
-          <p className="stat-label mb-1" style={{ fontSize: 13 }}>섹터 분석</p>
-          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-            {indexName} 섹터별 상대강도
-          </p>
-        </a>
-      </div>
+      {/* 예전 '주간 브리핑 / 섹터 분석' 이동 카드는 설명 한 줄짜리라 뺐다 - 사이드바 메뉴·위 '이번 주 변화' 칸과 역할이 겹쳤다(2026-10-21 외형 점검) */}
 
       {/* 매크로 패널 — 매일 갱신, 등급·판정 없이 원자료만 (US/KR 공통 배경 정보) */}
       {macro && (
@@ -247,11 +233,11 @@ export default function HomePage() {
                   className="rounded-lg p-2.5 text-left transition-colors"
                   style={{ background: "var(--bg-inset)", border: `1px solid ${open ? "var(--border-ctrl)" : "transparent"}` }}
                   aria-expanded={open}>
-                  <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{item.label}</p>
+                  <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{item.label}</p>
                   <p className="text-[16px] font-bold mt-0.5" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
                     {fmtMacroValue(item)}
                   </p>
-                  <p className="text-[11px] mt-0.5" style={{ color: chgColor, fontVariantNumeric: "tabular-nums" }}>
+                  <p className="text-[12px] mt-0.5" style={{ color: chgColor, fontVariantNumeric: "tabular-nums" }}>
                     {fmtMacroChg(item)} <span style={{ color: "var(--text-faint)" }}>(1일)</span>
                   </p>
                   {hist.length > 1 && (
@@ -271,7 +257,7 @@ export default function HomePage() {
             </div>
           )}
           {Object.keys(macroHist).length > 0 && (
-            <p className="text-[11px] mt-2" style={{ color: "var(--text-faint)" }}>
+            <p className="text-[12px] mt-2" style={{ color: "var(--text-faint)" }}>
               작은 선은 최근 3개월, 막대는 1년 최저~최고 안에서 지금 위치(판정 아님) · 카드를 누르면 큰 그래프
             </p>
           )}

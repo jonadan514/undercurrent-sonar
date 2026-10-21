@@ -10,6 +10,8 @@ import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO, labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
+import EmptyState from "@/src/components/EmptyState";
+import Note from "@/src/components/Note";
 
 // globals.css의 앱 전역 토큰을 그대로 쓴다 (워치리스트 페이지와 같은 터미널·앰버 룩).
 const ACCENT = "var(--accent)";
@@ -152,13 +154,11 @@ function EventList({ ev, market }: { ev?: ThemeEvents; market: string }) {
               <span style={{ color: MUTED }}>{e.text}{e.value != null ? ` · ${eventMoney(e.value, market)}` : ""}</span>
               {e.url && <a href={e.url} target="_blank" rel="noreferrer" className="text-[11px] hover:underline" style={{ color: FAINT }}>원문↗</a>}
             </div>
-            {e.excerpt && <p className="text-[11px] line-clamp-1" style={{ color: FAINT }} title={e.excerpt}>{e.excerpt}</p>}
+            {e.excerpt && <p className="text-[12px] line-clamp-1" style={{ color: FAINT }} title={e.excerpt}>{e.excerpt}</p>}
           </div>
         ))}
       </div>
-      <p className="mt-1.5 text-[11px]" style={{ color: FAINT }}>
-        {market === "KR" ? "DART 공급계약·계약 해지·계약금액 정정·잠정실적" : "SEC 8-K(실적 발표만 있는 것 제외)"} · 내부자 장내 매수 · 세 축 계산에는 들어가지 않습니다
-      </p>
+      <Note>{market === "KR" ? "DART 공급계약·계약 해지·계약금액 정정·잠정실적" : "SEC 8-K(실적 발표만 있는 것 제외)"} · 내부자 장내 매수 · 세 축 계산에는 들어가지 않습니다</Note>
     </div>
   );
 }
@@ -714,7 +714,7 @@ export default function RadarPage() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[11.5px]" style={{ color: FAINT }}>
+          <p className="mt-2 text-[12px]" style={{ color: FAINT }}>
             기준 주 {weekStart} · {market === "KR" ? "한국" : "미국"} 시장 · 조합에 안 맞으면 억지로 이름 붙이지 않습니다 — 적게 나오는 것이 정상입니다.
           </p>
         </>
@@ -743,7 +743,7 @@ export default function RadarPage() {
       {loading ? (
         <div className="py-16 text-center text-[13px]" style={{ color: MUTED }}>불러오는 중...</div>
       ) : signals.length === 0 ? (
-        <div className="py-16 text-center text-[13px]" style={{ color: MUTED }}>아직 계산된 테마 신호가 없습니다.</div>
+        <EmptyState title="아직 계산된 테마 신호가 없습니다" hint="매주 월요일 아침(일요일 밤 실행) 뉴스·실적·주가를 계산한 뒤 표시됩니다." />
       ) : (
         <>
           {/* 발견 단계 3섹션 - 해당 없는 단계도 숨기지 않는다(헤더+개수는 항상 보인다).

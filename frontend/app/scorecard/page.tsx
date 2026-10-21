@@ -6,6 +6,8 @@ import { useMarket } from "@/src/contexts/MarketContext";
 import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
 import PageHeader from "@/src/components/PageHeader";
+import EmptyState from "@/src/components/EmptyState";
+import Note from "@/src/components/Note";
 
 // scripts/compute_pick_returns.py의 HORIZONS와 반드시 일치해야 함.
 const HORIZONS = [30, 60, 90, 180, 365, 730] as const;
@@ -159,9 +161,8 @@ function SignalSection({ market }: { market: string }) {
           </div>
         </details>
       )}
-      <p className="text-[11px] mt-2" style={{ color: "var(--text-faint)" }}>
-        소급 = 기록을 시작하기 전 주를 나중에 원본 표에서 다시 만든 것(관심 표시·테마 소속은 지금 기준). 표본이 적은 동안은 숫자보다 방향만 참고하세요.
-      </p>
+      <Note label="읽는 법">소급 = 기록을 시작하기 전 주를 나중에 원본 표에서 다시 만든 것(관심 표시·테마 소속은 지금 기준). 표본이 적은 동안은 숫자보다 방향만 참고하세요.
+        묶음이 많아 우연히 좋거나 나빠 보이는 묶음이 생길 수 있습니다.</Note>
     </div>
   );
 }
@@ -191,9 +192,7 @@ export default function ScorecardPage() {
     return (
       <div className="space-y-2">
         <PageHeader title="성적표" desc="과거 워치리스트 후보의 수익률과, 브리핑·레이더 신호의 사후 확인." />
-        <div className="bg-card rounded-lg p-3 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-          아직 집계된 후보 수익률이 없습니다. 매주 일요일 자동 배치 실행 후 표시됩니다.
-        </div>
+        <EmptyState title="아직 집계된 후보 수익률이 없습니다" hint="매주 일요일 밤 자동 집계 뒤 표시됩니다. 아래 신호 사후 확인은 따로 집계됩니다." />
         <SignalSection market={market} />
       </div>
     );
@@ -294,7 +293,7 @@ export default function ScorecardPage() {
             <div key={tier} className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
               <p className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>{tier}</p>
               <p className="text-[16px] font-black font-mono mt-1" style={{ color: pctColor(b[bdCol]) }}>{pct(b[bdCol])}</p>
-              <p className="text-[11px] mt-0.5" style={{ color: "var(--text-faint)" }}>n={b.n}</p>
+              <p className="text-[12px] mt-0.5" style={{ color: "var(--text-faint)" }}>n={b.n}</p>
             </div>
           ))}
         </div>

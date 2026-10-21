@@ -42,9 +42,15 @@ function parseTime(v: unknown): number | null {
 }
 
 export async function GET() {
-  const client = getClient();
   const now = Date.now();
-  const results = await Promise.allSettled(SOURCES.map((s) => client.execute(s.sql)));
+  // DB 연결 자체가 안 되면(설정 누락 등) 500 대신 전부 '없음'으로 - 사이드바가 "없음 20"을 보여 문제를 바로 알린다
+  let results: PromiseSettledResult<{ rows: unknown[][] }>[];
+  try {
+    const client = getClient();
+    results = await Promise.allSettled(SOURCES.map((s) => client.execute(s.sql) as unknown as Promise<{ rows: unknown[][] }>));
+  } catch {
+    results = SOURCES.map(() => ({ status: "rejected", reason: "db" }) as PromiseRejectedResult);
+  }
   const items = SOURCES.map((s, i) => {
     const r = results[i];
     const raw = r.status === "fulfilled" ? r.value.rows[0]?.[0] ?? null : null;

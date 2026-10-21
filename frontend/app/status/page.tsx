@@ -73,7 +73,7 @@ export default function StatusPage() {
         );
       })}
 
-      <p className="text-[11px] px-1" style={{ color: "var(--text-faint)" }}>
+      <p className="text-[12px] px-1" style={{ color: "var(--text-faint)" }}>
         지연이 보이면 그 칸의 화면 숫자가 오래된 것입니다. 정기 실행이 실패하면 텔레그램 알림도 갑니다. 공시·내부자·8-K는 새 공시가 없는 날엔 시각이 바뀌지 않아 허용 기간을 길게 두었습니다.
       </p>
     </div>

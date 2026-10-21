@@ -7,6 +7,7 @@ import { themeName } from "@/src/lib/themeNames";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { krStockName } from "@/src/lib/krStockNames";
 import PageHeader from "@/src/components/PageHeader";
+import EmptyState from "@/src/components/EmptyState";
 
 // docs/SPEC_quarterly_screen.md 구현. 색·톤은 app/radar/page.tsx의 토큰을 그대로 쓴다
 // (새로 만들지 않는다 - 이 파일이 별도 상수로 다시 갖고 있는 건 그 파일도 그렇게
@@ -506,7 +507,7 @@ export default function QuarterlyPage() {
         desc="순위도, 매수 추천도 없습니다. 재무 신호와 뉴스 비율 두 축을 각각 보여주고, 두 축이 어긋나는 자리를 가장 먼저 보시라고 권합니다." />
 
       {!loading && fiscalYear != null && (
-        <p className="mt-3 text-[11.5px]" style={{ color: FAINT }}>
+        <p className="mt-3 text-[12px]" style={{ color: FAINT }}>
           기준 분기 {fiscalYear}Q{fiscalQuarter} · {market === "KR" ? "한국" : "미국"} 시장 · 유니버스
           매출 증가율 중앙값{" "}
           <span title="참고값입니다 - 테마 분류 판정에는 쓰지 않습니다." style={{ borderBottom: "1px dotted var(--border-ctrl)" }}>
@@ -523,7 +524,7 @@ export default function QuarterlyPage() {
       {loading ? (
         <div className="py-16 text-center text-[13px]" style={{ color: MUTED }}>불러오는 중...</div>
       ) : themes.length === 0 ? (
-        <div className="py-16 text-center text-[13px]" style={{ color: MUTED }}>아직 계산된 분기 분류가 없습니다.</div>
+        <EmptyState title="아직 계산된 분기 분류가 없습니다" hint="분기 재무 공시(미국 10-Q, 한국 분기보고서)가 나온 뒤 계산됩니다." />
       ) : (
         <>
           {visibleClassifications.map((c) => (
