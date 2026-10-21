@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
+import StockLink from "@/src/components/StockLink";
+import { themeName } from "@/src/lib/themeNames";
 
 // scripts/compute_pick_returns.py의 HORIZONS와 반드시 일치해야 함.
 const HORIZONS = [30, 60, 90, 180, 365, 730] as const;
@@ -31,6 +33,110 @@ function pctColor(v: number | null): string {
   return v >= 0 ? "#4ade80" : "#f87171";
 }
 
+
+// ── 신호 사후 확인(2026-10-21) ─────────────────────────────────────────────
+// 브리핑·테마 레이더가 보여준 신호가 4주·12주 뒤 지수보다 어땠는지. 분포(건수·중앙값·사분위)만 - 적중률·점수 없음(원칙 1).
+type Dist = { n: number; median: number | null; q1: number | null; q3: number | null };
+type SignalGroup = { key: string; label: string; desc: string; logged: number; backfilled: number; weeks: number; horizons: Record<string, Dist> };
+type SignalRecent = { week: string; kind: string; symbol: string; backfilled: boolean; watched: boolean | null;
+  ret_28d: number | null; ex_28d: number | null; ex_84d: number | null };
+type SignalData = { first_week: string | null; last_week: string | null; groups: SignalGroup[]; recent: SignalRecent[] };
+const KIND_KO: Record<string, string> = { insider_buy: "내부자 매수", turnaround_new: "실적 반전 새로", theme_busier: "테마 공시 많음" };
+
+function SignalSection({ market }: { market: string }) {
+  const [d, setD] = useState<SignalData | null>(null);
+  useEffect(() => {
+    setD(null);
+    fetch(`/api/data/signals?market=${market}`).then((r) => r.json()).then(setD).catch(() => setD({ first_week: null, last_week: null, groups: [], recent: [] }));
+  }, [market]);
+  const indexName = market === "KR" ? "KOSPI" : "SPY";
+  const cell = (x: Dist | undefined) => !x || x.n === 0
+    ? <span style={{ color: "var(--text-faint)" }}>—</span>
+    : <span title={`사분위 ${pct(x.q1)} ~ ${pct(x.q3)}`}>
+        <b style={{ color: pctColor(x.median) }}>{pct(x.median)}</b>
+        <span className="text-[11px]" style={{ color: "var(--text-faint)" }}> ({pct(x.q1)}~{pct(x.q3)}) n={x.n}</span>
+      </span>;
+  return (
+    <div className="bg-card rounded-xl p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <h2 className="stat-label">신호 사후 확인</h2>
+        <InfoTooltip content="브리핑·테마 레이더가 보여준 신호를 그 주에 그대로 적어 두고, 4주·12주 뒤 수익률에서 같은 기간 지수 수익률을 뺀 값(초과수익)의 분포를 봅니다. 중앙값과 사분위(가운데 절반이 놓인 범위)만 - 신호를 더하거나 뺄 근거로 쓰는 기록이지 점수가 아닙니다." />
+      </div>
+      <p className="text-[12px] mb-2" style={{ color: "var(--text-muted)" }}>
+        {d?.first_week ? `${d.first_week} ~ ${d.last_week} 주 신호 · 시작가는 신호 주 월요일 이후 첫 거래일 종가 · ${indexName} 대비 초과수익 중앙값 (사분위)`
+          : d ? "아직 적힌 신호가 없습니다 - 매주 일요일 성적표 배치 때 적고, 4주가 지나면 결과가 채워집니다." : "불러오는 중…"}
+      </p>
+      {d && d.groups.length > 0 && (
+        <div className="sm:hidden space-y-1.5">
+          {d.groups.map((g) => (
+            <div key={g.key} className="rounded-lg px-2.5 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+              <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}</div>
+              <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
+              <div className="mt-1 text-[12px] font-mono space-y-0.5">
+                <div><span style={{ color: "var(--text-muted)" }}>4주 후 초과 </span>{cell(g.horizons["28"])}</div>
+                <div><span style={{ color: "var(--text-muted)" }}>12주 후 초과 </span>{cell(g.horizons["84"])}</div>
+                <div style={{ color: "var(--text-faint)" }}>적힌 신호 {g.logged}건 · {g.weeks}주{g.backfilled > 0 ? ` · 소급 ${g.backfilled}` : ""}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {d && d.groups.length > 0 && (
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr style={{ color: "var(--text-muted)" }}>
+                <th className="text-left py-1.5 font-semibold">신호</th>
+                <th className="text-right py-1.5 font-semibold whitespace-nowrap">4주 후 초과</th>
+                <th className="text-right py-1.5 font-semibold whitespace-nowrap">12주 후 초과</th>
+                <th className="text-right py-1.5 font-semibold whitespace-nowrap">적힌 신호</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.groups.map((g) => (
+                <tr key={g.key} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td className="py-2 pr-3">
+                    <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}</div>
+                    <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
+                  </td>
+                  <td className="text-right font-mono whitespace-nowrap">{cell(g.horizons["28"])}</td>
+                  <td className="text-right font-mono whitespace-nowrap">{cell(g.horizons["84"])}</td>
+                  <td className="text-right font-mono text-[12px] whitespace-nowrap" style={{ color: "var(--text-faint)" }}>
+                    {g.logged}건 · {g.weeks}주{g.backfilled > 0 && <div>소급 {g.backfilled}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {d && d.recent.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[12px] cursor-pointer" style={{ color: "var(--text-muted)" }}>4주 결과가 나온 신호 {d.recent.length}건 보기</summary>
+          <div className="mt-1.5 space-y-0.5">
+            {d.recent.map((r) => (
+              <div key={`${r.week}-${r.kind}-${r.symbol}`} className="flex flex-wrap gap-x-2 text-[12px] font-mono">
+                <span style={{ color: "var(--text-faint)" }}>{r.week.slice(5)}</span>
+                <span style={{ color: "var(--text-muted)" }}>{KIND_KO[r.kind] ?? r.kind}{r.watched === false ? "·관심 밖" : ""}</span>
+                {r.kind === "theme_busier"
+                  ? <span style={{ color: "var(--text-primary)" }}>{themeName(r.symbol).ko}</span>
+                  : <StockLink market={market} symbol={r.symbol} className="font-bold" style={{ color: "var(--text-primary)" }}>{r.symbol}</StockLink>}
+                <span>4주 {pct(r.ret_28d)}</span>
+                <span style={{ color: pctColor(r.ex_28d) }}>초과 {pct(r.ex_28d)}</span>
+                {r.ex_84d != null && <span style={{ color: pctColor(r.ex_84d) }}>12주 초과 {pct(r.ex_84d)}</span>}
+                {r.backfilled && <span style={{ color: "var(--text-faint)" }}>소급</span>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      <p className="text-[11px] mt-2" style={{ color: "var(--text-faint)" }}>
+        소급 = 기록을 시작하기 전 주를 나중에 원본 표에서 다시 만든 것(관심 표시·테마 소속은 지금 기준). 표본이 적은 동안은 숫자보다 방향만 참고하세요.
+      </p>
+    </div>
+  );
+}
+
 export default function ScorecardPage() {
   const { market } = useMarket();
   const [data, setData] = useState<ScorecardData | null>(null);
@@ -54,8 +160,11 @@ export default function ScorecardPage() {
 
   if (error) {
     return (
-      <div className="bg-card rounded-lg p-3 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-        아직 집계된 데이터가 없습니다. 매주 일요일 자동 배치 실행 후 표시됩니다.
+      <div className="space-y-2">
+        <div className="bg-card rounded-lg p-3 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+          아직 집계된 데이터가 없습니다. 매주 일요일 자동 배치 실행 후 표시됩니다.
+        </div>
+        <SignalSection market={market} />
       </div>
     );
   }
@@ -168,6 +277,7 @@ export default function ScorecardPage() {
         </div>
       </div>
 
+      <SignalSection market={market} />
     </div>
   );
 }
