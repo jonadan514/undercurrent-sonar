@@ -97,10 +97,12 @@ def week_signals(conn, week: str) -> list[dict]:
     u8 = [{"symbol": r[0], "detail": json.loads(r[1])} for r in _rows(
         conn, "SELECT symbol, detail FROM us_8k_filings WHERE filed_on BETWEEN ? AND ?", (start, end))]
     out += us8k_signals(u8)
-    sent = [dict(zip(("market", "symbol", "sentiment"), r)) for r in _rows(
-        conn, "SELECT market, symbol, sentiment FROM narrative_sentiment_history WHERE substr(date, 1, 10) BETWEEN ? AND ? ORDER BY market, symbol, date",
-        (start, end))]
-    out += sentiment_signals(sent)
+    # 관심도는 주 1회 기록 - 그 주 값과 그 전 마지막 기록을 비교하려고 4주 앞부터 읽는다
+    sent = [dict(zip(("market", "symbol", "date", "sentiment"), r)) for r in _rows(
+        conn, "SELECT market, symbol, date, sentiment FROM narrative_sentiment_history WHERE substr(date, 1, 10) BETWEEN ? AND ? "
+              "ORDER BY market, symbol, date",
+        ((date.fromisoformat(start) - timedelta(days=28)).isoformat(), end))]
+    out += sentiment_signals(sent, start)
 
     snaps = {r[0]: json.loads(r[1]) for r in _rows(conn, "SELECT week, payload FROM turnaround_weekly_snapshots WHERE week <= ? "
                                                          "ORDER BY week DESC LIMIT 2", (week,))}

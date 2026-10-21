@@ -71,10 +71,14 @@ def test_us8k_signals_warn_and_contract():
     assert got == [("us_8k_contract", "TSLA"), ("us_8k_warn", "SBUX"), ("us_8k_warn", "TSLA")]
 
 
-def test_sentiment_signals_rise_within_week():
+def test_sentiment_signals_compare_with_previous_record():
     from src.analyzers.signal_check import sentiment_signals
-    rows = [{"market": "US", "symbol": "MU", "sentiment": "WARM"}, {"market": "US", "symbol": "MU", "sentiment": "HOT"},
-            {"market": "KR", "symbol": "005930", "sentiment": "HOT"}, {"market": "KR", "symbol": "005930", "sentiment": "WARM"},
-            {"market": "US", "symbol": "T", "sentiment": "COLD"}]
-    s = sentiment_signals(rows)
+    # 주 1회 기록: 그 주 값을 그 전 마지막 기록과 비교
+    rows = [{"market": "US", "symbol": "MU", "date": "2026-10-11", "sentiment": "WARM"},
+            {"market": "US", "symbol": "MU", "date": "2026-10-18", "sentiment": "HOT"},
+            {"market": "KR", "symbol": "005930", "date": "2026-10-11", "sentiment": "HOT"},
+            {"market": "KR", "symbol": "005930", "date": "2026-10-18", "sentiment": "WARM"},
+            {"market": "US", "symbol": "NEW", "date": "2026-10-18", "sentiment": "HOT"},     # 이전 기록 없음 → 비교 불가
+            {"market": "US", "symbol": "OLD", "date": "2026-10-04", "sentiment": "COLD"}]    # 그 주 기록 없음
+    s = sentiment_signals(rows, "2026-10-12")
     assert [(x["symbol"], x["detail"]["path"]) for x in s] == [("MU", "WARM→HOT")]

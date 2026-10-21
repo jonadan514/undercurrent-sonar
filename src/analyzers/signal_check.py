@@ -120,15 +120,23 @@ def us8k_signals(rows: list[dict]) -> list[dict]:
     return _one_per_symbol(out)
 
 
-def sentiment_signals(rows: list[dict]) -> list[dict]:
-    """narrative_sentiment_history 그 주분(날짜순) -> 관심도가 올라간 종목(주 첫 값보다 마지막 값이 높음 - 브리핑 '관심도 상승'과 같은 규칙)."""
-    seq: dict[tuple, list[str]] = {}
+def sentiment_signals(rows: list[dict], start: str) -> list[dict]:
+    """narrative_sentiment_history(날짜순, 그 주 + 그 전 몇 주) -> 그 주에 관심도가 올라간 종목.
+    관심도는 주간 네러티브 생성 때 주 1회 적혀 한 주 안에는 값이 하나뿐이다 - 그 주 마지막 값을 '그 주 전의 마지막 기록'과 비교한다
+    (워치리스트 ▲관심 배지와 같은 규칙, generate_narratives.compute_trend). 처음 줄은 sentiment_heating이 8주 동안 0건이라 이 점을 확인하고 고침."""
+    before: dict[tuple, str] = {}
+    within: dict[tuple, str] = {}
     for r in rows:
-        seq.setdefault((r["market"], r["symbol"]), []).append(r["sentiment"])
+        key = (r["market"], r["symbol"])
+        if r["date"][:10] < start:
+            before[key] = r["sentiment"]
+        else:
+            within[key] = r["sentiment"]
     out = []
-    for (market, symbol), s in seq.items():
-        if len(s) >= 2 and SENTIMENT_RANK.get(s[-1], 1) > SENTIMENT_RANK.get(s[0], 1):
-            out.append({"kind": "sentiment_heating", "market": market, "symbol": symbol, "detail": {"path": f"{s[0]}→{s[-1]}"}})
+    for (market, symbol), now in within.items():
+        prev = before.get((market, symbol))
+        if prev is not None and SENTIMENT_RANK.get(now, 1) > SENTIMENT_RANK.get(prev, 1):
+            out.append({"kind": "sentiment_heating", "market": market, "symbol": symbol, "detail": {"path": f"{prev}→{now}"}})
     return out
 
 

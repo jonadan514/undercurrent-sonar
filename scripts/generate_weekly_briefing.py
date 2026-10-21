@@ -618,29 +618,32 @@ def get_kr_disclosures_week() -> dict | None:
 
 
 def get_sentiment_week() -> list[dict]:
-    """최근 7일 관심도 이력에서 상승 전환 종목."""
+    """최근 7일 안의 관심도 기록이 그 전 마지막 기록보다 올라간 종목.
+    관심도는 주간 네러티브 생성 때 주 1회 적힌다 - 예전에는 '최근 7일 안의 첫 값 vs 마지막 값'이라 지난주 기록이 정확히 7일 전에 있어야만
+    잡혔다(예약 실행이 자정을 넘겨 늦게 돌면 빈 칸). 워치리스트 ▲관심 배지와 같은 '그 전 마지막 기록' 비교로 바꿨다(2026-10-21)."""
     rows = turso_exec(
         "SELECT market, symbol, date, sentiment FROM narrative_sentiment_history "
-        "WHERE date >= date('now', '-7 days') ORDER BY market, symbol, date"
+        "WHERE date >= date('now', '-35 days') ORDER BY market, symbol, date"
     )
-    by_sym: dict[str, list] = {}
+    cut = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    before: dict[str, str] = {}
+    within: dict[str, str] = {}
     for r in rows:
-        by_sym.setdefault(f"{r['market']}:{r['symbol']}", []).append(r["sentiment"])
+        key = f"{r['market']}:{r['symbol']}"
+        (within if str(r["date"])[:10] >= cut else before)[key] = r["sentiment"]
 
     # 이름 조회
     names = {f"{c['market']}:{c['symbol']}": c.get("name")
              for c in turso_exec("SELECT market, symbol, name FROM watchlist_candidates")}
 
     heating = []
-    for key, seq in by_sym.items():
-        if len(seq) < 2:
-            continue
-        first, last = SENTIMENT_RANK.get(seq[0], 1), SENTIMENT_RANK.get(seq[-1], 1)
-        if last > first:
+    for key, now in within.items():
+        prev = before.get(key)
+        if prev is not None and SENTIMENT_RANK.get(now, 1) > SENTIMENT_RANK.get(prev, 1):
             market, symbol = key.split(":", 1)
             heating.append({
                 "market": market, "symbol": symbol, "name": names.get(key),
-                "path": f"{SENTIMENT_KO.get(seq[0], seq[0])}→{SENTIMENT_KO.get(seq[-1], seq[-1])}",
+                "path": f"{SENTIMENT_KO.get(prev, prev)}→{SENTIMENT_KO.get(now, now)}",
             })
     return heating[:10]
 
