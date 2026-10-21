@@ -551,7 +551,7 @@ const SECTIONS: Section[] = [
           },
           {
             q: "데이터가 '—' 로 나와도 그냥 무시한다",
-            a: "— 표시는 해당 파이프라인이 아직 실행되지 않았거나 실패했다는 뜻입니다. 사이드바 하단 신선도 점을 확인하고(주 1회 갱신이라 7일 이내는 정상), 오래됐으면 GitHub → Actions에서 해당 화면의 워크플로우(섹터 분석은 Weekly Market Analysis, 테마 레이더는 Collect Theme News부터 순서대로)를 수동 재실행하세요.",
+            a: "— 표시는 해당 파이프라인이 아직 실행되지 않았거나 실패했다는 뜻입니다. 사이드바 맨 아래 칸(누르면 데이터 상태 화면)에서 그 칸이 지연인지 확인하고, 지연이면 GitHub → Actions에서 해당 화면의 워크플로우(섹터 분석은 Weekly Market Analysis, 테마 레이더는 Collect Theme News부터 순서대로)를 수동 재실행하세요.",
             type: "warn",
           },
         ].map(({ q, a, type }) => (
