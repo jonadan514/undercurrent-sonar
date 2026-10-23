@@ -205,39 +205,9 @@ def _profile_text(prof: dict | None) -> tuple[str, str]:
     return prof.get("industry") or "", summary
 
 
-# 산업분류상 들어갈 수 있는 테마가 정해진 업종. 여기 걸리는 업종의 기업이 목록 밖
-# 테마로 편입되면 코드로 제외한다(LLM 판단과 무관한 사실 기준).
-#
-# 근거(2026-09-15 사람 판정 원장 대조): KR에서 사람이 틀린 편입으로 확정한 116건 중
-# 21건이 이런 업종 불일치였다 - 현대해상이 배터리·구리·석유화학에, 코리안리(재보험)가
-# AI반도체에, 빙그레가 구리에, 코스맥스(화장품 ODM)가 게임에. 같은 규칙으로 사람이 정상
-# 판정한 행은 한 건도 걸리지 않았다. US 오류는 이런 유형이 없었다(경계 판단 오류뿐).
-#
-# 넣지 않은 업종과 이유: 항공사(대한항공은 항공우주 사업부가 실재), 리츠(데이터센터
-# 리츠), 가구·가전(코웨이 등 경계 모호), 통신(데이터센터·AI 사업), 보안(한화비전).
-# 산업분류가 없거나 틀린 종목은 규칙이 적용되지 않는다(조선사 보정은 kr_profile_overrides).
-INDUSTRY_THEME_ALLOW: list[tuple[tuple[str, ...], frozenset[str]]] = [
-    (("Insurance", "Banks", "Capital Markets", "Asset Management", "Credit Services",
-      "Financial Data", "Shell Companies"), frozenset()),
-    (("Packaged Foods", "Beverages", "Confectioners", "Food Distribution", "Farm Products",
-      "Grocery Stores", "Tobacco", "Restaurants"), frozenset({"k_food"})),
-    (("Household & Personal Products",), frozenset({"k_beauty"})),
-    (("Apparel", "Footwear", "Luxury Goods"), frozenset()),
-    (("Lodging", "Resorts & Casinos", "Travel Services"), frozenset({"travel_airline"})),
-    (("Electronic Gaming & Multimedia",), frozenset({"game"})),
-    (("Entertainment",), frozenset({"k_content"})),
-]
-
-
-def industry_theme_conflict(theme_id: str, ticker: str, profiles: dict[str, dict]) -> str | None:
-    """산업분류상 이 테마에 들어갈 수 없는 기업이면 그 산업분류를, 아니면 None."""
-    industry = (profiles.get(ticker) or {}).get("industry") or ""
-    if not industry:
-        return None
-    for prefixes, allowed in INDUSTRY_THEME_ALLOW:
-        if industry.startswith(prefixes):
-            return None if theme_id in allowed else industry
-    return None
+# 업종-테마 규칙은 src/analyzers/mapping_rules.py로 옮겼다(2026-10-23) - 매핑과 자동 점검
+# (scripts/check_mapping_rules.py)이 같은 목록을 쓰게. 여기서는 이름만 다시 내보낸다.
+from src.analyzers.mapping_rules import INDUSTRY_THEME_ALLOW, industry_theme_conflict  # noqa: E402,F401
 
 
 def _candidate_line(symbol: str, market: str, names: dict[str, str],

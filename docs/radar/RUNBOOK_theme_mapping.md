@@ -23,6 +23,11 @@ LLM 매핑에는 도구로 다 걸러지지 않는 오류가 남는다(2026-09-1
    - 초안은 판정 원장(`data/eval/mapping_decisions.json`)을 적용한 결과다. 이미 판정한
      (테마, 종목)은 `exclude`·`restore`에 자동으로 들어가 있고, **사람이 볼 것은 `needs_review`뿐**이다
    - `info_hold_in_run`은 판단보류로 유지했던 행이 이번 run에도 있는 경우
+   - **규칙 점검** `mapping_rules_KR.tsv`·`_US.tsv`(2026-10-23 추가, LLM 없음): 원장 판정이 없는 행 중
+     업종 불일치·규제 전력회사·지주사(같은 테마에 상장 자회사)·사업정보 근거 없음에 걸린 것.
+     감사가 놓친 것을 보충한다 - `needs_review`에 없더라도 여기 걸린 행은 함께 본다(자동 제외 아님).
+     근거 단어는 `config/theme_evidence_keywords.yaml`. 지금 소속을 바로 점검하려면 로컬에서
+     `python scripts/check_mapping_rules.py --market KR`(운영 사이트에서 읽음), 규칙을 고친 뒤에는 `--evaluate`로 원장 채점
 2. **검토 파일 작성** - 초안 json을 `data/eval/<버전>_manual_review_<날짜>.json`으로 저장한다.
    사람이 할 일은 두 가지다.
    - **`needs_review`를 판단해 `exclude`/`keep`으로 옮긴다** (처음 보는 경우만 여기 온다)
@@ -66,7 +71,7 @@ LLM 매핑에는 도구로 다 걸러지지 않는 오류가 남는다(2026-09-1
 
 - 유니버스 밖 티커, 시가총액 미달, 근거 15자 미만
 - 근거 주어 불일치(근거 문장이 다른 회사 이야기)
-- **업종-테마 불일치**(`INDUSTRY_THEME_ALLOW`, map_theme_companies.py): 금융·보험은 어떤 테마에도,
+- **업종-테마 불일치**(`INDUSTRY_THEME_ALLOW`, src/analyzers/mapping_rules.py - 2026-10-23 map_theme_companies.py에서 옮김): 금융·보험은 어떤 테마에도,
   식품은 K푸드에만, 화장품은 K뷰티에만, 게임사는 게임에만 등. 산업분류가 없거나 틀린 종목은
   적용 안 됨 - 산업분류 오류는 `data/kr_profile_overrides.json`으로 고친다
 

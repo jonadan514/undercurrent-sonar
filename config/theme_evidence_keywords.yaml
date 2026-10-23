@@ -1,0 +1,203 @@
+# 테마 소속 자동 점검(scripts/check_mapping_rules.py)의 "사업정보 근거" 규칙용 단어 목록.
+#
+# 기업의 사업정보(data/us_profiles.json·kr_profiles.json의 산업분류 + 긴 요약)에 아래 정규식 중
+# 하나도 없으면 "사업정보에서 테마 근거를 못 찾음"으로 사람 검토에 올린다. 자동 제외가 아니다 -
+# 요약이 짧거나 사업부 하나를 빠뜨린 경우가 있어서, 걸린 것은 사람이 본다.
+#
+# 원칙: 넓게 잡는다(빠뜨리는 것보다 덜 걸리는 게 낫다 - 이 규칙의 목적은 "근거가 전혀 없는" 소속을
+# 찾는 것이다). 테마 정의(themes.yaml value_chain)의 편입 항목마다 영문·한글 표현을 하나 이상 둔다.
+# 대소문자 무시. 2026-10-23 미국·한국 수작업 정의 대조(us_v8d·kr_v7d)와 판정 원장으로 채점해서 고른다.
+
+ai_semiconductor:
+  - '\bAI\b'
+  - 'artificial intelligence'
+  - '\bGPU'
+  - 'accelerat'
+  - '\bHBM\b'
+  - 'high[- ]bandwidth'
+  - 'data ?cent(er|re)'
+  - 'FC-?BGA'
+  - 'TC bonder'
+  - '인공지능'
+  - '가속기'
+  - '고대역폭'
+  - '데이터센터'
+  - '본더'
+  - '서버'
+  # 정의 (3) HBM·첨단 패키징 후공정(패키징·번인·테스트·핸들러), (4) AI 칩 기판
+  - 'bonder|burn-in|tester|test (system|socket|equipment)|handler|packag'
+  - 'substrate|printed circuit|\bPCB'
+  - 'memory|DRAM|NAND'
+  - '번인|테스트|핸들러|패키징|기판|메모리'
+datacenter_power:
+  - 'data ?cent(er|re)'
+  - 'uninterruptible|\bUPS\b'
+  - 'fuel cell'
+  - 'power (management|distribution|generation)'
+  - 'switchgear'
+  - 'independent power'
+  - '데이터센터'
+  - '연료전지'
+  - '무정전'
+  - '수배전'
+datacenter_cooling:
+  - 'data ?cent(er|re)'
+  - 'cooling|thermal'
+  - 'chiller|HVAC|air condition'
+  - '냉각|공조|열관리|칠러'
+ai_software:
+  # 이 테마의 오류(보안·IT 서비스·컨설팅사)는 다 AI를 말해서 단어로는 못 가린다 - 근거가 아예 없는
+  # 경우만 잡는다. 경계 판단은 감사·사람 몫(2026-10-23 채점: US 놓친 제외의 대부분이 이 테마).
+  - '\bAI\b|artificial intelligence|machine learning|generative|agent|LLM'
+  - 'software|platform|cloud'
+  - '인공지능|소프트웨어|플랫폼'
+semi_equipment:
+  # 'semiconductor'·'반도체' 한 단어는 근거로 치지 않는다 - 칩 설계·제조사(NVDA·AMD·MU, 정의의
+  # '팹리스 칩 설계사' 제외 항목)도 다 갖고 있다. 장비·소재·부품이라는 말이 있어야 한다.
+  - 'semiconductor (equipment|material|manufacturing equipment|capital|process|test|production equipment|parts)'
+  - 'wafer'
+  - 'photoresist|slurry|precursor|quartz|ceramic|probe card|socket|blank ?mask'
+  - 'etch|deposition|lithograph|inspection|metrology|anneal|cleaning|bonder|burn-in|tester|handler|packag'
+  - '반도체 ?(장비|소재|재료|부품|공정)'
+  - '웨이퍼'
+  - '증착|식각|노광|세정|계측|검사|본더|번인|핸들러|패키징'
+  - '프로브|소켓|포토레지스트|전구체|석영|세라믹|블랭크'
+power_grid:
+  - 'transmission|distribution'
+  - 'transformer|switchgear|circuit breaker'
+  - 'grid|substation|utility'
+  - 'HVDC'
+  - '송전|배전|송배전'
+  - '변압기|차단기|개폐기|배전반|변전'
+  - '전력망|전력기기|중전기'
+nuclear_smr:
+  - 'nuclear'
+  - 'reactor'
+  - 'uranium|enrichment'
+  - '원자력|원전|원자로|핵연료'
+renewable_energy:
+  - 'solar|photovoltaic'
+  - '\bwind\b|wind (turbine|tower|power|energy)'
+  - 'renewable'
+  - 'geothermal'
+  - 'polysilicon'
+  - '태양광|태양전지|풍력|재생에너지|폴리실리콘'
+energy_storage:
+  - 'energy storage'
+  - '\bESS\b'
+  - 'storage system'
+  - 'battery'
+  - '에너지저장|에너지 저장|전력저장'
+  - 'power storage|storage device'
+  - '배터리|이차전지|2차전지'
+lng_gas:
+  - 'natural gas'
+  - '\bLNG\b'
+  - 'pipeline|midstream'
+  - 'liquefied'
+  - 'gas carrier|tanker'
+  - '천연가스|도시가스|가스 공급|LNG'
+cable_wire:
+  - 'cable'
+  - '\bwire\b|wire and|wires'
+  - 'fiber|fibre'
+  - '전선|케이블|해저'
+shipbuilding:
+  - 'ship|vessel|naval|marine|offshore'
+  - '조선|선박|해양|함정|화물창|보냉'
+defense:
+  - 'defen[cs]e'
+  - 'military|weapon|missile|munition|ammunition'
+  - 'armored|radar|navy|naval|army|warship'
+  - '방산|방위|국방|군용|무기|탄약|유도|레이더|함정'
+aerospace_space:
+  - 'aerospace|aircraft|aviation|airframe|jet engine|engine'
+  - 'satellite|space|launch|rocket'
+  - '항공|우주|위성|발사체'
+construction_machinery:
+  - 'construction (equipment|machinery)'
+  - 'excavator|loader|crane|compact equipment|heavy (equipment|machinery)'
+  - 'hydraulic'
+  - '건설기계|굴착기|중장비|유압'
+infra_construction:
+  - 'infrastructure'
+  - 'civil|engineering and construction|construction services|EPC'
+  - 'plant|transportation|highway|bridge'
+  - '토목|플랜트|인프라|SOC|건설'
+factory_automation:
+  - 'automation|automated'
+  - 'robot'
+  - 'machine vision|vision system'
+  - 'motion control|machine tool'
+  - '자동화|로봇|머신비전|공작기계|물류'
+glp1_obesity:
+  - 'obes'
+  - 'GLP-?1'
+  - 'weight (loss|management)'
+  - 'incretin'
+  - 'diabet'
+  - '비만|당뇨'
+biosimilar:
+  - 'biosimilar'
+  - '바이오시밀러'
+cdmo:
+  - '\bCDMO\b|\bCMO\b|contract (development|manufactur)'
+  - '위탁(개발|생산)'
+medical_device:
+  - 'medical (device|equipment|instrument|technolog)'
+  - 'diagnos'
+  - 'implant|surgical|imaging|monitoring'
+  - '의료기기|의료용|진단|임플란트|수술'
+neuro_alzheimer:
+  - 'alzheimer|parkinson|dementia'
+  - 'neuro|central nervous|CNS'
+  - 'epilep|schizophren|depress|migraine|multiple sclerosis'
+  - '치매|알츠하이머|파킨슨|신경|뇌전증|중추신경'
+k_beauty:
+  - 'cosmetic|beauty|skin ?care|makeup'
+  - '화장품|뷰티|스킨케어'
+k_food:
+  - 'food|noodle|ramen|snack|beverage|confection|seasoning|sauce|dairy|liquor|seafood'
+  - '식품|라면|음료|주류|제과|장류|조미료|수산|육가공'
+k_content:
+  - 'entertainment|music|drama|film|movie|broadcast|content|artist|webtoon'
+  - '엔터|음반|공연|드라마|영화|방송|콘텐츠|아티스트|웹툰'
+game:
+  - 'game|gaming'
+  - '게임'
+travel_airline:
+  - 'airline|air transport|travel|hotel|resort|casino|lodging|cruise|duty[- ]free|vacation|rental car|car rental|tour'
+  - '항공|여행|호텔|리조트|카지노|면세|관광|숙박'
+battery:
+  - 'battery|batteries'
+  - 'cathode|anode|electrolyte|separator|copper foil|lithium'
+  - '배터리|이차전지|2차전지|양극재|음극재|전해질|분리막|동박|리튬'
+ev_value_chain:
+  - 'electric vehicle|\bEVs?\b|electrified|hybrid'
+  - 'charging|charger'
+  - 'battery|batteries|cathode|lithium'
+  - 'inverter|e-?motor|electric motor|power ?train'
+  - '전기차|충전|배터리|양극재|구동'
+autonomous_driving:
+  - 'autonomous|self-driving|driverless|robotaxi'
+  - 'ADAS|driver assistance|lidar|radar|sensor|camera'
+  - '자율주행|운전자 보조|라이다|레이더|센서'
+physical_ai:
+  - 'robot'
+  - 'actuator|reducer|servo|motion'
+  - 'machine vision|camera module|lidar|sensor'
+  - 'edge AI|\bAI\b'
+  - '로봇|감속기|서보|액추에이터|구동부|센서|카메라 모듈'
+rare_earth:
+  - 'rare earth|critical mineral|lithium|nickel|cobalt|antimony|magnet|mining|recycl'
+  - '희토류|핵심광물|리튬|니켈|코발트|자석|광산|재활용|제련'
+copper_metals:
+  - 'copper|alumin|nickel|non-ferrous|alloy|brass'
+  - '구리|동|알루미늄|니켈|비철|합금|신동'
+specialty_gas:
+  - 'specialty gas|industrial gas|electronic (material|chemical)|high[- ]purity|precursor|etchant|photoresist|slurry|NF3|WF6'
+  - 'semiconductor (material|chemical)|process chemical'
+  - '특수가스|산업용 가스|전자재료|고순도|전구체|식각액|포토레지스트|슬러리|PGMEA|블랭크'
+petrochemical:
+  - 'petrochemical|ethylene|propylene|naphtha|polymer|resin|synthetic rubber|plastic|refin|olefin'
+  - '석유화학|에틸렌|프로필렌|나프타|합성수지|합성고무|정유|기초유분'

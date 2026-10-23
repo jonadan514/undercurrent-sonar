@@ -92,6 +92,21 @@ jobs:
             python scripts/apply_decision_ledger.py --run-id "$RID" --market $M --audit "out/evidence_audit_${RID}_${M}.json"
           done
 
+      # 규칙 점검(LLM 없음): 업종 불일치·규제 전력회사·지주사·사업정보 근거 없음. 원장 판정이 없는 행 중
+      # 걸린 것만 out/mapping_rules_<시장>.tsv로 - 감사와 함께 사람이 볼 후보다(자동 제외 아님).
+      # 2026-10-23 원장 채점: 사람이 뺀 소속 KR 70%·US 42%를 잡고, 사람이 유지한 소속 KR 15%·US 8%에 헛걸림.
+      - name: Check mapping rules
+        if: steps.map.outputs.run_id != ''
+        continue-on-error: true
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          for M in KR US; do
+            python scripts/check_mapping_rules.py --market $M --source db --run-id "${{ steps.map.outputs.run_id }}"
+          done
+
       - name: Upload audit results
         if: always()
         uses: actions/upload-artifact@v4
@@ -100,6 +115,7 @@ jobs:
           path: |
             out/evidence_audit_*
             out/review_draft_*
+            out/mapping_rules_*
           if-no-files-found: warn
 
       - name: Notify review needed
