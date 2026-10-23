@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import PageHeader from "@/src/components/PageHeader";
+import GlossarySection from "@/src/components/GlossarySection";
 
 const GUIDE_SECTIONS = [
   { href: "/",           icon: "⊡", label: "개요",        desc: "접속 시작점. 맨 위 \"이번 주 변화\" 칸(후보·실적 반전·실적 발표·한국 공시·내부자 매수·노트 회고)을 누르면 해당 목록으로. 매크로 카드는 1년 그래프·범위까지." },
@@ -56,6 +57,13 @@ export default function GuidePage() {
             <span style={{ color: "#ffb020" }}>◉</span>
             각 기능의 원리·해석법 세부 설명서 보기 →
           </Link>
+          <a
+            href="#glossary"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-xl px-3 py-1.5 transition-colors"
+            style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+          >
+            📖 용어 사전
+          </a>
         </div>
       </div>
 
@@ -390,6 +398,8 @@ export default function GuidePage() {
           ))}
         </div>
       </Card>
+
+      <GlossarySection />
 
       <p className="text-[12px] text-center pb-4" style={{ color: "#423e33" }}>
         Undercurrent Sonar는 투자 참고 도구입니다. 최종 투자 판단과 책임은 항상 본인에게 있습니다.

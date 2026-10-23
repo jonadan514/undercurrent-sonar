@@ -693,7 +693,7 @@ export default function RadarPage() {
   // 폭: 896px(max-w-4xl)에서 다른 화면과 같은 1280px로(2026-10-04). 설명 문단은 읽기 좋게 ch 단위 폭을 유지한다.
   return (
     <div className="mx-auto max-w-[1280px]" style={{ color: "var(--text-primary)" }}>
-      <PageHeader title="이번 주 움직인 테마"
+      <PageHeader title="이번 주 움직인 테마" intro="radar"
         asOf={!loading && <AsOf date={weekStart} cadence="매주 월요일 아침" staleDays={14} />}
         desc="종합 점수도, 매수 추천도 없습니다. 뉴스·실적·주가 세 축을 각각 보여주고, 정해진 조합에만 이름을 붙입니다 — 나머지는 화살표로만 남겨둡니다." />
 

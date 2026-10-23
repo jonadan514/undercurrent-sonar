@@ -191,7 +191,7 @@ export default function ScorecardPage() {
   if (error) {
     return (
       <div className="space-y-2">
-        <PageHeader title="성적표" desc="과거 워치리스트 후보의 수익률과, 브리핑·레이더 신호의 사후 확인." />
+        <PageHeader title="성적표" intro="scorecard" desc="과거 워치리스트 후보의 수익률과, 브리핑·레이더 신호의 사후 확인." />
         <EmptyState title="아직 집계된 후보 수익률이 없습니다" hint="매주 일요일 밤 자동 집계 뒤 표시됩니다. 아래 신호 사후 확인은 따로 집계됩니다." />
         <SignalSection market={market} />
       </div>
@@ -215,7 +215,7 @@ export default function ScorecardPage() {
 
   return (
     <div className="space-y-2">
-      <PageHeader title="성적표"
+      <PageHeader title="성적표" intro="scorecard"
         asOf={<InfoTooltip content="과거 후보·신호에 실제 주가를 대조한 사후 검증입니다. 결과가 기대와 다를 수 있고, 그게 이 화면의 목적입니다." />}
         desc={data.earliest_date && data.latest_date
           ? `워치리스트 후보 ${data.earliest_date} ~ ${data.latest_date} · ${data.total_picks}개, 아래는 브리핑·레이더 신호의 사후 확인`

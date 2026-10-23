@@ -4,6 +4,7 @@
 // 레이더는 "이번 주 한 칸"만 보여서 실적 -> 주가 -> 뉴스 순서가 실제로 일어나는지 볼 수 없었다.
 // 세 축은 합치지 않고 한 줄씩 둔다(원칙 1). 계산 불가(na)는 하락처럼 칠하지 않는다(원칙 4).
 
+import PageIntro from "@/src/components/PageIntro";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import StockLink from "@/src/components/StockLink";
 import Link from "next/link";
@@ -275,6 +276,7 @@ function ThemeHistory() {
           <p className="text-[12px]" style={{ color: FAINT }}>{en} · {market === "US" ? "미국" : "한국"} · 흐름 이력 {WEEKS}주</p>
         </div>
       </div>
+      <PageIntro k="radar_theme" />
 
       {loading ? (
         <div className="py-16 text-center" style={{ color: MUTED }}>불러오는 중...</div>

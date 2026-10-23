@@ -63,7 +63,7 @@ export default function NotesPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 pb-10">
-      <PageHeader title="관찰 노트"
+      <PageHeader title="관찰 노트" intro="notes"
         desc="테마·종목에 남긴 가설과, 4주·12주 뒤 그때와 지금. 판단은 직접 하고 배운 점을 한 줄씩 쌓습니다." />
 
       {judged + Object.keys(expectStats).length > 0 && (

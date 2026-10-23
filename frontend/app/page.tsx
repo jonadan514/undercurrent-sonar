@@ -1,5 +1,6 @@
 "use client";
 
+import WelcomePanel from "@/src/components/WelcomePanel";
 import { useEffect, useState } from "react";
 import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
@@ -126,9 +127,11 @@ export default function HomePage() {
 
   return (
     <div className="space-y-3">
+      {/* 첫 방문 안내 - 닫으면 이 브라우저에서는 안 보인다(2026-10-23) */}
+      <WelcomePanel />
       {/* Title */}
       {/* 공통 머리말(2026-10-21 외형 점검) - 시장은 위 탭에 있어 제목에서 뺐다. 갱신 주기는 칸마다 기준일 표시가 있다. */}
-      <PageHeader title="이번 주 물밑 흐름"
+      <PageHeader title="이번 주 물밑 흐름" intro="home"
         prefix={<IndexBadge><FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{indexName}</IndexBadge>} />
 
       {/* 이번 주 변화 - 무엇이 새로 생겼나만 모아 해당 화면으로 보낸다(2026-10-20). 숫자는 워치리스트·주간 브리핑 값 그대로. */}

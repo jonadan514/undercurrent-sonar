@@ -761,7 +761,7 @@ export default function BriefingPage() {
 
   return (
     <div className="max-w-5xl">
-      <PageHeader title="주간 브리핑"
+      <PageHeader title="주간 브리핑" intro="briefing"
         asOf={!loading && <AsOf date={briefings[0]?.week} cadence="매주 월요일 아침" staleDays={8} />}
         desc="지난주를 돌아보고 이번 주를 준비하는 문서. 한 주씩 봅니다 - 맨 위 ⭐ 관심 종목에 생긴 일부터, 목차를 누르면 그 칸으로." />
 

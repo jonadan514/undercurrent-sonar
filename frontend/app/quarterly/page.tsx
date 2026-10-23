@@ -503,7 +503,7 @@ export default function QuarterlyPage() {
   // 폭: 896px(max-w-4xl)이라 소속 기업 표가 좁고 줄바꿈이 많았다 - 워치리스트와 같은 1280px(2026-10-04)
   return (
     <div className="mx-auto max-w-[1280px]" style={{ color: "var(--text-primary)" }}>
-      <PageHeader title="이번 분기 테마 4칸 분류"
+      <PageHeader title="이번 분기 테마 4칸 분류" intro="quarterly"
         desc="순위도, 매수 추천도 없습니다. 재무 신호와 뉴스 비율 두 축을 각각 보여주고, 두 축이 어긋나는 자리를 가장 먼저 보시라고 권합니다." />
 
       {!loading && fiscalYear != null && (

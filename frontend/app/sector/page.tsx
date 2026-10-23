@@ -7,6 +7,7 @@ import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import PageHeader, { IndexBadge } from "@/src/components/PageHeader";
+import PageIntro from "@/src/components/PageIntro";
 import EmptyState from "@/src/components/EmptyState";
 
 // 경기 사이클 판정(회복기·성장기 등)은 2026-10-20에 화면에서 뺐다 - 대표 섹터 3개씩의 1달 RS 평균 중 최댓값을
@@ -110,6 +111,7 @@ export default function SectorPage() {
           ? "코스피200 섹터지수(정보기술·금융 등) + 유틸리티 업종지수(전기·가스) 기반 상대강도 분석입니다. KRX 지수를 받지 못하면 섹터별 대표 종목 평균으로 계산합니다."
           : "11개 SPDR ETF 기반 섹터 순환 분석입니다. SPY 대비 상대 강도(RS)로 경기 사이클을 판단합니다."} />
       </div>
+      <PageIntro k="sector" />
 
       {/* 전환 중인 섹터 + 선행·후행 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

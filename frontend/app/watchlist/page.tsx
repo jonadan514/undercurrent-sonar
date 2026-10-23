@@ -1513,7 +1513,7 @@ export default function WatchlistPage() {
       )}
 
       {/* 헤더 */}
-      <PageHeader title="워치리스트"
+      <PageHeader title="워치리스트" intro="watchlist"
         asOf={!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
         desc="재무 건전성 필터(트랩 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·네러티브를 한 화면에." />
 
