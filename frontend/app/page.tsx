@@ -8,6 +8,7 @@ import AsOf from "@/src/components/AsOf";
 import { LABEL_KO } from "@/src/lib/labelNames";
 import { Section, StatTile } from "@/src/components/Section";
 import PageHeader from "@/src/components/PageHeader";
+import { quarterLabel } from "@/src/lib/institutions";
 
 // radar/page.tsx의 편집 방침과 같은 순서 (SPEC §6.2) — 페이지별 상수 유지 관행.
 const LABEL_ORDER = ["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment", "Overheated Buzz", "Full Decline"];
@@ -57,9 +58,12 @@ const MKT_NAME: Record<Mkt, { flag: string; name: string; sub: string }> = {
 
 // 개요 한 장(2026-10-25 사용자 의견) - 예전엔 위 시장 탭으로 미국/한국을 바꿔 봐야 했는데, 매크로는 같고
 // "이번 주 변화"는 칸이 몇 개뿐이라 두 시장을 한 화면에 단락으로 나란히 두고 매크로는 한 번만.
-function MarketBlock({ m, brief, cands, radar, onRadar }: {
+// 유명 투자자 13F 요약(미국 단락만, 2026-10-25) - /api/investors 값 그대로
+type Inst13f = { period: string; filed: string; newTotal: number; shared: string[]; sharedCount: number };
+
+function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
   m: Mkt; brief: WeekBrief | null; cands: { total: number; fresh: number | null } | null;
-  radar: Record<string, number> | null; onRadar: () => void;
+  radar: Record<string, number> | null; onRadar: () => void; inst?: Inst13f | null;
 }) {
   const ta = brief?.turnaround, ew = brief?.earnings_week, kd = brief?.kr_disclosures, ins = brief?.insider_week;
   const wl = `/watchlist?market=${m}`;
@@ -110,6 +114,17 @@ function MarketBlock({ m, brief, cands, radar, onRadar }: {
         </span>
         <span className="ml-auto shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>보기 →</span>
       </a>
+      {m === "US" && inst && (
+        <a href="/investors" className="mt-1.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] hover:brightness-125"
+          style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+          <span className="shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>유명 투자자 13F</span>
+          <span className="min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>
+            {quarterLabel(inst.period)} 말 · 새로 산 종목 {inst.newTotal}
+            {inst.sharedCount > 0 ? ` · 2곳 이상 함께: ${inst.shared.join(", ")}${inst.sharedCount > inst.shared.length ? ` 외 ${inst.sharedCount - inst.shared.length}` : ""}` : ""}
+          </span>
+          <span className="ml-auto shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>보기 →</span>
+        </a>
+      )}
       {cands?.total === 0 && (
         <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>이번 주 통과 후보가 없습니다. GitHub → Actions → Weekly Watchlist Screen 실행 여부를 확인하세요.</p>
       )}
@@ -128,6 +143,7 @@ export default function HomePage() {
   const [macroHist, setMacroHist] = useState<Record<string, Point[]>>({});
   const [openMacro, setOpenMacro] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [inst, setInst] = useState<Inst13f | null>(null);
 
   useEffect(() => {
     const markets: Mkt[] = ["US", "KR"];
@@ -144,6 +160,14 @@ export default function HomePage() {
         return counts;
       }).catch(() => ({} as Record<string, number>)));
     Promise.all(radarReq).then(([us, kr]) => setRadar({ US: us, KR: kr }));
+    fetch("/api/investors").then(r => r.json())
+      .then(d => {
+        const ms: { period: string; filed_on: string; counts: { new: number } }[] = Array.isArray(d?.managers) ? d.managers : [];
+        if (!ms.length) return setInst(null);
+        const sh: { ticker: string }[] = Array.isArray(d?.shared) ? d.shared : [];
+        setInst({ period: ms.reduce((p, x) => (x.period > p ? x.period : p), ""), filed: ms.reduce((p, x) => (x.filed_on > p ? x.filed_on : p), ""),
+          newTotal: ms.reduce((n, x) => n + (x.counts?.new ?? 0), 0), shared: sh.slice(0, 4).map(t => t.ticker), sharedCount: sh.length });
+      }).catch(() => setInst(null));
     // 매크로는 두 시장에 걸치는 배경 정보라 한 번만
     fetch("/api/data/macro")
       .then(r => r.json())
@@ -177,7 +201,7 @@ export default function HomePage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         {(["US", "KR"] as Mkt[]).map((m) => (
-          <MarketBlock key={m} m={m} brief={brief} cands={cands[m]} radar={radar[m]} onRadar={() => setMarket(m)} />
+          <MarketBlock key={m} m={m} brief={brief} cands={cands[m]} radar={radar[m]} onRadar={() => setMarket(m)} inst={inst} />
         ))}
       </div>
 
