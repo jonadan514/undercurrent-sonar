@@ -1,0 +1,25 @@
+name: Probe 13F Filers
+
+# 읽기 전용 - 13F 운용사 CIK 확인(2026-10-25). 저장 안 함.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Probe
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/probe_13f_filers.py

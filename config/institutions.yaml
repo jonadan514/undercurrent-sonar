@@ -1,0 +1,19 @@
+# 13F 추적 운용사(2026-10-25 사용자 선택 15곳). 분기마다 SEC 13F-HR(분기 말 미국 상장주식 매수 보유)을 받아 직전 분기와 비교한다.
+# cik: SEC 등록번호 - scripts/probe_13f_filers.py로 EDGAR에서 이름·최근 13F를 확인하고 고정한다.
+# style: 화면 태그(장기 가치 / 성장 / 롱숏 / 매크로 / 행동주의). 점수가 아니라 누가 샀는지 성격을 보이게 하는 표시.
+managers:
+  - {id: berkshire,   ko: 버크셔 해서웨이,      en: Berkshire Hathaway,          style: 장기 가치, search: "BERKSHIRE HATHAWAY INC",           cik: 1067983}
+  - {id: baupost,     ko: 바우포스트 (클라만),  en: Baupost Group,               style: 장기 가치, search: "BAUPOST GROUP",                    cik: 1061768}
+  - {id: himalaya,    ko: 히말라야 (리루),      en: Himalaya Capital,            style: 장기 가치, search: "HIMALAYA CAPITAL MANAGEMENT",      cik: 1709323}
+  - {id: akre,        ko: 아크레,               en: Akre Capital Management,     style: 장기 가치, search: "AKRE CAPITAL MANAGEMENT",          cik: 1112520}
+  - {id: russo,       ko: 가드너 루소 (톰 루소), en: Gardner Russo & Quinn,      style: 장기 가치, search: "GARDNER RUSSO",                    cik: 860643}
+  - {id: baillie,     ko: 베일리 기포드,        en: Baillie Gifford,             style: 성장,      search: "BAILLIE GIFFORD",                  cik: 1088875}
+  - {id: fundsmith,   ko: 펀드스미스 (테리 스미스), en: Fundsmith,               style: 성장,      search: "FUNDSMITH",                        cik: 1569205}
+  - {id: lonepine,    ko: 론 파인,              en: Lone Pine Capital,           style: 롱숏,      search: "LONE PINE CAPITAL",                cik: 1061165}
+  - {id: duquesne,    ko: 듀케인 (드러켄밀러),  en: Duquesne Family Office,      style: 매크로,    search: "DUQUESNE FAMILY OFFICE",           cik: 1536411}
+  - {id: appaloosa,   ko: 아팔루사 (테퍼),      en: Appaloosa,                   style: 매크로,    search: "APPALOOSA",                        cik: 1656456}
+  - {id: soros,       ko: 소로스 펀드,          en: Soros Fund Management,       style: 매크로,    search: "SOROS FUND MANAGEMENT",            cik: 1029160}
+  - {id: pershing,    ko: 퍼싱스퀘어 (애크먼),  en: Pershing Square,             style: 행동주의,  search: "PERSHING SQUARE CAPITAL MANAGEMENT", cik: 1336528}
+  - {id: elliott,     ko: 엘리엇,               en: Elliott Investment Management, style: 행동주의, search: "ELLIOTT INVESTMENT MANAGEMENT",   cik: 1791786}
+  - {id: thirdpoint,  ko: 서드 포인트 (로브),   en: Third Point,                 style: 행동주의,  search: "THIRD POINT LLC",                  cik: 1040273}
+  - {id: icahn,       ko: 아이칸,               en: Carl Icahn,                  style: 행동주의,  search: "ICAHN CARL C",                     cik: 921669}
