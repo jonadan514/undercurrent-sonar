@@ -38,10 +38,11 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS inst_13f_positions (
       manager_id TEXT NOT NULL, period TEXT NOT NULL, cusip TEXT NOT NULL, put_call TEXT NOT NULL,
       ticker TEXT, issuer TEXT, title TEXT, shares REAL, value REAL, weight REAL,
-      status TEXT, prev_shares REAL, share_chg REAL, filed_on TEXT, computed_at TEXT NOT NULL,
+      status TEXT, prev_shares REAL, share_chg REAL, filed_on TEXT, computed_at TEXT NOT NULL, prev_value REAL,
       PRIMARY KEY (manager_id, period, cusip, put_call))""",
     "CREATE INDEX IF NOT EXISTS idx_13f_pos_ticker ON inst_13f_positions(ticker)",
 ]
+LATE_COLUMNS = [("inst_13f_positions", "prev_value", "REAL")]   # 직전 분기 평가액 - 전량 매도를 크기 순으로(2026-10-25)
 
 
 def _log(msg: str) -> None:
@@ -87,9 +88,10 @@ def rebuild_positions(conn, manager_id: str, now: str) -> list[str]:
             chunk = rows[i:i + 100]
             conn.execute(
                 "INSERT INTO inst_13f_positions (manager_id, period, cusip, put_call, ticker, issuer, title, shares, value, weight, status, "
-                "prev_shares, share_chg, filed_on, computed_at) VALUES " + ", ".join(["(?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"] * len(chunk)),
+                "prev_shares, share_chg, filed_on, computed_at, prev_value) VALUES "
+                + ", ".join(["(?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"] * len(chunk)),
                 tuple(v for r in chunk for v in (manager_id, p, r["cusip"], r["put_call"], r["issuer"], r["title"], r["shares"], r["value"],
-                                                 r["weight"], r["status"], r["prev_shares"], r["share_chg"], filed, now)))
+                                                 r["weight"], r["status"], r["prev_shares"], r["share_chg"], filed, now, r.get("prev_value"))))
         prev, prev_period = cur, p
     return periods
 
@@ -109,6 +111,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--quarters", type=int, default=5, help="최근 몇 분기(비교용으로 하나 더)")
     ap.add_argument("--managers", nargs="*", default=None)
+    ap.add_argument("--rebuild", action="store_true", help="새 신고가 없어도 받은 신고로 분기 보유·비교를 다시 계산")
     args = ap.parse_args()
 
     managers = yaml.safe_load(open(ROOT / "config" / "institutions.yaml", encoding="utf-8"))["managers"]
@@ -118,6 +121,11 @@ def main() -> int:
     conn = get_db()
     for d in DDL:
         conn.execute(d)
+    for table, col, typ in LATE_COLUMNS:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+        except Exception:  # noqa: BLE001 - 이미 있음
+            pass
     seen = {r[0] for r in conn.execute("SELECT accession FROM inst_13f_filings").fetchall()}
     s = session()
     now = datetime.utcnow().isoformat(timespec="seconds")
@@ -145,7 +153,7 @@ def main() -> int:
             new_filings += 1
             _log(f"{m['id']} {quarter_label(f['period'])} {f['form']}{' ' + got['amendment_type'] if got['amendment_type'] else ''} "
                  f"{f['filed']} 종목 {len(rows)}줄 (신고 합계 {got['entries']}줄)")
-        if todo:
+        if todo or args.rebuild:
             periods = rebuild_positions(conn, m["id"], now)
             changed.append(m["id"])
             conn.commit()
@@ -180,7 +188,7 @@ def main() -> int:
         new = conn.execute("SELECT COALESCE(ticker, issuer), value FROM inst_13f_positions WHERE manager_id = ? AND period = ? AND status = 'new' "
                            "AND put_call = '' ORDER BY value DESC LIMIT 5", (m["id"], p)).fetchall()
         sold = conn.execute("SELECT COALESCE(ticker, issuer) FROM inst_13f_positions WHERE manager_id = ? AND period = ? AND status = 'sold' "
-                            "AND put_call = '' ORDER BY prev_shares DESC LIMIT 5", (m["id"], p)).fetchall()
+                            "AND put_call = '' ORDER BY prev_value DESC LIMIT 5", (m["id"], p)).fetchall()
         _log(f"{m['id']} {quarter_label(p)}: {cnt} · 새로 {[f'{t} ${v / 1e6:,.0f}M' for t, v in new]} · 전량 매도 {[t for (t,) in sold]}")
     conn.close()
     _log(f"완료 - 새 신고 {new_filings}건, 다시 계산 {len(changed)}곳")

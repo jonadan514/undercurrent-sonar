@@ -126,11 +126,11 @@ def diff_positions(prev: dict | None, cur: dict) -> list[dict]:
         else:
             chg = (v["shares"] - p["shares"]) / p["shares"]
             status = "added" if chg > 0.001 else "reduced" if chg < -0.001 else "same"
-        out.append({**v, "prev_shares": p["shares"] if p else None, "share_chg": chg, "status": status})
+        out.append({**v, "prev_shares": p["shares"] if p else None, "prev_value": p["value"] if p else None, "share_chg": chg, "status": status})
     if prev is not None:
         for k, p in prev.items():
             if k not in cur and p["shares"]:
-                out.append({**p, "shares": 0.0, "value": 0.0, "prev_shares": p["shares"], "share_chg": -1.0, "status": "sold"})
+                out.append({**p, "shares": 0.0, "value": 0.0, "prev_shares": p["shares"], "prev_value": p["value"], "share_chg": -1.0, "status": "sold"})
     return out
 
 
