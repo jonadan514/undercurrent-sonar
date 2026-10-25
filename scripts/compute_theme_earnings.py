@@ -31,12 +31,17 @@ sys.path.insert(0, str(ROOT / "src"))
 from src.db.data_store import get_db
 from src.db.fundamentals_cache import ensure_schema as ensure_fundamentals_schema, get_cached_financials_bulk
 from src.db.theme_signals import (ensure_schema, signal_week_monday, get_approved_theme_members, get_surprises,
-                                   upsert_earn_signal, upsert_member_earnings)
+                                   upsert_earn_signal, upsert_member_earnings, upsert_member_fcf)
 from analyzers.theme_earnings import (classify_company_earnings, compute_earn_signal,
                                       reference_growth_for_market, yoy_growth)
 from analyzers.company_growth import quarterly_margin_change
 from collectors.watchlist_collector import get_kr_universe, get_us_universe
 from collectors.earnings_surprise_collector import summarize_theme
+from src.analyzers.company_cashflow import fcf_yield
+from src.analyzers.trap_filter import FINANCIAL_SECTORS
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from compute_watchlist_valuation import income_periods  # noqa: E402 - 연차 DataFrame -> [(기간, dict)] 변환을 같이 쓴다
 
 THEMES_YAML = ROOT / "config" / "themes.yaml"
 
@@ -53,6 +58,25 @@ def load_active_themes(theme_ids: list[str] | None) -> tuple[list[dict], dict]:
         wanted = set(theme_ids)
         themes = [t for t in themes if t["id"] in wanted]
     return themes, data.get("config", {})
+
+
+def member_fcf(data: dict | None, universe_cap: float | None) -> dict:
+    """테마 동료 비교(종목 상세)용 FCF 수익률 - 워치리스트 상세 카드와 같은 계산(company_cashflow.fcf_yield).
+    시가총액은 넘겨받은 값(워치리스트 후보 → 한국 유니버스 파일 순) 먼저, 없으면 캐시된 info.marketCap. 금융업은 계산하지 않는다
+    (예금·보험료 흐름이 영업현금흐름에 섞인다 - compute_watchlist_valuation과 같은 기준). 못 구하면 None(데이터부족)."""
+    none = {"yield_3y": None, "negative_years": None}
+    if not data:
+        return none
+    info = data.get("info") or {}
+    if any(sec in str(info.get("sector") or "") for sec in FINANCIAL_SECTORS):
+        return none
+    cap = universe_cap or info.get("marketCap")
+    try:
+        cap = float(cap) if cap else None
+    except (TypeError, ValueError):
+        cap = None
+    r = fcf_yield(income_periods(data.get("cashflow")), cap)
+    return {"yield_3y": r["yield_3y"], "negative_years": r["negative_years"]}
 
 
 def main() -> None:
@@ -103,11 +127,14 @@ def main() -> None:
     # 기준 성장률의 표본은 테마 소속이 아니라 **시장 유니버스 전체**다(2026-09-21 수정).
     # 소속 기업이 곧 표본이면 절반이 자동으로 기준 위에 놓여 개선 비율이 0.5 근처로 쏠린다.
     universe_by_market: dict[str, list[str]] = {}
+    universe_cap: dict[str, float] = {}   # FCF 수익률용 시가총액(한국 유니버스 파일에만 있다)
     for market, getter in (("US", get_us_universe), ("KR", get_kr_universe)):
         if not any(mk == market for _, mk in members_by_theme_market):
             continue
         try:
-            universe_by_market[market] = [it["symbol"] for it in getter()]
+            items = getter()
+            universe_by_market[market] = [it["symbol"] for it in items]
+            universe_cap.update({it["symbol"]: it["market_cap"] for it in items if it.get("market_cap")})
         except Exception as e:  # noqa: BLE001 - 유니버스를 못 읽으면 소속 기업만으로 폴백한다
             _log(f"{market} 유니버스 로드 실패 {type(e).__name__}: {str(e)[:80]} - 소속 기업만으로 기준선 계산")
             universe_by_market[market] = []
@@ -153,6 +180,15 @@ def main() -> None:
     surprises = get_surprises(conn, sorted(all_tickers))
     _log(f"서프라이즈 보유 {len(surprises)}/{len(all_tickers)}종목")
 
+    # 시가총액은 워치리스트 후보 값이 있으면 그것부터 - 같은 종목의 상세 카드 FCF 수익률(compute_watchlist_valuation)과 숫자가 같게
+    try:
+        for sym, cap in conn.execute("SELECT symbol, market_cap FROM watchlist_candidates WHERE market_cap IS NOT NULL").fetchall():
+            universe_cap[sym] = float(cap)
+    except Exception as e:  # noqa: BLE001 - 후보 표가 없으면 유니버스·info 값으로
+        _log(f"후보 시가총액 조회 실패 {type(e).__name__} - 유니버스·캐시 값으로")
+    fcf_by_ticker = {t: member_fcf(financials.get(t), universe_cap.get(t)) for t in all_tickers}
+    _log(f"FCF 수익률(3년 평균) 계산 {sum(1 for v in fcf_by_ticker.values() if v['yield_3y'] is not None)}/{len(all_tickers)}종목")
+
     now = datetime.utcnow().isoformat()
     for (theme_id, market), members in members_by_theme_market.items():
         result = compute_earn_signal(members, revenue_by_ticker, thresholds,
@@ -181,6 +217,8 @@ def main() -> None:
             member_rows.append((theme_id, market, week_start, m["ticker"], yoy_growth(rev), q_label, status,
                                 om.get("now"), om.get("change"), om.get("status"), now))
         upsert_member_earnings(conn, member_rows)
+        upsert_member_fcf(conn, [(theme_id, market, week_start, m["ticker"], fcf_by_ticker[m["ticker"]]["yield_3y"],
+                                  fcf_by_ticker[m["ticker"]]["negative_years"], now) for m in members])
         conn.commit()
 
     conn.close()

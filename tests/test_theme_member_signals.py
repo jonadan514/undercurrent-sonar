@@ -40,3 +40,14 @@ def test_late_columns_added_to_existing_table():
     ensure_schema(conn)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(theme_member_signals)")}
     assert {"om_now", "om_change", "om_status"} <= cols
+
+
+def test_fcf_columns_merge_into_member_row():
+    from src.db.theme_signals import upsert_member_fcf
+    conn = sqlite3.connect(":memory:")
+    ensure_schema(conn)
+    upsert_member_earnings(conn, [("ai", "US", "2026-10-19", "NVDA", 0.55, "2026-Q2", "improved", 0.62, 0.03, "개선", "t1")])
+    upsert_member_fcf(conn, [("ai", "US", "2026-10-19", "NVDA", 0.021, 0, "t2"), ("ai", "US", "2026-10-19", "AMD", None, None, "t2")])
+    rows = dict((r[0], r[1:]) for r in conn.execute("SELECT ticker, rev_yoy, fcf_yield_3y, fcf_negative_years FROM theme_member_signals"))
+    assert rows["NVDA"] == (0.55, 0.021, 0)
+    assert rows["AMD"] == (None, None, None)

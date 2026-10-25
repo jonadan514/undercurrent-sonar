@@ -165,6 +165,11 @@ def upsert_member_prices(conn, rows: list[tuple]) -> None:
     _upsert_member_rows(conn, ("price_ret",), rows)
 
 
+def upsert_member_fcf(conn, rows: list[tuple]) -> None:
+    """rows: (theme_id, market, week_start, ticker, fcf_yield_3y, fcf_negative_years, computed_at)"""
+    _upsert_member_rows(conn, ("fcf_yield_3y", "fcf_negative_years"), rows)
+
+
 def upsert_member_earnings(conn, rows: list[tuple]) -> None:
     """rows: (theme_id, market, week_start, ticker, rev_yoy, rev_quarter, earn_status,
               om_now, om_change, om_status, computed_at)"""
@@ -172,7 +177,9 @@ def upsert_member_earnings(conn, rows: list[tuple]) -> None:
 
 
 # 처음 만든 뒤 추가된 기업별 열 - CREATE TABLE IF NOT EXISTS는 기존 표에 열을 더하지 않아 ALTER로 붙인다.
-MEMBER_LATE_COLUMNS = [("om_now", "REAL"), ("om_change", "REAL"), ("om_status", "TEXT")]
+# fcf_*(2026-10-25): 테마 동료 비교(종목 상세)용. 3년 평균 FCF / 시가총액(company_cashflow.fcf_yield), 금융업은 계산 안 함.
+MEMBER_LATE_COLUMNS = [("om_now", "REAL"), ("om_change", "REAL"), ("om_status", "TEXT"),
+                       ("fcf_yield_3y", "REAL"), ("fcf_negative_years", "INTEGER")]
 
 
 def ensure_schema(conn) -> None:
