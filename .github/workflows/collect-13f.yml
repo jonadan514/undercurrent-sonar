@@ -1,0 +1,53 @@
+name: Collect 13F
+
+# 운용사 13F 보유(2026-10-25, config/institutions.yaml 15곳). 매일 제출 목록만 보고 새 신고가 있을 때만 받는다
+# (분기 끝나고 45일 안 - 2월·5월·8월·11월 중순에 몰림). 14:40 UTC - 다른 SEC 수집(13:00·13:20) 다음.
+on:
+  schedule:
+    - cron: "40 14 * * *"
+  workflow_dispatch:
+    inputs:
+      quarters:
+        description: "최근 몇 분기 (처음 채우기 5 - 비교용 하나 포함)"
+        required: false
+        default: "5"
+      managers:
+        description: "몇 곳만(공백 구분, 비우면 전체)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          OPENFIGI_API_KEY: ${{ secrets.OPENFIGI_API_KEY }}
+          PYTHONUNBUFFERED: "1"
+          QUARTERS: ${{ inputs.quarters || '5' }}
+          MANAGERS: ${{ inputs.managers }}
+        run: python scripts/collect_13f.py --quarters "$QUARTERS" ${MANAGERS:+--managers $MANAGERS}
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
