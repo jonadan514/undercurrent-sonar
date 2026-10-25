@@ -108,6 +108,23 @@ def label_runs(rows: list[dict]) -> list[int]:
     return runs
 
 
+def _num(v):
+    """Turso가 숫자를 글자로 돌려줄 때가 있다 - 비교 전에 숫자로."""
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _norm(r: dict) -> dict:
+    for k in ("news_count", "news_ratio", "earn_ratio", "price_excess", "member_count"):
+        r[k] = _num(r[k])
+    r["news_backfilled"] = bool(_num(r["news_backfilled"]))
+    return r
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--weeks", type=int, default=12, help="최근 몇 주를 볼지")
@@ -120,16 +137,21 @@ def main() -> int:
     min_articles = conf.get("default_min_articles", 10)
 
     conn = get_db()
+    # 세 축이 다 계산된 주(주가 축이 있는 주)만 본다 - 그 전 주들은 뉴스만 백필한 줄이라 실적·주가가 늘 비어 분포가 흐려진다
     weeks = [r[0] for r in conn.execute(
-        "SELECT DISTINCT week_start FROM theme_signals ORDER BY week_start DESC LIMIT ?", (args.weeks,)).fetchall()]
+        "SELECT DISTINCT week_start FROM theme_signals WHERE price_arrow IS NOT NULL ORDER BY week_start DESC LIMIT ?",
+        (args.weeks,)).fetchall()]
     if not weeks:
-        print("theme_signals에 기록 없음")
+        print("세 축이 계산된 주가 없음")
         return 1
-    rows = [dict(zip(COLS, r)) for r in conn.execute(
-        f"SELECT {', '.join(COLS)} FROM theme_signals WHERE week_start >= ? ORDER BY market, theme_id, week_start",
-        (min(weeks),)).fetchall()]
+    rows = [_norm(dict(zip(COLS, r))) for r in conn.execute(
+        f"SELECT {', '.join(COLS)} FROM theme_signals WHERE week_start >= ? AND week_start <= ? AND price_arrow IS NOT NULL "
+        "ORDER BY market, theme_id, week_start", (min(weeks), max(weeks))).fetchall()]
+    news_only = conn.execute("SELECT COUNT(DISTINCT week_start), MIN(week_start) FROM theme_signals WHERE price_arrow IS NULL").fetchone()
 
-    print(f"# 테마 레이더 기준값 점검 ({min(weeks)} ~ {max(weeks)}, 최근 {len(weeks)}주)\n")
+    print(f"# 테마 레이더 기준값 점검 ({min(weeks)} ~ {max(weeks)}, 세 축이 계산된 최근 {len(weeks)}주)\n")
+    if news_only and news_only[0]:
+        print(f"(뉴스만 백필된 주 {news_only[0]}개({news_only[1]}~)는 실적·주가가 없어 뺐다)\n")
     print("기준값(themes.yaml config, 바꾸지 않음):")
     print(f"- 뉴스 배수(이번 주 / 직전 8주 중앙값): ↑↑ {nt['strong_up']} · ↑ {nt['up']} · ↓ {nt['down']}, 기사 {min_articles}건 미만은 na")
     print(f"- 실적(매출 성장 개선 기업 비율): ↑↑ {et['strong_up']} · ↑ {et['up']} · ↓ {et['down']}")
@@ -195,7 +217,7 @@ def main() -> int:
             print(f"- {label} 늘 na: {len(always)}개" + (f" - {', '.join(always)}" if always else ""))
         never = [names.get(t, t) for t, rs in by_t.items() if not any(r["label"] for r in rs)]
         print(f"- 라벨 한 번도 없음: {len(never)}/{len(by_t)}개")
-        small = sorted({(names.get(t, t), rs[-1]["member_count"]) for t, rs in by_t.items()
+        small = sorted({(names.get(t, t), int(rs[-1]["member_count"])) for t, rs in by_t.items()
                         if rs[-1]["member_count"] is not None and rs[-1]["member_count"] < 5}, key=lambda x: x[1])
         if small:
             print(f"- 소속 5종목 미만(실적·주가 na가 정상): {', '.join(f'{n} {c}' for n, c in small)}")
