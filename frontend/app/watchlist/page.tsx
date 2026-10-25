@@ -1341,6 +1341,9 @@ export default function WatchlistPage() {
     const presetParam = qs.get("preset");
     if (presetParam && PRESETS.some((p) => p.key === presetParam)) setPreset(presetParam as PresetKey);
     if (qs.get("new") === "1") setNewOnly(true);
+    // 개요의 시장별 단락에서 넘어오면 그 시장만(2026-10-25 개요 한 장으로)
+    const mk = qs.get("market");
+    if (mk === "US" || mk === "KR") setMarketFilter(mk);
     const raw = qs.get("stock");
     if (!raw || !raw.includes(":")) return;
     const [m, ...rest] = raw.split(":");

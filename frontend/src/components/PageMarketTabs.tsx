@@ -13,7 +13,8 @@ export default function PageMarketTabs() {
   const pathname = usePathname();
   const { market, setMarket } = useMarket();
 
-  const show = pathname === "/" || MARKET_PAGES.some((p) => pathname.startsWith(p));
+  // 개요("/")는 2026-10-25부터 두 시장을 한 장에 단락으로 보여 줘서 탭이 없다
+  const show = MARKET_PAGES.some((p) => pathname.startsWith(p));
   if (!show) return null;
 
   const tabs = [

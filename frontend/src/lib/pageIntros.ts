@@ -12,7 +12,7 @@ export type PageIntro = {
 
 export const PAGE_INTROS = {
   home: {
-    what: "이번 주에 새로 생긴 일(새 후보, 실적 발표, 공시, 내부자 매수)과 금리·환율 같은 시장 날씨를 한 화면에 모았습니다.",
+    what: "미국·한국 두 시장에 이번 주 새로 생긴 일(새 후보, 실적 발표, 공시, 내부자 매수)을 단락으로 나란히, 금리·환율 같은 시장 날씨는 공통으로 한 화면에 모았습니다.",
     when: "월요일 아침, 가장 먼저.",
     todo: "숫자가 있는 칸을 누르면 그 목록으로 갑니다. 아래 그래프는 판정 없이 사실만 보여줍니다.",
     terms: ["turnaround", "insider_buy", "disclosure", "macro"],
