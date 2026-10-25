@@ -80,8 +80,9 @@ export function obsStatus(o: ObservationT): "due" | "open" | "done" {
 
 // ── 작성 창 ──────────────────────────────────────────────────────────────────
 
-export function ObservationForm({ kind, market, themeId, ticker, title, onClose, onSaved }: {
+export function ObservationForm({ kind, market, themeId, ticker, title, notice, onClose, onSaved }: {
   kind: Kind; market: "US" | "KR"; themeId?: string; ticker?: string; title: string;
+  notice?: string;   // 제목 아래 안내 한 줄(예: 지난 주 브리핑에서 열었을 때)
   onClose: () => void; onSaved?: () => void;
 }) {
   const [hypothesis, setHypothesis] = useState("");
@@ -120,6 +121,7 @@ export function ObservationForm({ kind, market, themeId, ticker, title, onClose,
           </div>
           <button onClick={onClose} aria-label="닫기" style={{ color: MUTED }}><X size={18} /></button>
         </div>
+        {notice && <p className="mb-3 -mt-1 text-[12px]" style={{ color: ACCENT }}>{notice}</p>}
 
         <label className="mb-1 block text-[12px]" style={{ color: MUTED }}>가설 (한 줄, 필수)</label>
         <textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} maxLength={300} rows={2}

@@ -10,6 +10,7 @@ import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
+import { ObservationForm } from "@/src/components/Observation";
 
 interface StockRef {
   market: string;
@@ -70,7 +71,7 @@ function FinanceTag({ f }: { f?: InsiderItem["finance"] }) {
     : f?.status === "fail" ? ["재무 탈락", "#f87171"] : f?.status === "insufficient" ? ["데이터부족", "var(--text-muted)"] : ["재무 미확인", "var(--text-muted)"];
   return <span className="text-[11px] px-1.5 rounded" style={{ color, border: "1px solid var(--border)" }} title={f?.reasons?.join(" / ") || undefined}>{label}</span>;
 }
-function InsiderRow({ x, showFinance = false }: { x: InsiderItem; showFinance?: boolean }) {
+function InsiderRow({ x, showFinance = false, note }: { x: InsiderItem; showFinance?: boolean; note?: ReactNode }) {
   return (
     <div className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
       style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
@@ -84,6 +85,7 @@ function InsiderRow({ x, showFinance = false }: { x: InsiderItem; showFinance?: 
       {x.all_plan && <span style={{ color: "var(--text-muted)" }} title="10b5-1: 미리 정해 둔 계획 매수">계획 매수</span>}
       {showFinance && <FinanceTag f={x.finance} />}
       <DiscTags tags={x.tags} />
+      {note}
     </div>
   );
 }
@@ -168,6 +170,28 @@ function StockLabel({ s }: { s: StockRef }) {
   );
 }
 
+// 브리핑에서 바로 관찰 노트(2026-10-25) - 🆕 관심 밖 새 이름·⭐ 관심 종목 줄. 발견 → 재무 확인 → 관찰 시작을 브리핑 안에서.
+// 노트는 저장하는 순간의 값을 고정한다 - 지난 주 브리핑에서 열어도 그 주 값이 아니라 오늘 값이라 창에 적어 둔다.
+function NoteBtn({ s, past }: { s: { market: string; symbol: string; name?: string | null }; past: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const title = s.market === "KR" ? `${s.name || s.symbol} (${s.symbol})` : `${s.symbol}${s.name ? ` · ${s.name}` : ""}`;
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="text-[11px] px-1.5 rounded hover:brightness-125 whitespace-nowrap"
+        style={{ color: saved ? "#4ade80" : "var(--text-muted)", border: `1px solid ${saved ? "#4ade8055" : "var(--border)"}` }}
+        title="관찰 노트 남기기 - 4주·12주 뒤 그때와 지금을 대조">
+        {saved ? "✓ 노트" : "✎ 노트"}
+      </button>
+      {open && (
+        <ObservationForm kind="stock" market={s.market as "US" | "KR"} ticker={s.symbol} title={title}
+          notice={past ? "지난 주 브리핑에서 열었지만, 노트에는 지금(오늘) 값이 기록됩니다." : undefined}
+          onClose={() => setOpen(false)} onSaved={() => setSaved(true)} />
+      )}
+    </>
+  );
+}
+
 // 지수 1주 변화 - 두 칸 나란히(2026-10-21 브리핑 레이아웃 정리)
 function IndexTile({ label, m }: { label: string; m: MarketWeek }) {
   const v = m?.index_chg_1w;
@@ -235,7 +259,7 @@ const byMarket = (m: Record<string, number>, unit = "") =>
 
 type TocItem = { id: string; label: string; count?: string; group: string };
 
-function BriefingView({ b, picker }: { b: Briefing; picker: ReactNode }) {
+function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; past: boolean }) {
   const wl = b.watchlist ?? { total: 0, added: [], removed: [], top: [], has_prev: false };
   const [active, setActive] = useState("");
   const [commentOpen, setCommentOpen] = useState(false);
@@ -327,7 +351,7 @@ function BriefingView({ b, picker }: { b: Briefing; picker: ReactNode }) {
                 {b.my_stocks_week!.items.map((x) => (
                   <div key={`${x.market}:${x.symbol}`} className="py-1.5 first:pt-0 last:pb-0" style={{ borderColor: "#f59e0b22" }}>
                     <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
-                      <StockLabel s={x} /><DiscTags tags={x.tags} />
+                      <StockLabel s={x} /><DiscTags tags={x.tags} /><NoteBtn s={x} past={past} />
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {x.events.map((e, i) => (
@@ -543,7 +567,7 @@ function BriefingView({ b, picker }: { b: Briefing; picker: ReactNode }) {
                         <>
                           <Sub>🆕 관심 밖 — 새 이름 {ins.discovery_count ?? ins.discovery.length}{" "}
                             <span className="font-normal" style={{ color: "var(--text-muted)" }}>산 사람 수 → 금액 순, 계획 매수만 있는 종목은 뒤로</span></Sub>
-                          <More items={ins.discovery} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} showFinance />} />
+                          <More items={ins.discovery} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} showFinance note={<NoteBtn s={x} past={past} />} />} />
                         </>
                       )}
                     </>
@@ -771,7 +795,7 @@ export default function BriefingPage() {
         <EmptyState title="아직 브리핑이 없어요"
           hint="매주 일요일 밤 워치리스트 스크리닝 뒤 자동으로 만들어집니다. 지금 만들려면 GitHub → Actions → Weekly Watchlist Screen → Run workflow" />
       ) : (
-        <BriefingView key={b.week} b={b}
+        <BriefingView key={b.week} b={b} past={idx > 0}
           picker={<WeekPicker weeks={briefings.map((x) => x.week)} idx={idx} onPick={pick} generatedAt={b.generated_at} />} />
       )}
     </div>

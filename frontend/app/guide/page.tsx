@@ -207,7 +207,7 @@ export default function GuidePage() {
             { n: "③", tab: "테마 레이더",   action: "라벨 붙은 테마가 있으면 훑어보기 — 특히 \"Quiet Strength\"는 뉴스만 봐서는 못 찾는 신호", href: "/radar" },
             { n: "④", tab: "분기 리서치",   action: "관심 가는 테마가 \"조용한 변화\"에 있는지, 소속 기업 재무 신호가 실제로 통과했는지 확인", href: "/quarterly" },
             { n: "⑤", tab: "워치리스트",    action: "밸류·성장·테마 필터로 후보를 좁힌 뒤 → 종목 클릭해 네러티브 브리프 읽기 + 공시·8-K·내부자 매수 + 정성 체크 + 메모", href: "/watchlist" },
-            { n: "⑥", tab: "새 이름(선택)",  action: "브리핑 🆕 관심 밖 내부자 매수 - 눌러서 트랩 필터 판정·탈락 사유 확인. 재무가 받쳐주면 관찰 노트로", href: "/briefing#insider" },
+            { n: "⑥", tab: "새 이름(선택)",  action: "브리핑 🆕 관심 밖 내부자 매수 - 눌러서 트랩 필터 판정·탈락 사유 확인. 재무가 받쳐주면 그 줄의 ✎ 노트로 바로 관찰 시작", href: "/briefing#insider" },
             { n: "월", tab: "성적표 · 데이터 상태", action: "한 달에 한 번 신호 사후 확인(유니버스 대비)으로 어떤 칸이 쓸모 있는지, 데이터 상태로 끊긴 수집이 없는지", href: "/scorecard" },
           ].map(({ n, tab, action, href }) => (
             <div key={n} className="flex items-start gap-3 rounded-xl p-3" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
