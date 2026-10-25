@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
 type Row = { theme_id: unknown; counts: unknown; items: unknown };
 
 // 최신본은 theme_events_latest(2026-10-25부터). 그 표가 아직 없거나 비면(첫 실행 전) 예전처럼 이력 표의 가장 최근 실행.
-// 이력 표는 2026-10-25부터 목록을 주마다 첫 실행에만 남기므로 거기서 읽으면 items가 빈 날이 있다.
 async function latestRows(market: string): Promise<{ at: string | null; rows: Row[] }> {
   const client = getClient();
   try {
     const rs = await client.execute({ sql: "SELECT theme_id, counts, items, computed_at FROM theme_events_latest WHERE market = ?", args: [market] });
     if (rs.rows.length > 0) return { at: String(rs.rows[0].computed_at), rows: rs.rows as unknown as Row[] };
   } catch { /* 표 없음 - 아래로 */ }
-  const latest = await client.execute({ sql: "SELECT MAX(computed_at) FROM theme_events WHERE market = ?", args: [market] });
+  // 목록이 남은 실행만(2026-10-25부터 건수만 남긴 날은 items가 '') - 최신본 표가 생기기 전 한때만 쓰는 길
+  const latest = await client.execute({ sql: "SELECT MAX(computed_at) FROM theme_events WHERE market = ? AND items != ''", args: [market] });
   const at = latest.rows[0]?.[0] as string | null;
   if (!at) return { at: null, rows: [] };
   const rs = await client.execute({ sql: "SELECT theme_id, counts, items FROM theme_events WHERE market = ? AND computed_at = ?", args: [market, at] });

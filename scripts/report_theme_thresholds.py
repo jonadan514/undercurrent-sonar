@@ -21,6 +21,7 @@ import argparse
 import statistics
 import sys
 from collections import Counter, defaultdict
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -64,7 +65,7 @@ def arrow_dist(rows: list[dict], key: str) -> str:
 
 
 def flip_rate(rows: list[dict], key: str) -> tuple[int, int, list[tuple[str, int, int]]]:
-    """같은 테마 연속 두 주 중 화살표가 다른 비율. na가 낀 쌍은 뺀다. -> (뒤집힘, 비교 쌍, 테마별 상위)"""
+    """같은 테마 연속 두 주(7일 차이) 중 화살표가 다른 비율. na가 낀 쌍은 뺀다. -> (뒤집힘, 비교 쌍, 테마별 상위)"""
     by_theme: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
         by_theme[r["theme_id"]].append(r)
@@ -75,7 +76,8 @@ def flip_rate(rows: list[dict], key: str) -> tuple[int, int, list[tuple[str, int
         f = p = 0
         for a, b in zip(rs, rs[1:]):
             x, y = a[key] or "na", b[key] or "na"
-            if "na" in (x, y):
+            # 빠진 주(예: 09-07)를 건너뛴 두 줄은 연속 주가 아니다
+            if "na" in (x, y) or (date.fromisoformat(b["week_start"]) - date.fromisoformat(a["week_start"])).days != 7:
                 continue
             p += 1
             f += x != y

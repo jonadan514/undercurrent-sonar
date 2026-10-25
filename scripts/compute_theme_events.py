@@ -139,14 +139,15 @@ def main() -> int:
         result = by_theme(members, events, today, marks, coverage)
         _log(f"{market}: 데이터 시작일 공시 {coverage['disclosure']} · 내부자 {coverage['insider']}")
         keep = keep_items_this_run(conn, market, today)
-        conn.execute("DELETE FROM theme_events_latest WHERE market = ?", (market,))
         for theme_id, r in result.items():
             counts = json.dumps(r["counts"], ensure_ascii=False)
             items = json.dumps(r["items"], ensure_ascii=False)
             conn.execute("INSERT OR IGNORE INTO theme_events (market, theme_id, computed_at, counts, items) VALUES (?, ?, ?, ?, ?)",
                          (market, theme_id, now, counts, items if keep else ""))
-            conn.execute("INSERT INTO theme_events_latest (market, theme_id, computed_at, counts, items) VALUES (?, ?, ?, ?, ?)",
+            conn.execute("INSERT OR REPLACE INTO theme_events_latest (market, theme_id, computed_at, counts, items) VALUES (?, ?, ?, ?, ?)",
                          (market, theme_id, now, counts, items))
+        # 바꿔 끼운 뒤에 이번 실행에 없는 테마(보관 처리 등)만 지운다 - 먼저 지우면 도중에 끊겼을 때 화면 목록이 빈다
+        conn.execute("DELETE FROM theme_events_latest WHERE market = ? AND computed_at <> ?", (market, now))
         _log(f"{market}: 이력에 목록 {'남김(이번 주 첫 실행)' if keep else '안 남김 - 건수만'}")
         busy = sorted(((tid, r["counts"]) for tid, r in result.items() if r["counts"]["companies_30d"]),
                       key=lambda x: -x[1]["companies_30d"])
