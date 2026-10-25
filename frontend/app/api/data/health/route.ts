@@ -20,7 +20,8 @@ const SOURCES: Source[] = [
   { key: "watchlist", label: "워치리스트 스크리닝", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(screened_at) FROM watchlist_screening_results" },
   { key: "narratives", label: "네러티브 브리프", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(updated_at) FROM narrative_briefs" },
   { key: "briefing", label: "주간 브리핑", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(created_at) FROM weekly_briefings" },
-  { key: "theme_news", label: "테마 뉴스", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(collected_at) FROM theme_news_weekly" },
+  // theme_news_weekly는 과거 백필(건수만) 표라 정기 수집이 쓰지 않는다 - 정기 수집이 채우는 theme_signals 뉴스 칸으로 본다(2026-10-25)
+  { key: "theme_news", label: "테마 뉴스", group: "매주", cadence: "월요일 아침", okDays: 15, sql: "SELECT MAX(week_start) FROM theme_signals WHERE news_count IS NOT NULL", note: "측정한 주의 월요일 날짜 - 실행은 그 주 일요일 밤이라 다음 실행 직전엔 13일쯤" },
   { key: "radar_us", label: "테마 레이더 · 미국", group: "매주", cadence: "월요일 아침", okDays: 15, sql: "SELECT MAX(week_start) FROM theme_signals WHERE market = 'US'", note: "측정한 주의 월요일 날짜 - 실행은 그 주 일요일 밤이라 다음 실행 직전엔 13일쯤" },
   { key: "radar_kr", label: "테마 레이더 · 한국", group: "매주", cadence: "월요일 아침", okDays: 15, sql: "SELECT MAX(week_start) FROM theme_signals WHERE market = 'KR'", note: "측정한 주의 월요일 날짜 - 실행은 그 주 일요일 밤이라 다음 실행 직전엔 13일쯤" },
   { key: "sector_us", label: "섹터 분석 · 미국", group: "매주", cadence: "화요일 아침", okDays: 9, sql: "SELECT MAX(updated_at) FROM sector_analysis" },
