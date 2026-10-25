@@ -39,11 +39,13 @@ export async function GET(request: Request) {
     if (themeIds.length === 0) return NextResponse.json({ themes: [] });
 
     const ph = themeIds.map(() => "?").join(",");
-    // 테마마다 가장 최근 주의 소속 기업 값(fcf 열이 아직 없는 DB면 그 열 없이 다시)
+    // 테마마다 실적 값이 들어간 가장 최근 주의 소속 기업 값(fcf 열이 아직 없는 DB면 그 열 없이 다시).
+    // 주가 잡도 같은 표에 새 주 줄을 만들어서(price_ret만), 그냥 MAX(week_start)면 실적 잡이 늦거나 실패한 주엔 값이 다 빈다.
     const sqlWith = (fcf: boolean) => `
       SELECT s.theme_id, s.ticker, s.week_start, s.rev_yoy, s.om_now${fcf ? ", s.fcf_yield_3y" : ""}
       FROM theme_member_signals s
-      JOIN (SELECT theme_id, MAX(week_start) AS wk FROM theme_member_signals WHERE market = ? AND theme_id IN (${ph}) GROUP BY theme_id) w
+      JOIN (SELECT theme_id, MAX(week_start) AS wk FROM theme_member_signals
+             WHERE market = ? AND theme_id IN (${ph}) AND (rev_yoy IS NOT NULL OR om_now IS NOT NULL) GROUP BY theme_id) w
         ON w.theme_id = s.theme_id AND w.wk = s.week_start
       WHERE s.market = ?`;
     let rows;
