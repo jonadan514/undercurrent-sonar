@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { EXPECT_LABEL, ObservationCard, ObservationT, obsStatus } from "@/src/components/Observation";
 import PageHeader from "@/src/components/PageHeader";
+import { Section, StatGrid, StatTile } from "@/src/components/Section";
 import EmptyState from "@/src/components/EmptyState";
 
 const MUTED = "var(--text-muted)";
@@ -62,12 +63,12 @@ export default function NotesPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-4 pb-10">
+    <div className="mx-auto w-full max-w-[1280px] space-y-3 pb-10">
       <PageHeader title="관찰 노트" intro="notes"
         desc="테마·종목에 남긴 가설과, 4주·12주 뒤 그때와 지금. 판단은 직접 하고 배운 점을 한 줄씩 쌓습니다." />
 
       {judged + Object.keys(expectStats).length > 0 && (
-        <div className="rounded-2xl p-4 text-[13px]" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <Section title="지금까지의 회고" className="text-[13px]">
           {judged > 0 && (
             <p style={{ color: MUTED }}>내 판단 (회고 {judged}건): <b style={{ color: GOOD }}>맞았다 {verdicts.right}</b> · 틀렸다 {verdicts.wrong} · 애매 {verdicts.unclear}</p>
           )}
@@ -79,16 +80,18 @@ export default function NotesPage() {
             </p>
           )}
           <p className="mt-1 text-[12px]" style={{ color: FAINT }}>데이터 부족으로 판단할 수 없던 회고는 세지 않습니다.</p>
-        </div>
+        </Section>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* 상태별 개수 = 공용 요약 칸, 누르면 그 상태만(2026-10-25 화면 통일) */}
+      <StatGrid cols={3}>
         {(["due", "open", "done"] as Tab[]).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="rounded-lg px-3 py-1.5 text-[13px]" style={chip(tab === t)}>
-            {TAB_LABEL[t]} {counts[t]}
-          </button>
+          <StatTile key={t} label={TAB_LABEL[t]} value={counts[t]} active={tab === t} onClick={() => setTab(t)}
+            emphasis={t === "due" && counts[t] > 0 ? "accent" : undefined} />
         ))}
-        <span className="mx-1 h-5 w-px" style={{ background: "var(--border-ctrl)" }} />
+      </StatGrid>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px]" style={{ color: FAINT }}>종류</span>
         {(["all", "theme", "stock"] as const).map((k) => (
           <button key={k} onClick={() => setKind(k)} className="rounded-lg px-3 py-1.5 text-[12px]" style={chip(kind === k)}>
             {k === "all" ? "전체" : k === "theme" ? "테마" : "종목"}

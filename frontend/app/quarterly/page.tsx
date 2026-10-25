@@ -24,7 +24,8 @@ const FAINT = "var(--text-faint)";
 const INFO = "var(--info)";
 const INFO_SOFT = "rgba(111,179,184,0.15)";
 const SECONDARY_SOFT = "rgba(236,231,216,0.10)";
-const MONO = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace';
+// 고정폭 글꼴을 쓰던 자리(2026-10-25 화면 통일) - 기본 글꼴 그대로, 숫자 폭은 전역 tabular-nums(globals.css)로 맞춘다
+const MONO = "inherit";
 
 type Classification = "조용한 변화" | "확인된 변화" | "기대 선행" | "관심 밖";
 const CLASSIFICATIONS: Classification[] = ["조용한 변화", "확인된 변화", "기대 선행", "관심 밖"];

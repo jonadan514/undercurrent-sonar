@@ -4,6 +4,17 @@
 
 모든 시장 구분 페이지는 상단 탭으로 🇺🇸 미국 / 🇰🇷 한국을 전환한다 (`MarketContext`, localStorage 유지).
 
+### 화면 구조 규칙 (2026-10-25 통일)
+모든 화면은 같은 순서로 읽힌다. 새 화면·칸을 만들 때 이 부품을 쓴다.
+1. (시장 구분 화면) 시장 탭 `PageMarketTabs` / (가이드 세 화면) `GuideTabs`
+2. 머리말 `PageHeader` - 제목 + 앞 배지 + 기준일(`AsOf`) + 한 줄 설명 + "이 화면은?"(`intro`)
+3. 요약 숫자 `StatGrid` + `StatTile` - 숫자 22px, 누르면 그 목록(href) 또는 필터(onClick, 켜지면 노란 테두리)
+4. 칸 `Section` - 카드 + 제목 15px · 건수 · ⓘ · 보조 설명 · 오른쪽 링크/기간 선택. 비슷한 칸은 `GroupTitle` 아래
+5. 칸 아래 긴 기준 설명은 `Note`(접힘), 빈 상태는 `EmptyState`
+- 숫자는 기본 글꼴 + 같은 폭 숫자(전역 `font-variant-numeric: tabular-nums`) - 고정폭 글꼴은 쓰지 않는다.
+- 줄 구분선은 각 줄에 `borderTop`으로 - `divide-y`는 부모에 준 색이 자식에 안 먹어 밝은 기본색이 된다.
+- 부품: `src/components/Section.tsx`(Section·GroupTitle·StatTile·StatGrid), `PageHeader.tsx`, `GuideTabs.tsx`, `Note.tsx`, `EmptyState.tsx`.
+
 ---
 
 ## 시장 분석

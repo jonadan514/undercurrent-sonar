@@ -9,6 +9,7 @@ import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO, labelWithKo } from "@/src/lib/labelNames";
+import { StatGrid, StatTile } from "@/src/components/Section";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import Note from "@/src/components/Note";
@@ -23,7 +24,8 @@ const DANGER_SOFT = "rgba(248,113,113,0.14)";
 const MUTED = "var(--text-muted)";
 const MUTED_SOFT = "rgba(139,130,113,0.14)";
 const FAINT = "var(--text-faint)";
-const MONO = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace';
+// 고정폭 글꼴을 쓰던 자리(2026-10-25 화면 통일) - 기본 글꼴 그대로, 숫자 폭은 전역 tabular-nums(globals.css)로 맞춘다
+const MONO = "inherit";
 
 type Arrow = "up2" | "up1" | "flat" | "down" | "na" | null;
 
@@ -700,19 +702,13 @@ export default function RadarPage() {
       {/* 라벨이 적은 게 "빈 화면"이 아니라 "걸러낸 결과"로 읽히도록 깔때기로 보여준다. */}
       {!loading && signals.length > 0 && (
         <>
-          <div className="mt-4 flex overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
-            {[
-              { n: signals.length, k: "관찰한 테마", on: false },
-              { n: movingCount, k: "축이 하나라도 움직임", on: false },
-              { n: labeled.length, k: "6개 조합에 해당", on: true },
-            ].map((step, i) => (
-              <div key={step.k} className="flex-1 px-4 py-2.5"
-                   style={{ borderRight: i < 2 ? "1px solid var(--border-dim)" : "none",
-                            background: step.on ? "var(--bg-raised)" : "transparent" }}>
-                <div className="text-[21px] font-extrabold" style={{ fontFamily: MONO, color: step.on ? ACCENT : "var(--text-primary)" }}>{step.n}</div>
-                <div className="text-[11.5px]" style={{ color: MUTED }}>{step.k}</div>
-              </div>
-            ))}
+          {/* 공용 요약 칸(2026-10-25 화면 통일) - 깔때기 순서(관찰 → 움직임 → 조합)는 그대로 */}
+          <div className="mt-4">
+            <StatGrid cols={3}>
+              <StatTile label="관찰한 테마" value={signals.length} />
+              <StatTile label="축이 하나라도 움직임" value={movingCount} />
+              <StatTile label="6개 조합에 해당" value={labeled.length} emphasis="accent" />
+            </StatGrid>
           </div>
           <p className="mt-2 text-[12px]" style={{ color: FAINT }}>
             기준 주 {weekStart} · {market === "KR" ? "한국" : "미국"} 시장 · 조합에 안 맞으면 억지로 이름 붙이지 않습니다 — 적게 나오는 것이 정상입니다.

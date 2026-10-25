@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import GuideTabs from "@/src/components/GuideTabs";
 import PageHeader from "@/src/components/PageHeader";
 import GlossarySection from "@/src/components/GlossarySection";
 
@@ -36,27 +37,12 @@ function Badge({ text, color }: { text: string; color: string }) {
 
 export default function GuidePage() {
   return (
-    <div className="space-y-6 max-w-5xl">
-
+    <div className="space-y-6 max-w-4xl">
+      <GuideTabs />
       {/* Header */}
       <div>
         <PageHeader title="사용 설명서" desc="미국(S&P 500·400) · 한국(시총 3000억+) 개인 투자자용 테마·재무 리서치 대시보드" />
         <div className="flex flex-wrap gap-2 mt-3">
-          <Link
-            href="/guide/playbook"
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-xl px-3 py-1.5 transition-colors"
-            style={{ background: "#ffb02018", border: "1px solid #ffb02044", color: "#ffb020" }}
-          >
-            ▶ 투자 실행 가이드 — 발굴부터 매도까지 →
-          </Link>
-          <Link
-            href="/guide/detail"
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-xl px-3 py-1.5 transition-colors"
-            style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-          >
-            <span style={{ color: "#ffb020" }}>◉</span>
-            각 기능의 원리·해석법 세부 설명서 보기 →
-          </Link>
           <a
             href="#glossary"
             className="inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-xl px-3 py-1.5 transition-colors"

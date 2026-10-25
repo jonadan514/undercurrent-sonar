@@ -7,6 +7,7 @@ import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
+import { Section } from "@/src/components/Section";
 import Note from "@/src/components/Note";
 
 // scripts/compute_pick_returns.py의 HORIZONS와 반드시 일치해야 함.
@@ -73,11 +74,8 @@ function SignalSection({ market }: { market: string }) {
         <span className="text-[11px]" style={{ color: "var(--text-faint)" }}> ({pct(x.q1)}~{pct(x.q3)}) n={x.n}</span>
       </span>;
   return (
-    <div className="bg-card rounded-xl p-3">
-      <div className="flex items-center gap-2 mb-1">
-        <h2 className="stat-label">신호 사후 확인</h2>
-        <InfoTooltip content="브리핑·테마 레이더가 보여준 신호를 그 주에 그대로 적어 두고, 4주·12주 뒤 수익률에서 같은 기간 지수 수익률을 뺀 값(초과수익)의 분포를 봅니다. 중앙값과 사분위(가운데 절반이 놓인 범위)만 - 신호를 더하거나 뺄 근거로 쓰는 기록이지 점수가 아닙니다." />
-      </div>
+    <Section title="신호 사후 확인"
+      info="브리핑·테마 레이더가 보여준 신호를 그 주에 그대로 적어 두고, 4주·12주 뒤 수익률에서 같은 기간 지수 수익률을 뺀 값(초과수익)의 분포를 봅니다. 중앙값과 사분위(가운데 절반이 놓인 범위)만 - 신호를 더하거나 뺄 근거로 쓰는 기록이지 점수가 아닙니다.">
       <p className="text-[12px] mb-2" style={{ color: "var(--text-muted)" }}>
         {d?.first_week ? `${d.first_week} ~ ${d.last_week} 주 신호 · 시작가는 신호 주 월요일 이후 첫 거래일 종가 · ${base === "univ" ? `${univName} 전체 종목 같은 기간 수익률 중앙값` : indexName} 대비 초과수익 중앙값 (사분위)`
           : d ? "아직 적힌 신호가 없습니다 - 매주 일요일 성적표 배치 때 적고, 4주가 지나면 결과가 채워집니다." : "불러오는 중…"}
@@ -100,7 +98,7 @@ function SignalSection({ market }: { market: string }) {
             <div key={g.key} className="rounded-lg px-2.5 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
               <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}<ExpectDown g={g} /></div>
               <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
-              <div className="mt-1 text-[12px] font-mono space-y-0.5">
+              <div className="mt-1 text-[12px] space-y-0.5">
                 <div><span style={{ color: "var(--text-muted)" }}>4주 후 초과 </span>{cell(hz(g)["28"])}</div>
                 <div><span style={{ color: "var(--text-muted)" }}>12주 후 초과 </span>{cell(hz(g)["84"])}</div>
                 <div style={{ color: "var(--text-faint)" }}>적힌 신호 {g.logged}건 · {g.weeks}주{g.backfilled > 0 ? ` · 소급 ${g.backfilled}` : ""}</div>
@@ -127,9 +125,9 @@ function SignalSection({ market }: { market: string }) {
                     <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{g.label}<ExpectDown g={g} /></div>
                     <div className="text-[11px]" style={{ color: "var(--text-faint)" }}>{g.desc}</div>
                   </td>
-                  <td className="text-right font-mono whitespace-nowrap">{cell(hz(g)["28"])}</td>
-                  <td className="text-right font-mono whitespace-nowrap">{cell(hz(g)["84"])}</td>
-                  <td className="text-right font-mono text-[12px] whitespace-nowrap" style={{ color: "var(--text-faint)" }}>
+                  <td className="text-right whitespace-nowrap">{cell(hz(g)["28"])}</td>
+                  <td className="text-right whitespace-nowrap">{cell(hz(g)["84"])}</td>
+                  <td className="text-right text-[12px] whitespace-nowrap" style={{ color: "var(--text-faint)" }}>
                     {g.logged}건 · {g.weeks}주{g.backfilled > 0 && <div>소급 {g.backfilled}</div>}
                   </td>
                 </tr>
@@ -143,7 +141,7 @@ function SignalSection({ market }: { market: string }) {
           <summary className="text-[12px] cursor-pointer" style={{ color: "var(--text-muted)" }}>4주 결과가 나온 신호 {d.recent.length}건 보기</summary>
           <div className="mt-1.5 space-y-0.5">
             {d.recent.map((r) => (
-              <div key={`${r.week}-${r.kind}-${r.symbol}`} className="flex flex-wrap gap-x-2 text-[12px] font-mono">
+              <div key={`${r.week}-${r.kind}-${r.symbol}`} className="flex flex-wrap gap-x-2 text-[12px]">
                 <span style={{ color: "var(--text-faint)" }}>{r.week.slice(5)}</span>
                 <span style={{ color: "var(--text-muted)" }}>{KIND_KO[r.kind] ?? r.kind}{r.watched === false ? "·관심 밖" : ""}</span>
                 {r.kind === "theme_busier"
@@ -163,7 +161,7 @@ function SignalSection({ market }: { market: string }) {
       )}
       <Note label="읽는 법">소급 = 기록을 시작하기 전 주를 나중에 원본 표에서 다시 만든 것(관심 표시·테마 소속은 지금 기준). 표본이 적은 동안은 숫자보다 방향만 참고하세요.
         묶음이 많아 우연히 좋거나 나빠 보이는 묶음이 생길 수 있습니다.</Note>
-    </div>
+    </Section>
   );
 }
 
@@ -222,11 +220,8 @@ export default function ScorecardPage() {
           : "아직 집계된 데이터가 없습니다 (매주 일요일 자동 집계)."} />
 
       {/* 2-way 비교 — 30일~2년까지 한 번에 (단기 30/60/90 스윙 검증, 180일 이후는 장기 펀더멘털 검증) */}
-      <div className="bg-card rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <h2 className="stat-label">2-way 비교</h2>
-          <InfoTooltip content="180일(6개월)부터는 1~3년 펀더멘털 보유 검증용입니다. 짧은 창(30~90일)은 참고용 스윙 검증입니다." />
-        </div>
+      <Section title="후보 수익률 비교" sub="통과 후보 vs 지수, 30일~2년"
+        info="180일(6개월)부터는 1~3년 펀더멘털 보유 검증용입니다. 짧은 창(30~90일)은 참고용 스윙 검증입니다.">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
@@ -250,54 +245,48 @@ export default function ScorecardPage() {
                     {HORIZONS.map((h) => {
                       const v = b[`fwd_${h}d_ret`];
                       return (
-                        <td key={h} className="text-right font-mono font-bold" style={{ color: pctColor(v) }}>{pct(v)}</td>
+                        <td key={h} className="text-right font-bold" style={{ color: pctColor(v) }}>{pct(v)}</td>
                       );
                     })}
-                    <td className="text-right font-mono" style={{ color: "var(--text-faint)" }}>{b.n}</td>
+                    <td className="text-right" style={{ color: "var(--text-faint)" }}>{b.n}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-      </div>
+      </Section>
 
       {/* 기간 선택 — F-Score 구간별 카드에 적용(게이트는 2026-08에 없앴다 - 문구만 남아 있던 것을 10-21 정리) */}
-      <div className="bg-card rounded-xl p-3 flex items-center gap-2">
-        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>F-Score 구간별 기준 기간</span>
-        <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          {HORIZONS.map((h) => (
-            <button
-              key={h}
-              onClick={() => setBreakdownHorizon(h)}
-              className="px-2.5 py-1 text-[11px] font-semibold transition-colors"
-              style={{
-                background: breakdownHorizon === h ? "#ffb02022" : "transparent",
-                color: breakdownHorizon === h ? "#ffb020" : "var(--text-faint)",
-              }}
-            >
-              {HORIZON_LABEL[h]}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Piotroski 구간별 */}
-      <div className="bg-card rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <h2 className="stat-label">Piotroski 구간별 이후 {HORIZON_LABEL[breakdownHorizon]} 수익률</h2>
-          <InfoTooltip content="스크리닝 시점 Piotroski F-Score 구간이 실제 수익률 순서와 대응하는지 확인합니다. 점수가 높을수록 수익률도 높다면 필터가 실제로 값을 더하고 있다는 뜻입니다." />
-        </div>
+      {/* 기간 선택은 이 칸 오른쪽에(2026-10-25 화면 통일 - 예전엔 따로 한 칸을 차지했다) */}
+      <Section title={`F-Score 구간별 이후 ${HORIZON_LABEL[breakdownHorizon]} 수익률`}
+        info="스크리닝 시점 Piotroski F-Score 구간이 실제 수익률 순서와 대응하는지 확인합니다. 점수가 높을수록 수익률도 높다면 필터가 실제로 값을 더하고 있다는 뜻입니다."
+        right={<div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+            {HORIZONS.map((h) => (
+              <button
+                key={h}
+                onClick={() => setBreakdownHorizon(h)}
+                className="px-2.5 py-1 text-[11px] font-semibold transition-colors"
+                style={{
+                  background: breakdownHorizon === h ? "#ffb02022" : "transparent",
+                  color: breakdownHorizon === h ? "#ffb020" : "var(--text-faint)",
+                }}
+              >
+                {HORIZON_LABEL[h]}
+              </button>
+            ))}
+          </div>}>
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(data.by_piotroski).map(([tier, b]) => (
             <div key={tier} className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
               <p className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>{tier}</p>
-              <p className="text-[16px] font-black font-mono mt-1" style={{ color: pctColor(b[bdCol]) }}>{pct(b[bdCol])}</p>
+              <p className="text-[16px] font-black mt-1" style={{ color: pctColor(b[bdCol]) }}>{pct(b[bdCol])}</p>
               <p className="text-[12px] mt-0.5" style={{ color: "var(--text-faint)" }}>n={b.n}</p>
             </div>
           ))}
         </div>
-      </div>
+      </Section>
 
       <SignalSection market={market} />
     </div>

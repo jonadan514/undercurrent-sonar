@@ -15,7 +15,8 @@ const DANGER = "var(--danger)";
 const MUTED = "var(--text-muted)";
 const FAINT = "var(--text-faint)";
 const ACCENT = "var(--accent)";
-const MONO = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace';
+// 고정폭 글꼴을 쓰던 자리(2026-10-25 화면 통일) - 기본 글꼴 그대로, 숫자 폭은 전역 tabular-nums(globals.css)로 맞춘다
+const MONO = "inherit";
 
 export type Kind = "theme" | "stock";
 type Snap = Record<string, unknown> | null;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import GuideTabs from "@/src/components/GuideTabs";
+import PageHeader from "@/src/components/PageHeader";
 
 interface Section {
   id: string;
@@ -572,18 +574,9 @@ const SECTIONS: Section[] = [
 
 export default function GuideDetailPage() {
   return (
-    <div className="space-y-3 max-w-3xl">
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-base font-bold text-white">세부 사용 설명서</h1>
-          <span className="inline-block px-2 py-0.5 rounded-lg text-[12px] font-bold" style={{ background: "#ffb02022", color: "#ffb020", border: "1px solid #ffb02044" }}>
-            DETAIL
-          </span>
-        </div>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-          각 기능의 원리와 해석 방법 · 항목을 클릭해서 펼쳐보세요
-        </p>
-      </div>
+    <div className="space-y-3 max-w-4xl">
+      <GuideTabs />
+      <PageHeader title="세부 설명서" desc="각 기능의 원리와 해석 방법 · 항목을 눌러서 펼쳐 보세요" />
 
       <Accordion sections={SECTIONS} />
 

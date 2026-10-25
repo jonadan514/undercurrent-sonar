@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
@@ -11,6 +11,7 @@ import PageHeader from "@/src/components/PageHeader";
 import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
 import { ObservationForm } from "@/src/components/Observation";
+import { GroupTitle, Section } from "@/src/components/Section";
 
 interface StockRef {
   market: string;
@@ -206,37 +207,9 @@ function IndexTile({ label, m }: { label: string; m: MarketWeek }) {
 }
 
 // 브리핑 레이아웃(2026-10-21) - 예전엔 칸 제목이 회색 12px 한 줄이라 어디서 칸이 바뀌는지 안 보였다.
-// 칸마다 카드 하나 + 제목·건수 한 줄로, 비슷한 칸끼리 묶음 제목 아래 둔다.
+// 칸마다 카드 하나 + 제목·건수 한 줄로, 비슷한 칸끼리 묶음 제목 아래 둔다. 2026-10-25부터 공용 Section·GroupTitle(src/components/Section.tsx).
 // 스크롤 여백: 위에 붙는 주 선택 띠 높이(휴대폰은 목차 줄까지)만큼
 const SCROLL_M = "scroll-mt-28 lg:scroll-mt-20";
-function Section({ id, title, count, sub, tone, children }: {
-  id: string; title: ReactNode; count?: ReactNode; sub?: ReactNode; tone?: "mine" | "warm"; children: ReactNode;
-}) {
-  const box = tone === "mine" ? { background: "#f59e0b0d", border: "1px solid #f59e0b44" }
-    : tone === "warm" ? { background: "#ffb02008", border: "1px solid #ffb02022" } : { border: "1px solid var(--border)" };
-  const head = tone === "mine" ? "#f59e0b" : tone === "warm" ? "#ffb020" : "var(--text-primary)";
-  return (
-    <section id={id} className={`rounded-xl p-3 sm:p-4 ${tone ? "" : "bg-card"} ${SCROLL_M}`} style={box}>
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h3 className="text-[14px] font-bold" style={{ color: head }}>{title}</h3>
-        {count != null && <span className="text-[13px] font-bold" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{count}</span>}
-        {sub && <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{sub}</span>}
-      </div>
-      {children}
-    </section>
-  );
-}
-function Group({ title, children }: { title: string; children: ReactNode }) {
-  // 이번 주에 보여 줄 칸이 하나도 없으면 묶음 제목도 숨긴다
-  const kids = Children.toArray(children);
-  if (kids.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <h2 className="stat-label px-1 pt-3">{title}</h2>
-      {kids}
-    </div>
-  );
-}
 function Sub({ children }: { children: ReactNode }) {
   return <p className="text-[12px] font-semibold mt-3 first:mt-0 mb-1" style={{ color: "var(--text-secondary)" }}>{children}</p>;
 }
@@ -345,7 +318,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
       <div className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-5">
         <div className="space-y-2 min-w-0">
           {has.mine && (
-            <Section id="mine" tone="mine" title="⭐ 관심 종목에 생긴 일"
+            <Section className={SCROLL_M} id="mine" tone="mine" title="⭐ 관심 종목에 생긴 일"
               sub={`내 관심·노트 ${b.my_stocks_week!.watched}종목 중 ${b.my_stocks_week!.count}종목`}>
               <div className="divide-y" style={{ borderColor: "#f59e0b22" }}>
                 {b.my_stocks_week!.items.map((x) => (
@@ -370,7 +343,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
           )}
 
           {has.comment && (
-            <Section id="comment" tone="warm" title="주간 총평">
+            <Section className={SCROLL_M} id="comment" tone="warm" title="주간 총평">
               <p className={`text-[13px] leading-relaxed whitespace-pre-line ${longComment && !commentOpen ? "line-clamp-4" : ""}`} style={{ color: "#bdb5a0" }}>
                 {b.gpt_comment}
               </p>
@@ -382,8 +355,8 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
             </Section>
           )}
 
-          <Group title="시장">
-            <Section id="market" title="지난주 시장">
+          <GroupTitle title="시장">
+            <Section className={SCROLL_M} id="market" title="지난주 시장">
               <div className="grid grid-cols-2 gap-1.5">
                 <IndexTile label="🇺🇸 S&P 500 주간" m={b.us} />
                 <IndexTile label="🇰🇷 KOSPI 주간" m={b.kr} />
@@ -414,11 +387,11 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                 </div>
               )}
             </Section>
-          </Group>
+          </GroupTitle>
 
-          <Group title="이번 주 일정">
+          <GroupTitle title="이번 주 일정">
             {has.earnings && (
-              <Section id="earnings" title="실적 발표" count={b.earnings_week!.total} sub={byMarket(b.earnings_week!.by_market)}>
+              <Section className={SCROLL_M} id="earnings" title="실적 발표" count={b.earnings_week!.total} sub={byMarket(b.earnings_week!.by_market)}>
                 <div className="space-y-1.5">
                   {Array.from(new Set(b.earnings_week!.items.map((x) => x.date))).map((d) => (
                     <div key={d} className="flex items-start gap-2">
@@ -444,7 +417,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
               </Section>
             )}
             {has.catalysts && (
-              <Section id="catalysts" title="다가오는 촉매" count={b.catalysts.length} sub="내 워치리스트">
+              <Section className={SCROLL_M} id="catalysts" title="다가오는 촉매" count={b.catalysts.length} sub="내 워치리스트">
                 <More items={b.catalysts} render={(s) => (
                   <div key={`${s.market}:${s.symbol}`} className="rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
                     <StockLabel s={s} />
@@ -455,14 +428,14 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                 )} />
               </Section>
             )}
-          </Group>
+          </GroupTitle>
 
-          <Group title="공시 · 내부자">
+          <GroupTitle title="공시 · 내부자">
             {has.disclosures && (() => {
               const k = b.kr_disclosures!;
               const fix = [...(k.termination?.items ?? []), ...(k.amend?.items ?? [])];
               return (
-                <Section id="disclosures" title="🇰🇷 한국 공시" count={discTotal(b)}
+                <Section className={SCROLL_M} id="disclosures" title="🇰🇷 한국 공시" count={discTotal(b)}
                   sub={[`지난 7일`, `공급계약 ${k.contract.count}`, `잠정실적 ${k.prelim.count}`,
                     ...((k.termination?.count ?? 0) > 0 ? [`해지 ${k.termination!.count}`] : []),
                     ...((k.amend?.count ?? 0) > 0 ? [`정정 ${k.amend!.count}`] : [])].join(" · ")}>
@@ -521,7 +494,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
             })()}
 
             {has.us8k && (
-              <Section id="us8k" title="🇺🇸 미국 8-K" count={b.us_8k_week!.total}
+              <Section className={SCROLL_M} id="us8k" title="🇺🇸 미국 8-K" count={b.us_8k_week!.total}
                 sub={`지난 7일 · ${Object.entries(b.us_8k_week!.by_kind).map(([k, n]) => `${k} ${n}`).join(" · ")}`}>
                 <More items={b.us_8k_week!.items} render={(x) => (
                   <div key={`${x.symbol}-${x.date}-${x.items.map((i) => i.item).join()}`} className="text-[12px] rounded-lg px-3 py-1.5"
@@ -554,7 +527,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
             {has.insider && (() => {
               const ins = b.insider_week!;
               return (
-                <Section id="insider" title="내부자 장내 매수" count={ins.total} sub={`지난 7일 공시 · ${byMarket(ins.by_market, "종목")}`}>
+                <Section className={SCROLL_M} id="insider" title="내부자 장내 매수" count={ins.total} sub={`지난 7일 공시 · ${byMarket(ins.by_market, "종목")}`}>
                   {ins.discovery ? (
                     <>
                       {ins.items.length > 0 && (
@@ -579,10 +552,10 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                 </Section>
               );
             })()}
-          </Group>
+          </GroupTitle>
 
-          <Group title="종목 변화">
-            <Section id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
+          <GroupTitle title="종목 변화">
+            <Section className={SCROLL_M} id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
               {!wl.has_prev ? (
                 <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>첫 스냅샷 주간 — 다음 주부터 신규/탈락 비교가 표시돼요.</p>
               ) : wl.added.length === 0 && wl.removed.length === 0 ? (
@@ -615,7 +588,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
             </Section>
 
             {has.turnaround && (
-              <Section id="turnaround" title="실적 반전"
+              <Section className={SCROLL_M} id="turnaround" title="실적 반전"
                 sub={`${byMarket(b.turnaround!.by_market) || "0"}${b.turnaround!.has_prev ? ` · 새로 ${b.turnaround!.added_count} · 빠짐 ${b.turnaround!.removed_count}` : ""}`}>
                 {b.turnaround!.added.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
@@ -640,7 +613,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
             )}
 
             {has.sentiment && (
-              <Section id="sentiment" title="관심도 상승" count={b.sentiment_heating.length}>
+              <Section className={SCROLL_M} id="sentiment" title="관심도 상승" count={b.sentiment_heating.length}>
                 <div className="flex flex-wrap gap-1.5">
                   {b.sentiment_heating.map((s) => (
                     <span key={`${s.market}:${s.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
@@ -651,13 +624,13 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                 </div>
               </Section>
             )}
-          </Group>
+          </GroupTitle>
 
           {/* 테마 레이더 라벨 변동 — 라벨 계산은 별도 워크플로우라 이 브리핑보다 늦게
               끝날 수 있어서, "이번 주"라 단정하지 않고 실제 기준 주를 그대로 보여준다. */}
-          <Group title="테마">
+          <GroupTitle title="테마">
             {has.labels && (
-              <Section id="labels" title="📡 테마 레이더 라벨 변동" sub={`${b.theme_labels!.week_start} 기준`}>
+              <Section className={SCROLL_M} id="labels" title="📡 테마 레이더 라벨 변동" sub={`${b.theme_labels!.week_start} 기준`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {b.theme_labels!.new_labels.length > 0 && (
                     <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #ffb02022" }}>
@@ -684,7 +657,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                 </div>
               </Section>
             )}
-          </Group>
+          </GroupTitle>
         </div>
 
         {/* 넓은 화면 목차 - 묶음별, 지금 읽는 칸 표시 */}

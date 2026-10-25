@@ -48,6 +48,9 @@
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* 숫자 폭을 같게(2026-10-25 화면 통일) - 예전엔 화면마다 고정폭 글꼴로 맞추거나(레이더·분기·성적표·노트) 칸마다
+       tabular-nums를 붙였다. 표·칸의 숫자 열이 가지런해지고 한글은 기본 글꼴 그대로. */
+    font-variant-numeric: tabular-nums;
   }
   * { box-sizing: border-box; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }

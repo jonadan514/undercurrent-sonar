@@ -11,6 +11,7 @@ import AsOf from "@/src/components/AsOf";
 import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
+import { StatGrid, StatTile } from "@/src/components/Section";
 
 interface Candidate {
   market: string;
@@ -622,6 +623,16 @@ function Us8kSection({ c }: { c: Candidate }) {
 
 // 후보가 아닌 종목으로 들어왔을 때(브리핑 "관심 밖 내부자 매수" 등, 2026-10-21) - 트랩 필터 판정과 사유, 내부자 장내 매수·8-K.
 // 탈락이어도 왜 떨어졌는지가 정보다. 판정이 없으면 "미확인"(원칙 4).
+// 필터 칩 묶음 - 앞에 작은 이름(시장·목록·밸류·성장·체제)
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: TEXT_FAINT, marginRight: 2 }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
 // ── 테마 동료 비교 (2026-10-25) ───────────────────────────────────────────────
 // 이 종목이 사업 소속인 테마마다, 소속 기업들의 중앙값·가운데 절반(25~75%) 옆에 이 종목 값을 둔다(/api/radar/peers).
 // 지표마다 따로 보여 줄 뿐 합치지 않고 순위도 매기지 않는다(원칙 1). 동료 값이 5곳 미만이면 비교하지 않는다(데이터부족).
@@ -1456,6 +1467,14 @@ export default function WatchlistPage() {
     [(c) => c.revenue_cagr_3y, num(numFilter.minCagr) == null ? null : num(numFilter.minCagr)! / 100, "min"],
   ];
   const activeChecks = numChecks.filter(([, lim]) => lim != null);
+  // 켜 둔 조건이 하나라도 있으면 "조건 모두 해제"(2026-10-25) - 예전엔 칩을 하나씩 꺼야 했다
+  const anyFilter = marketFilter !== "ALL" || regimeFilter !== "ALL" || newOnly || cheapOnly || growingOnly || themeOnly
+    || heatingOnly || preset != null || activeChecks.length > 0 || searchQuery.trim() !== "";
+  const clearFilters = () => {
+    setMarketFilter("ALL"); setRegimeFilter("ALL"); setNewOnly(false); setCheapOnly(false); setGrowingOnly(false);
+    setThemeOnly(false); setHeatingOnly(false); setPreset(null); setSearchQuery("");
+    setNumFilter({ minF: "", maxDebt: "", minInterest: "", maxPsr: "", maxPer: "", minCagr: "" });
+  };
   let missingDropped = 0;
   const numFiltered = activeChecks.length === 0 ? filtered : filtered.filter((c) => {
     let missing = false;
@@ -1574,11 +1593,6 @@ export default function WatchlistPage() {
   const growingCount = candidates.filter((c) => c.growth_tier === "성장").length;
   const growthKnown = candidates.some((c) => c.growth_tier != null);
 
-  const statStyle: React.CSSProperties = {
-    background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 12,
-    padding: "10px 16px", textAlign: "center",
-  };
-
   return (
     // 외형 점검(2026-10-21): 페이지 전체가 고정폭 글꼴이라 한글 자간이 벌어져 다른 화면과 딴판이었다 - 기본 글꼴 + 숫자만 폭 고정(tabular-nums).
     // 모서리도 여기만 각져 있었다 - wl-page 범위 규칙(globals.css)으로 테두리 있는 상자에 기본 둥글기, 큰 카드는 아래에서 따로.
@@ -1616,23 +1630,21 @@ export default function WatchlistPage() {
         asOf={!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
         desc="재무 건전성 필터(트랩 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·네러티브를 한 화면에." />
 
-      {/* 통계 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 24 }}>
-        {[
-          { label: "후보 종목", value: candidates.length, highlight: false },
-          // 이번 회차 신규는 275개 중 먼저 볼 것을 고르는 유일한 단서라 강조한다.
-          // 직전 회차가 없으면 숫자 대신 "-"(알 수 없음) - 0으로 쓰면 "신규가 없다"는
-          // 뜻이 되어 사실과 다르다.
-          { label: "이번 회차 신규", value: newKnown ? newCount : "-", highlight: true },
-          { label: "내 워치리스트", value: myList.length, highlight: false },
-          { label: "성장 후보", value: candidates.filter((c) => c.regime_fit === "growth").length, highlight: false },
-          { label: "배당 후보", value: candidates.filter((c) => c.regime_fit === "dividend").length, highlight: false },
-        ].map(({ label, value, highlight }) => (
-          <div key={label} style={{ ...statStyle, ...(highlight && newKnown && newCount > 0 ? { border: `1px solid ${GOOD}55` } : {}) }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: highlight && newKnown && newCount > 0 ? GOOD : ACCENT, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-            <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2 }}>{label}</div>
-          </div>
-        ))}
+      {/* 통계 - 공용 요약 칸(2026-10-25 화면 통일) */}
+      <div style={{ marginBottom: 24 }}>
+        <StatGrid cols={5}>
+          <StatTile label="후보 종목" value={candidates.length} />
+          {/* 이번 회차 신규는 후보 중 먼저 볼 것을 고르는 유일한 단서라 강조하고, 누르면 신규만 본다.
+              직전 회차가 없으면 숫자 대신 "-"(알 수 없음) - 0으로 쓰면 "신규가 없다"는 뜻이 되어 사실과 다르다. */}
+          <StatTile label="이번 회차 신규" value={newKnown ? newCount : "-"} emphasis={newKnown && newCount > 0 ? "good" : undefined}
+            active={newOnly} onClick={newKnown && newCount > 0 ? () => { setTab("candidates"); setNewOnly((v) => !v); } : undefined}
+            hint="누르면 이번 회차 신규만" />
+          <StatTile label="내 워치리스트" value={myList.length} onClick={() => setTab("my")} active={tab === "my"} hint="누르면 내 워치리스트 탭" />
+          <StatTile label="성장 후보" value={candidates.filter((c) => c.regime_fit === "growth").length}
+            active={regimeFilter === "growth"} onClick={() => { setTab("candidates"); setRegimeFilter((r) => r === "growth" ? "ALL" : "growth"); }} hint="누르면 성장 체제만" />
+          <StatTile label="배당 후보" value={candidates.filter((c) => c.regime_fit === "dividend").length}
+            active={regimeFilter === "dividend"} onClick={() => { setTab("candidates"); setRegimeFilter((r) => r === "dividend" ? "ALL" : "dividend"); }} hint="누르면 배당 체제만" />
+        </StatGrid>
       </div>
 
       {/* 탭 */}
@@ -1732,57 +1744,34 @@ export default function WatchlistPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-            {(["ALL", "US", "KR"] as const).map((m) => (
-              <button key={m} onClick={() => setMarketFilter(m)} style={{
-                background: marketFilter === m ? INFO + "20" : "transparent",
-                color: marketFilter === m ? INFO : TEXT_MUTED,
-                border: `1px solid ${marketFilter === m ? INFO + "40" : BORDER_CTRL}`,
-                padding: "4px 12px", fontSize: 12, cursor: "pointer",
-              }}>{m === "ALL" ? "전체" : m}</button>
-            ))}
+          {/* 필터 칩을 묶음 이름과 함께(2026-10-25) - 예전엔 세로 선으로만 나뉘어 "전체"가 두 번 나오고 무엇을 고르는지 안 보였다 */}
+          <div style={{ display: "flex", gap: "8px 18px", marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <FilterGroup label="시장">
+              {(["ALL", "US", "KR"] as const).map((m) => (
+                <button key={m} onClick={() => setMarketFilter(m)} style={{ background: marketFilter === m ? INFO + "20" : "transparent", color: marketFilter === m ? INFO : TEXT_MUTED, border: `1px solid ${marketFilter === m ? INFO + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>{m === "ALL" ? "전체" : m}</button>
+              ))}
+            </FilterGroup>
             {newKnown && newCount > 0 && (
-              <>
-                <div style={{ width: 1, background: BORDER_CTRL, margin: "0 4px" }} />
-                <button onClick={() => setNewOnly((v) => !v)} style={{
-                  background: newOnly ? GOOD + "20" : "transparent",
-                  color: newOnly ? GOOD : TEXT_MUTED,
-                  border: `1px solid ${newOnly ? GOOD + "40" : BORDER_CTRL}`,
-                  padding: "4px 12px", fontSize: 12, cursor: "pointer",
-                }}>이번 회차 신규만 ({newCount})</button>
-              </>
+              <FilterGroup label="목록">
+                <button onClick={() => setNewOnly((v) => !v)} style={{ background: newOnly ? GOOD + "20" : "transparent", color: newOnly ? GOOD : TEXT_MUTED, border: `1px solid ${newOnly ? GOOD + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>이번 회차 신규만 ({newCount})</button>
+              </FilterGroup>
             )}
-            {tierKnown && (
-              <>
-                <div style={{ width: 1, background: BORDER_CTRL, margin: "0 4px" }} />
-                <button onClick={() => setCheapOnly((v) => !v)} style={{
-                  background: cheapOnly ? GOOD + "20" : "transparent",
-                  color: cheapOnly ? GOOD : TEXT_MUTED,
-                  border: `1px solid ${cheapOnly ? GOOD + "40" : BORDER_CTRL}`,
-                  padding: "4px 12px", fontSize: 12, cursor: "pointer",
-                }}>싼 편만 ({cheapCount})</button>
-              </>
+            {(tierKnown || growthKnown) && (
+              <FilterGroup label="밸류·성장">
+                {tierKnown && <button onClick={() => setCheapOnly((v) => !v)} style={{ background: cheapOnly ? GOOD + "20" : "transparent", color: cheapOnly ? GOOD : TEXT_MUTED, border: `1px solid ${cheapOnly ? GOOD + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>싼 편만 ({cheapCount})</button>}
+                {growthKnown && <button onClick={() => setGrowingOnly((v) => !v)} style={{ background: growingOnly ? GOOD + "20" : "transparent", color: growingOnly ? GOOD : TEXT_MUTED, border: `1px solid ${growingOnly ? GOOD + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>성장만 ({growingCount})</button>}
+              </FilterGroup>
             )}
-            {growthKnown && (
-              <>
-                <div style={{ width: 1, background: BORDER_CTRL, margin: "0 4px" }} />
-                <button onClick={() => setGrowingOnly((v) => !v)} style={{
-                  background: growingOnly ? GOOD + "20" : "transparent",
-                  color: growingOnly ? GOOD : TEXT_MUTED,
-                  border: `1px solid ${growingOnly ? GOOD + "40" : BORDER_CTRL}`,
-                  padding: "4px 12px", fontSize: 12, cursor: "pointer",
-                }}>성장만 ({growingCount})</button>
-              </>
+            <FilterGroup label="체제">
+              {(["ALL", "growth", "dividend", "neutral"] as const).map((r) => (
+                <button key={r} onClick={() => setRegimeFilter(r)} style={{ background: regimeFilter === r ? INFO + "20" : "transparent", color: regimeFilter === r ? INFO : TEXT_MUTED, border: `1px solid ${regimeFilter === r ? INFO + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>{r === "ALL" ? "전체" : r === "growth" ? "성장" : r === "dividend" ? "배당" : "중립"}</button>
+              ))}
+            </FilterGroup>
+            {anyFilter && (
+              <button onClick={clearFilters} style={{ background: "transparent", border: "none", color: ACCENT, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
+                조건 모두 해제
+              </button>
             )}
-            <div style={{ width: 1, background: BORDER_CTRL, margin: "0 4px" }} />
-            {(["ALL", "growth", "dividend", "neutral"] as const).map((r) => (
-              <button key={r} onClick={() => setRegimeFilter(r)} style={{
-                background: regimeFilter === r ? INFO + "20" : "transparent",
-                color: regimeFilter === r ? INFO : TEXT_MUTED,
-                border: `1px solid ${regimeFilter === r ? INFO + "40" : BORDER_CTRL}`,
-                padding: "4px 12px", fontSize: 12, cursor: "pointer",
-              }}>{r === "ALL" ? "전체" : r === "growth" ? "성장" : r === "dividend" ? "배당" : "중립"}</button>
-            ))}
           </div>
 
           {/* 지표 숫자 필터 - 접어 두고 필요할 때 연다 */}

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import GuideTabs from "@/src/components/GuideTabs";
+import PageHeader from "@/src/components/PageHeader";
 
 // 투자 실행 가이드 — /guide(기능 설명서)와 역할이 다르다.
 // 설명서는 "이 화면이 무엇을 보여주는가", 이 문서는 "그래서 내가 무엇을 하는가"다.
@@ -66,24 +68,8 @@ export default function PlaybookPage() {
   return (
     <div className="space-y-6 max-w-4xl">
 
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-1 flex-wrap">
-          <h1 className="text-base font-bold text-white">투자 실행 가이드</h1>
-          <span className="inline-block px-2 py-0.5 rounded-lg text-[12px] font-bold"
-            style={{ background: `${ACCENT}22`, color: ACCENT, border: `1px solid ${ACCENT}44` }}>
-            PLAYBOOK
-          </span>
-        </div>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-          발굴부터 매도까지 — 이 툴을 쓰는 사람이 실제로 무엇을 하는가
-        </p>
-        <Link href="/guide"
-          className="inline-flex items-center gap-1.5 mt-3 text-[12px] font-semibold rounded-xl px-3 py-1.5"
-          style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-          <span style={{ color: ACCENT }}>◉</span> ← 기능 설명서로 돌아가기
-        </Link>
-      </div>
+      <GuideTabs />
+      <PageHeader title="투자 실행 가이드" desc="발굴부터 매도까지 — 이 툴을 쓰는 사람이 실제로 무엇을 하는가" />
 
       <Card>
         <P>

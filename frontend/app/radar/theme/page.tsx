@@ -21,7 +21,8 @@ const MUTED = "var(--text-muted)";
 const FAINT = "var(--text-faint)";
 const ACCENT = "var(--accent)";
 const INFO = "var(--info)";
-const MONO = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace';
+// 고정폭 글꼴을 쓰던 자리(2026-10-25 화면 통일) - 기본 글꼴 그대로, 숫자 폭은 전역 tabular-nums(globals.css)로 맞춘다
+const MONO = "inherit";
 const WEEKS = 12;
 
 type Arrow = "up2" | "up1" | "flat" | "down" | "na" | null;
@@ -261,7 +262,7 @@ function ThemeHistory() {
     const el = scrollRef.current;
     if (el) el.scrollLeft = el.scrollWidth;
   }, [grid]);
-  const box = "rounded-2xl p-4 md:p-5";
+  const box = "rounded-xl p-3 sm:p-4";   // 공용 Section 카드와 같은 둥글기·여백(2026-10-25 화면 통일)
   const boxStyle = { background: "var(--bg-card)", border: "1px solid var(--border)" };
 
   if (!themeId) return <div className="py-16 text-center" style={{ color: MUTED }}>테마가 지정되지 않았습니다. <Link href="/radar" className="underline">테마 레이더로</Link></div>;

@@ -7,7 +7,7 @@ import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import PageHeader, { IndexBadge } from "@/src/components/PageHeader";
-import PageIntro from "@/src/components/PageIntro";
+import { Section } from "@/src/components/Section";
 import EmptyState from "@/src/components/EmptyState";
 
 // 경기 사이클 판정(회복기·성장기 등)은 2026-10-20에 화면에서 뺐다 - 대표 섹터 3개씩의 1달 RS 평균 중 최댓값을
@@ -85,43 +85,32 @@ export default function SectorPage() {
 
   return (
     <div className="space-y-2">
-      {/* Header */}
-      <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap">
-        <IndexBadge><FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{isKR ? "KOSPI" : "S&P 500"}</IndexBadge>
-        <h1 className="text-[20px] sm:text-[22px] font-bold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>섹터 분석</h1>
-        <AsOf date={data.date} cadence="매주 화요일 아침" staleDays={8} />
-        {/* KR만 두 경로가 있다 - KRX가 코스피200 섹터지수를 못 내려주면(로그인 만료,
-            점검 등) 대표 종목 평균으로 조용히 폴백하는데, 그 사실이 화면에 안 보이면
-            "왜 이 숫자가 지난주랑 계산 기준이 다른가"를 알 방법이 없다.
-            KRX_SECTOR_INDEX_JSON을 붙이기 전 캐시(sector_source 필드 자체가 없음)도
-            폴백과 같은 취급 - 그때는 항상 앵커 종목으로 계산됐었다. */}
-        {isKR && (
-          <span
-            className="text-[11px] font-semibold px-2 py-0.5 rounded"
-            style={
-              data.sector_source === "krx"
-                ? { background: "#4ade8020", color: "#4ade80" }
-                : { background: "#facc1520", color: "#facc15" }
-            }
-          >
-            {data.sector_source === "krx" ? "KRX 공식 지수" : "대표 종목 기준 (폴백)"}
-          </span>
-        )}
-        <InfoTooltip content={isKR
-          ? "코스피200 섹터지수(정보기술·금융 등) + 유틸리티 업종지수(전기·가스) 기반 상대강도 분석입니다. KRX 지수를 받지 못하면 섹터별 대표 종목 평균으로 계산합니다."
-          : "11개 SPDR ETF 기반 섹터 순환 분석입니다. SPY 대비 상대 강도(RS)로 경기 사이클을 판단합니다."} />
-      </div>
-      <PageIntro k="sector" />
+      {/* 공통 머리말(2026-10-25 화면 통일 - 이 화면만 머리말을 따로 그리고 있었다) */}
+      <PageHeader title="섹터 분석" intro="sector"
+        prefix={<IndexBadge><FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{isKR ? "KOSPI" : "S&P 500"}</IndexBadge>}
+        asOf={<>
+          <AsOf date={data.date} cadence="매주 화요일 아침" staleDays={8} />
+          {/* KR만 두 경로가 있다 - KRX가 코스피200 섹터지수를 못 내려주면(로그인 만료, 점검 등) 대표 종목 평균으로
+              조용히 폴백하는데, 그 사실이 화면에 안 보이면 "왜 이 숫자가 지난주랑 계산 기준이 다른가"를 알 방법이 없다.
+              KRX_SECTOR_INDEX_JSON을 붙이기 전 캐시(sector_source 필드 자체가 없음)도 폴백과 같은 취급. */}
+          {isKR && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded"
+              style={data.sector_source === "krx" ? { background: "#4ade8020", color: "#4ade80" } : { background: "#facc1520", color: "#facc15" }}>
+              {data.sector_source === "krx" ? "KRX 공식 지수" : "대표 종목 기준 (폴백)"}
+            </span>
+          )}
+          <InfoTooltip content={isKR
+            ? "코스피200 섹터지수(정보기술·금융 등) + 유틸리티 업종지수(전기·가스) 기반 상대강도 분석입니다. KRX 지수를 받지 못하면 섹터별 대표 종목 평균으로 계산합니다."
+            : "11개 SPDR ETF 기반 섹터 순환 분석입니다. SPY 대비 상대 강도(RS)로 경기 사이클을 판단합니다."} />
+        </>}
+        desc={`업종별로 시장(${isKR ? "KOSPI" : "SPY"})보다 강한지 약한지(상대강도). 판정이 아니라 지금 위치입니다.`} />
 
       {/* 전환 중인 섹터 + 선행·후행 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
         {/* 전환 중인 섹터 - 3달과 1달 상대강도 방향이 엇갈림 */}
-        <div className="bg-card rounded-xl p-3 space-y-2">
-          <div className="flex items-center gap-1.5">
-            <p className="text-[14px] font-bold text-white">전환 중인 섹터</p>
-            <InfoTooltip content={`3달 상대강도와 1달 상대강도의 방향이 다른 섹터입니다. 3달은 시장(${isKR ? "KOSPI" : "SPY"})보다 약했는데 최근 1달은 강하면 '돌아서는 중', 그 반대면 '꺾이는 중'. 주간 추이에서 최근 2주가 같은 방향이면 함께 표시합니다. 판정이 아니라 조건에 맞는 섹터 목록입니다.`} />
-          </div>
+        <Section title="전환 중인 섹터" className="space-y-2"
+          info={`3달 상대강도와 1달 상대강도의 방향이 다른 섹터입니다. 3달은 시장(${isKR ? "KOSPI" : "SPY"})보다 약했는데 최근 1달은 강하면 '돌아서는 중', 그 반대면 '꺾이는 중'. 주간 추이에서 최근 2주가 같은 방향이면 함께 표시합니다. 판정이 아니라 조건에 맞는 섹터 목록입니다.`}>
           {([["up", "↗ 돌아서는 중", "3달 약세 → 최근 1달 강세", turningUp, "#4ade80"],
              ["down", "↘ 꺾이는 중", "3달 강세 → 최근 1달 약세", turningDown, "#f87171"]] as const).map(([k, title, sub, list, color]) => (
             <div key={k}>
@@ -148,10 +137,10 @@ export default function SectorPage() {
               )}
             </div>
           ))}
-        </div>
+        </Section>
 
         {/* 선행 / 후행 섹터 */}
-        <div className="bg-card rounded-xl p-3 space-y-2">
+        <Section title="선행 · 후행 섹터" className="space-y-2" sub="최근 1달 상대강도 위·아래 3개">
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <p className="text-[13px] font-bold" style={{ color: "#ffb020" }}>↑ 선행 섹터</p>
@@ -182,16 +171,13 @@ export default function SectorPage() {
               {lagging.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>없음</p>}
             </div>
           </div>
-        </div>
+        </Section>
       </div>
 
       {/* RS History */}
-      <div className="bg-card rounded-xl overflow-hidden">
-        <div className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border)" }}>
-          <p className="text-[14px] font-bold text-white">주간 상대강도 추이 <span className="text-[12px] font-normal" style={{ color: "var(--text-muted)" }}>(최근 4주)</span></p>
-          <InfoTooltip content={`${isKR ? "KOSPI" : "SPY"} 대비 초과 수익률입니다. 양수(+)면 시장보다 더 올랐고, 음수(-)면 시장보다 덜 올랐다는 의미입니다. 여러 주에 걸쳐 양수를 유지하면 선행 섹터로 분류됩니다.`} />
-        </div>
-        <div className="overflow-x-auto">
+      <Section title="주간 상대강도 추이" sub="최근 4주"
+        info={`${isKR ? "KOSPI" : "SPY"} 대비 초과 수익률입니다. 양수(+)면 시장보다 더 올랐고, 음수(-)면 시장보다 덜 올랐다는 의미입니다. 여러 주에 걸쳐 양수를 유지하면 선행 섹터로 분류됩니다.`}>
+        <div className="overflow-x-auto -mx-3 sm:-mx-4">
         <table className="w-full text-[12px]">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -223,14 +209,13 @@ export default function SectorPage() {
           </tbody>
         </table>
         </div>
-      </div>
+      </Section>
 
       {/* 섹터 히트맵 */}
-      <div className="bg-card rounded-xl overflow-hidden">
-        <div className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border)" }}>
-          <p className="text-[14px] font-bold text-white">섹터별 수익률 · 상대강도</p>
-          <InfoTooltip content="왼쪽 수치(%)는 해당 기간 절대 수익률, 오른쪽 바와 수치는 시장(SPY/KOSPI) 대비 상대강도(RS)입니다. RS가 양수이면 시장을 이기고 있다는 의미입니다. 섹터를 클릭하면 포함된 종목을 볼 수 있습니다." />
-          <div className="ml-auto flex items-center gap-2">
+      <Section title="섹터별 수익률 · 상대강도"
+        info="왼쪽 수치(%)는 해당 기간 절대 수익률, 오른쪽 바와 수치는 시장(SPY/KOSPI) 대비 상대강도(RS)입니다. RS가 양수이면 시장을 이기고 있다는 의미입니다. 섹터를 클릭하면 포함된 종목을 볼 수 있습니다."
+        right={
+          <div className="flex items-center gap-2">
             <span className="text-[11px]" style={{ color: "var(--text-faint)" }}>기간 선택</span>
             <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
               {PERIOD_TABS.map(p => (
@@ -245,10 +230,10 @@ export default function SectorPage() {
               ))}
             </div>
           </div>
-        </div>
+        }>
 
         {/* 컬럼 헤더 + 행 (모바일에서는 가로 스크롤) */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 sm:-mx-4">
         {/* 좁은 화면에선 이름·현재가 열을 숨겨 가로 스크롤 없이 상대강도까지 보이게(2026-10-21) */}
         <div className={isKR ? "sm:min-w-[480px]" : "sm:min-w-[640px]"}>
         <div className="flex items-center gap-3 px-3 py-1" style={{ borderBottom: "1px solid var(--border-dim)", background: "var(--bg-inset)" }}>
@@ -259,7 +244,8 @@ export default function SectorPage() {
           <span className="flex-1 text-[11px] truncate" style={{ color: "var(--text-faint)" }}>시장 대비 상대강도 (RS)<span className="hidden sm:inline"> — 중앙 기준, 우측=아웃퍼폼</span></span>
         </div>
 
-        <div className="divide-y" style={{ borderColor: "var(--border-dim)" }}>
+        {/* 줄 구분선 - divide-y는 부모에 준 색이 자식 테두리에 안 먹어 밝은 기본색으로 보였다(2026-10-25) */}
+        <div>
           {(() => {
             const maxAbsRS = Math.max(...rows.map((r: any) => Math.abs(r[`rs_${period}`] ?? 0)), 1);
             return rows.map((row: any) => {
@@ -271,7 +257,7 @@ export default function SectorPage() {
             const barPct = rs != null ? Math.min((Math.abs(rs) / maxAbsRS) * 50, 50) : 0;
 
             return (
-              <div key={key}>
+              <div key={key} style={{ borderTop: "1px solid var(--border-dim)" }}>
                 <button
                   onClick={() => stocks.length > 0 && setOpenKey(isOpen ? null : key)}
                   className="w-full flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-white/5"
@@ -347,7 +333,7 @@ export default function SectorPage() {
         </div>
         </div>
         </div>
-      </div>
+      </Section>
 
       {benchmarkRet && (
         <div className="rounded-xl px-3 py-2 text-[12px] flex items-center gap-2 flex-wrap" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import InfoTooltip from "@/src/components/InfoTooltip";
 import PageHeader from "@/src/components/PageHeader";
+import { Section } from "@/src/components/Section";
 
 // 데이터 상태 한눈에 보기(2026-10-21) - 정기 수집마다 마지막 저장 시각과 허용 기간. 사이드바 아래 칸을 누르면 온다.
 // 각 표의 마지막 저장 시각으로 본다(GitHub 실행 기록 아님) - 실행은 됐는데 저장이 안 된 것도 지연으로 보인다.
@@ -49,8 +50,8 @@ export default function StatusPage() {
         const rows = h.items.filter((x) => x.group === g);
         if (rows.length === 0) return null;
         return (
-          <div key={g} className="bg-card rounded-xl p-3">
-            <h2 className="stat-label mb-2">{g} 갱신</h2>
+          <Section key={g} title={`${g} 갱신`} count={rows.length}
+            sub={(() => { const bad = rows.filter((x) => x.status !== "ok").length; return bad ? `지연·없음 ${bad}` : "모두 정상"; })()}>
             <div className="space-y-1">
               {rows.map((x) => {
                 const st = STATUS[x.status];
@@ -60,8 +61,8 @@ export default function StatusPage() {
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: st.color }} />
                     <span className="font-semibold min-w-[11rem]" style={{ color: "var(--text-primary)" }}>{x.label}</span>
                     <span className="text-[12px] min-w-[6rem]" style={{ color: "var(--text-muted)" }}>{x.cadence}</span>
-                    <span className="font-mono text-[12px]" style={{ color: "var(--text-secondary)" }}>{kst(x.last)}</span>
-                    <span className="font-mono text-[12px]" style={{ color: st.color }}>{x.status === "missing" ? "없음" : `${ago(x.age_days)} · ${st.label}`}</span>
+                    <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{kst(x.last)}</span>
+                    <span className="text-[12px]" style={{ color: st.color }}>{x.status === "missing" ? "없음" : `${ago(x.age_days)} · ${st.label}`}</span>
                     <span className="text-[11px] sm:ml-auto" style={{ color: "var(--text-faint)" }}>
                       허용 {x.ok_days}일{x.note ? ` · ${x.note}` : ""}
                     </span>
@@ -69,7 +70,7 @@ export default function StatusPage() {
                 );
               })}
             </div>
-          </div>
+          </Section>
         );
       })}
 

@@ -2,12 +2,12 @@
 
 import WelcomePanel from "@/src/components/WelcomePanel";
 import { useEffect, useState } from "react";
-import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
 import FlagIcon from "@/src/components/FlagIcon";
 import { BigChart, RangeBar, Sparkline, lastN, type Point } from "@/src/components/MacroChart";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO } from "@/src/lib/labelNames";
+import { Section, StatGrid, StatTile } from "@/src/components/Section";
 import PageHeader, { IndexBadge } from "@/src/components/PageHeader";
 
 // radar/page.tsx의 편집 방침과 같은 순서 (SPEC §6.2) — 페이지별 상수 유지 관행.
@@ -51,13 +51,7 @@ interface WeekBrief {
 }
 
 function ChangeTile({ href, label, value, sub, hint }: { href: string; label: string; value: string; sub?: string; hint?: string }) {
-  return (
-    <a href={href} className="rounded-lg p-2.5 block transition-colors hover:brightness-125" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }} title={hint}>
-      <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-[20px] font-bold leading-tight mt-0.5" style={{ color: "var(--num)", fontVariantNumeric: "tabular-nums" }}>{value}</p>
-      {sub && <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{sub}</p>}
-    </a>
-  );
+  return <StatTile href={href} label={label} value={value} sub={sub} hint={hint} />;
 }
 
 export default function HomePage() {
@@ -127,21 +121,16 @@ export default function HomePage() {
 
   return (
     <div className="space-y-3">
-      {/* 첫 방문 안내 - 닫으면 이 브라우저에서는 안 보인다(2026-10-23) */}
-      <WelcomePanel />
-      {/* Title */}
       {/* 공통 머리말(2026-10-21 외형 점검) - 시장은 위 탭에 있어 제목에서 뺐다. 갱신 주기는 칸마다 기준일 표시가 있다. */}
       <PageHeader title="이번 주 물밑 흐름" intro="home"
         prefix={<IndexBadge><FlagIcon market={isKR ? "KR" : "US"} size={14} />{" "}{indexName}</IndexBadge>} />
+      {/* 첫 방문 안내 - 닫으면 이 브라우저에서는 안 보인다(2026-10-23). 다른 화면처럼 제목 아래에(2026-10-25 화면 통일) */}
+      <WelcomePanel />
 
       {/* 이번 주 변화 - 무엇이 새로 생겼나만 모아 해당 화면으로 보낸다(2026-10-20). 숫자는 워치리스트·주간 브리핑 값 그대로. */}
-      <div className="bg-card rounded-lg p-3">
-        <div className="flex items-center gap-1.5 mb-2">
-          <p className="stat-label" style={{ fontSize: 13 }}>이번 주 변화</p>
-          <InfoTooltip content="이번 주에 새로 생긴 것만 모았습니다. 칸을 누르면 해당 목록으로 갑니다. 순위나 추천이 아닙니다." />
-          {brief && <span className="ml-auto text-[11px]" style={{ color: "var(--text-faint)" }}>{brief.week.slice(5).replace("-", "/")} 주 브리핑 기준</span>}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <Section title="이번 주 변화" info="이번 주에 새로 생긴 것만 모았습니다. 칸을 누르면 해당 목록으로 갑니다. 순위나 추천이 아닙니다."
+        right={brief && <span style={{ color: "var(--text-faint)" }}>{brief.week.slice(5).replace("-", "/")} 주 브리핑 기준</span>}>
+        <StatGrid cols={6}>
           <ChangeTile href={newCount ? "/watchlist?new=1" : "/watchlist"} label="워치리스트 후보"
             value={`${candidateCount}`} sub={newCount != null ? `이번 주 신규 ${newCount}` : "재무 필터 통과, 순위 없음"}
             hint="재무 건전성 필터를 통과한 종목. 매수 신호가 아닙니다." />
@@ -180,8 +169,8 @@ export default function HomePage() {
           })()}
           <ChangeTile href="/notes" label="관찰 노트 회고" value={`${brief?.observation_reviews?.length ?? 0}`}
             sub={(brief?.observation_reviews?.length ?? 0) > 0 ? "판단 남길 회고 도착" : "도착한 회고 없음"} />
-        </div>
-      </div>
+        </StatGrid>
+      </Section>
 
       {candidateCount === 0 && (
         <div className="bg-card rounded-lg p-3 text-center text-base" style={{ color: "#726b58" }}>
@@ -191,38 +180,21 @@ export default function HomePage() {
 
       {/* 이번 주 테마 레이더 — 뉴스/실적/주가 축이 만드는 라벨 요약 (US만) */}
       {radarCounts && (
-        <a href="/radar" className="card-secondary rounded-lg block">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="stat-label" style={{ fontSize: 13 }}>이번 주 테마 레이더</p>
-                <InfoTooltip content="뉴스·실적·주가 세 축이 정해진 조합으로 겹칠 때만 라벨을 붙입니다. 종합 점수나 매수 추천이 아닙니다." />
-              </div>
-              {Object.keys(radarCounts).length === 0 ? (
-                <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
-                  이번 주 라벨 부여된 테마 없음
-                </p>
-              ) : (
-                <p className="text-[13px] mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                  {LABEL_ORDER.filter(l => radarCounts[l]).map(l => `${LABEL_KO[l] ?? l} ${radarCounts[l]}`).join(" · ")}
-                </p>
-              )}
-            </div>
-            <span className="text-[13px] shrink-0" style={{ color: "var(--text-muted)" }}>확인하기 →</span>
-          </div>
-        </a>
+        <Section title="이번 주 테마 레이더" info="뉴스·실적·주가 세 축이 정해진 조합으로 겹칠 때만 라벨을 붙입니다. 종합 점수나 매수 추천이 아닙니다."
+          right={<a href="/radar" className="hover:underline" style={{ color: "var(--text-muted)" }}>확인하기 →</a>}>
+          <p className="text-[13px] truncate" style={{ color: "var(--text-secondary)" }}>
+            {Object.keys(radarCounts).length === 0 ? "이번 주 라벨 부여된 테마 없음"
+              : LABEL_ORDER.filter(l => radarCounts[l]).map(l => `${LABEL_KO[l] ?? l} ${radarCounts[l]}`).join(" · ")}
+          </p>
+        </Section>
       )}
 
       {/* 예전 '주간 브리핑 / 섹터 분석' 이동 카드는 설명 한 줄짜리라 뺐다 - 사이드바 메뉴·위 '이번 주 변화' 칸과 역할이 겹쳤다(2026-10-21 외형 점검) */}
 
       {/* 매크로 패널 — 매일 갱신, 등급·판정 없이 원자료만 (US/KR 공통 배경 정보) */}
       {macro && (
-        <div className="bg-card rounded-lg p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <p className="stat-label" style={{ fontSize: 13 }}>매크로 지표</p>
-            <InfoTooltip content="시장 전체의 배경 지표를 판단 없이 숫자 그대로 보여줍니다. 등급·추천이 아니며, 매일 갱신됩니다." />
-            <span className="ml-auto"><AsOf date={macro.date} cadence="매일 아침" staleDays={4} /></span>
-          </div>
+        <Section title="매크로 지표" info="시장 전체의 배경 지표를 판단 없이 숫자 그대로 보여줍니다. 등급·추천이 아니며, 매일 갱신됩니다."
+          right={<AsOf date={macro.date} cadence="매일 아침" staleDays={4} />}>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {MACRO_ORDER.map((key) => {
               const item = macro.items[key];
@@ -264,7 +236,7 @@ export default function HomePage() {
               작은 선은 최근 3개월, 막대는 1년 최저~최고 안에서 지금 위치(판정 아님) · 카드를 누르면 큰 그래프
             </p>
           )}
-        </div>
+        </Section>
       )}
     </div>
   );
