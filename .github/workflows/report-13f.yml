@@ -1,0 +1,32 @@
+name: Report 13F
+
+# 읽기 전용 - 13F 수집 점검(가치 단위·파싱·티커 못 찾은 것), 2026-10-25.
+on:
+  workflow_dispatch:
+    inputs:
+      managers:
+        description: "몇 곳만(공백 구분, 비우면 전체)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Report
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          MANAGERS: ${{ inputs.managers }}
+        run: python scripts/report_13f.py ${MANAGERS:+--managers $MANAGERS}
