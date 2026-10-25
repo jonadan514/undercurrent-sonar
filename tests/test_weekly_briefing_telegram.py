@@ -277,3 +277,30 @@ def test_split_telegram_keeps_blocks_and_limit():
     assert "\n\n".join(parts).replace("\n\n", "\n") .count("줄 ") == 160          # 줄을 잃지 않는다
     assert all(p.count("<b>") == p.count("</b>") for p in parts)                  # 태그가 칸 사이에서 갈리지 않는다
     assert g.split_telegram("짧은 글") == ["짧은 글"]
+
+
+def _inst_rows():
+    return [
+        {"manager_id": "berkshire", "period": "2026-09-30", "ticker": "AAPL", "issuer": "APPLE INC", "value": 5e9, "prev_value": None,
+         "weight": 0.2, "status": "new", "share_chg": None},
+        {"manager_id": "berkshire", "period": "2026-09-30", "ticker": "KO", "issuer": "COCA COLA", "value": 0, "prev_value": 9e9,
+         "weight": None, "status": "sold", "share_chg": -1.0},
+        {"manager_id": "berkshire", "period": "2026-09-30", "ticker": "MU", "issuer": "MICRON", "value": 2e9, "prev_value": 1e9,
+         "weight": 0.05, "status": "added", "share_chg": 0.8},
+    ]
+
+
+def test_inst_13f_week_items_and_my_stocks_and_telegram():
+    filings = [{"manager_id": "berkshire", "period": "2026-09-30", "filed": "2026-11-14"}]
+    meta = {"berkshire": {"ko": "버크셔 해서웨이", "style": "장기 가치"}}
+    tags = {"US:MU": ["my"], "US:AAPL": ["cand"]}
+    inst = g.inst_13f_week_items(filings, _inst_rows(), meta, tags, {}, {"US:AAPL": {"status": "pass", "piotroski": 7}})
+    it = inst["items"][0]
+    assert inst["filers"] == 1 and it["counts"] == {"new": 1, "added": 1, "reduced": 0, "sold": 1}
+    assert it["new"][0]["ticker"] == "AAPL" and it["new"][0]["finance"]["status"] == "pass"
+    assert it["sold"][0]["ticker"] == "KO"
+    assert {x["ticker"] for x in inst["tagged"]} == {"AAPL", "MU"}   # 관심 표시 종목만(늘림 포함)
+    my = g.my_stocks_week({"inst_13f_week": inst}, {"US:MU": ["my"]}, {})
+    assert my["items"][0]["events"][0]["kind"] == "13F" and "늘림" in my["items"][0]["events"][0]["text"]
+    text = g.build_telegram_summary(_briefing(inst_13f_week=inst))
+    assert "유명 투자자 13F" in text and "새로 AAPL" in text and "다 팖 KO" in text and "2026 Q3" in text

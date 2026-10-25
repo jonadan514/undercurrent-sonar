@@ -12,6 +12,7 @@ import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import { StatGrid, StatTile } from "@/src/components/Section";
+import { INVESTOR_BY_ID, quarterLabel as q13f, usd } from "@/src/lib/institutions";
 
 interface Candidate {
   market: string;
@@ -633,6 +634,50 @@ function FilterGroup({ label, children }: { label: string; children: React.React
   );
 }
 
+// ── 유명 투자자 13F (2026-10-25) ─────────────────────────────────────────────
+// 사용자가 고른 운용사 15곳 중 이 종목을 가장 최근 분기 말에 들고 있던(또는 그 분기에 다 판) 곳. 미국 종목만(13F는 미국 상장주식).
+const STATUS_KO: Record<string, string> = { new: "새로 삼", added: "늘림", reduced: "줄임", same: "그대로", sold: "다 팖" };
+function InstitutionSection({ c }: { c: Candidate }) {
+  const [holders, setHolders] = useState<{ manager_id: string; period: string; value: number; weight: number | null; status: string | null; share_chg: number | null; prev_value: number | null }[]>([]);
+  useEffect(() => {
+    if (c.market !== "US") return;
+    let cancelled = false;
+    fetch(`/api/investors?symbol=${encodeURIComponent(c.symbol)}`).then((r) => r.json())
+      .then((d) => { if (!cancelled) setHolders(Array.isArray(d.holders) ? d.holders : []); })
+      .catch(() => { if (!cancelled) setHolders([]); });
+    return () => { cancelled = true; };
+  }, [c.market, c.symbol]);
+  if (c.market !== "US" || holders.length === 0) return null;
+  const sorted = [...holders].sort((a, b) => (b.value || b.prev_value || 0) - (a.value || a.prev_value || 0));
+  return (
+    <div className="p-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
+      <p className="text-[12px] font-semibold mb-1.5" style={{ color: TEXT_SECONDARY }}>
+        유명 투자자 13F <span className="font-normal" style={{ color: TEXT_MUTED }}>— 고른 운용사 15곳 중 {holders.filter((h) => h.status !== "sold").length}곳 보유</span>
+      </p>
+      <div className="space-y-0.5">
+        {sorted.map((h) => {
+          const meta = INVESTOR_BY_ID[h.manager_id];
+          const col = h.status === "new" || h.status === "added" ? GOOD : h.status === "sold" || h.status === "reduced" ? BAD : TEXT_SECONDARY;
+          return (
+            <p key={h.manager_id} className="text-[12px] flex flex-wrap gap-x-2" style={{ fontVariantNumeric: "tabular-nums" }}>
+              <span className="text-white">{meta?.ko ?? h.manager_id}</span>
+              <span style={{ color: TEXT_MUTED }}>{meta?.style}</span>
+              <span style={{ color: col }}>{h.status ? STATUS_KO[h.status] ?? h.status : "비교 없음"}
+                {(h.status === "added" || h.status === "reduced") && h.share_chg != null ? ` ${h.share_chg >= 0 ? "+" : ""}${(h.share_chg * 100).toFixed(0)}%` : ""}</span>
+              <span>{h.status === "sold" ? `직전 ${usd(h.prev_value)}` : usd(h.value)}</span>
+              {h.weight != null && h.status !== "sold" && <span style={{ color: TEXT_MUTED }}>비중 {(h.weight * 100).toFixed(1)}%</span>}
+              <span style={{ color: TEXT_FAINT }}>{q13f(h.period)} 말</span>
+            </p>
+          );
+        })}
+      </div>
+      <p className="text-[12px] mt-1.5" style={{ color: TEXT_SECONDARY }}>
+        SEC 13F · 분기 말 보유를 45일 안에 신고한 것(산 시점·가격 모름, 매수 보유만) · <a href="/investors" style={{ color: ACCENT }}>전체 보기</a>
+      </p>
+    </div>
+  );
+}
+
 // ── 테마 동료 비교 (2026-10-25) ───────────────────────────────────────────────
 // 이 종목이 사업 소속인 테마마다, 소속 기업들의 중앙값·가운데 절반(25~75%) 옆에 이 종목 값을 둔다(/api/radar/peers).
 // 지표마다 따로 보여 줄 뿐 합치지 않고 순위도 매기지 않는다(원칙 1). 동료 값이 5곳 미만이면 비교하지 않는다(데이터부족).
@@ -752,6 +797,7 @@ function MissDetail({ market, symbol }: { market: string; symbol: string }) {
         {sc?.screened_at && <span style={{ color: TEXT_SECONDARY }}> · {String(sc.screened_at).slice(0, 10)} 기준</span>}
       </p>
       <ThemePeerSection c={c} />
+      <InstitutionSection c={c} />
       <Us8kSection c={c} />
       <InsiderSection c={c} />
     </div>
@@ -1168,6 +1214,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
           </div>
 
           <ThemePeerSection c={c} />
+          <InstitutionSection c={c} />
           <Us8kSection c={c} />
           <InsiderSection c={c} />
 

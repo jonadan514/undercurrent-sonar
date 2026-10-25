@@ -587,6 +587,68 @@ def get_us_8k_week() -> dict | None:
     return us_8k_week_items(rows, tags, names)
 
 
+INST_WEB_MAX = 10
+INST_TG_MANAGERS = 4
+INST_TG_NAMES = 4
+
+
+def load_institutions() -> dict[str, dict]:
+    try:
+        return {m["id"]: m for m in yaml.safe_load((ROOT / "config" / "institutions.yaml").read_text(encoding="utf-8"))["managers"]}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def inst_13f_week_items(filings: list[dict], rows: list[dict], meta: dict[str, dict], tags: dict[str, list[str]],
+                        names: dict[str, str], screen: dict[str, dict]) -> dict:
+    """유명 투자자 13F(2026-10-25) - 지난 7일 신고한 운용사마다 그 분기에 새로 산 종목·다 판 종목(평가액 순, 신고서 값 그대로).
+    rows: inst_13f_positions(주식만)에서 그 운용사·분기의 new/added/reduced/sold 줄. 관심 표시 종목 줄은 tagged에 전부 모은다(⭐ 칸용).
+    점수·순위 없음(원칙 1). 재무는 트랩 필터 3분류(원칙 4)."""
+    items, tagged = [], []
+    for f in filings:
+        mine = [r for r in rows if r["manager_id"] == f["manager_id"] and r["period"] == f["period"]]
+        m = meta.get(f["manager_id"], {})
+
+        def row(r: dict) -> dict:
+            key = f"US:{r['ticker']}" if r.get("ticker") else None
+            return {"ticker": r.get("ticker"), "issuer": r.get("issuer"), "name": names.get(key) if key else None,
+                    "value": r.get("value"), "prev_value": r.get("prev_value"), "weight": r.get("weight"), "status": r.get("status"),
+                    "share_chg": r.get("share_chg"), "tags": tags.get(key, []) if key else [],
+                    "finance": screen.get(key) if key else None}
+        new = sorted((row(r) for r in mine if r["status"] == "new"), key=lambda x: -(x["value"] or 0))
+        sold = sorted((row(r) for r in mine if r["status"] == "sold"), key=lambda x: -(x["prev_value"] or 0))
+        counts = {k: sum(1 for r in mine if r["status"] == k) for k in ("new", "added", "reduced", "sold")}
+        items.append({"manager_id": f["manager_id"], "name": m.get("ko", f["manager_id"]), "style": m.get("style"),
+                      "period": f["period"], "filed": f["filed"], "counts": counts, "compared": any(r["status"] for r in mine),
+                      "new": new[:INST_WEB_MAX], "sold": sold[:INST_WEB_MAX]})
+        for r in mine:
+            x = row(r)
+            if x["tags"] and r["status"] in ("new", "added", "reduced", "sold"):
+                tagged.append({**x, "manager_id": f["manager_id"], "manager": m.get("ko", f["manager_id"]), "period": f["period"]})
+    items.sort(key=lambda x: x["filed"], reverse=True)
+    return {"filers": len(items), "items": items, "tagged": tagged}
+
+
+def get_inst_13f_week() -> dict | None:
+    """지난 7일에 13F를 낸 운용사(inst_13f_filings, scripts/collect_13f.py). 낸 곳이 없거나 표가 없으면 None - 칸을 숨긴다."""
+    try:
+        filings = turso_exec("SELECT manager_id, period, MAX(filed_on) AS filed FROM inst_13f_filings "
+                             "WHERE filed_on >= date('now', '-7 days') GROUP BY manager_id, period")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("13F 조회 실패(표 없음?) - 건너뜀: %s", e)
+        return None
+    if not filings:
+        return None
+    rows = []
+    for f in filings:
+        rows += turso_exec("SELECT manager_id, period, ticker, issuer, value, prev_value, weight, status, share_chg FROM inst_13f_positions "
+                           "WHERE manager_id = ? AND period = ? AND put_call = '' AND status IN ('new', 'added', 'reduced', 'sold')",
+                           [f["manager_id"], f["period"]])
+    tags, names = interest_tags_names()
+    keys = {f"US:{r['ticker']}" for r in rows if r.get("ticker") and r["status"] in ("new", "added")}
+    return inst_13f_week_items(filings, rows, load_institutions(), tags, names, screening_status(keys))
+
+
 def get_kr_disclosures_week() -> dict | None:
     """한국 공시 지난 7일(kr_disclosures, scripts/collect_kr_disclosures.py - 2026-10-17). 표가 없으면 None."""
     try:
@@ -816,6 +878,10 @@ def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str]) -
     for g in (ins.get("items") or []) + (ins.get("discovery") or []):
         who = g["roles"][0] if g["buyers"] == 1 else f"{g['buyers']}명"
         add(f"{g['market']}:{g['symbol']}", "내부자 매수", f"{who} {fmt_money(g['value'], g['market'])}", "insider", g.get("last_date"))
+    inst_ko = {"new": "새로 삼", "added": "늘림", "reduced": "줄임", "sold": "다 팖"}
+    for x in (b.get("inst_13f_week") or {}).get("tagged", []):
+        add(f"US:{x['ticker']}", "13F", f"{x['manager'].split(' (')[0]} {inst_ko.get(x['status'], x['status'])}", "inst13f",
+            None, x["status"] in ("sold", "reduced"))
     for x in (b.get("turnaround") or {}).get("added", []):
         yoy = f" {x['yoy'] * 100:+.0f}%" if x.get("yoy") is not None else ""
         add(f"{x['market']}:{x['symbol']}", "실적 반전", f"새로 들어옴 ({x['basis']}{yoy})", "turnaround")
@@ -834,6 +900,10 @@ def get_my_stocks_week(b: dict) -> dict | None:
     tags, names = interest_tags_names()
     mine = {k: [t for t in v if t in MY_TAGS] for k, v in tags.items() if any(t in MY_TAGS for t in v)}
     return my_stocks_week(b, mine, names) if mine else None
+
+
+def _quarter(period: str) -> str:
+    return f"{period[:4]} Q{(int(period[5:7]) - 1) // 3 + 1}" if period and len(period) >= 7 else period
 
 
 def build_telegram_summary(b: dict) -> str:
@@ -1001,6 +1071,22 @@ def build_telegram_summary(b: dict) -> str:
         if u8["total"] > US8K_TG_MAX:
             lines.append(f"  외 {u8['total'] - US8K_TG_MAX}건")
 
+    inst = b.get("inst_13f_week")
+    if inst and inst.get("filers"):
+        lines.append("")
+        lines.append(f"<b>🏦 유명 투자자 13F</b> 이번 주 신고 {inst['filers']}곳 · 분기 말 보유(45일 늦음)")
+        for it in inst["items"][:INST_TG_MANAGERS]:
+            nm = lambda x: html.escape(x.get("ticker") or (x.get("issuer") or "?"))  # noqa: E731
+            parts = []
+            if it["new"]:
+                parts.append("새로 " + ", ".join(nm(x) for x in it["new"][:INST_TG_NAMES]) + (f" 외 {it['counts']['new'] - INST_TG_NAMES}" if it["counts"]["new"] > INST_TG_NAMES else ""))
+            if it["sold"]:
+                parts.append("다 팖 " + ", ".join(nm(x) for x in it["sold"][:INST_TG_NAMES]) + (f" 외 {it['counts']['sold'] - INST_TG_NAMES}" if it["counts"]["sold"] > INST_TG_NAMES else ""))
+            lines.append(f"  {html.escape(it['name'])} ({_quarter(it['period'])}): " + (" · ".join(parts) if parts else "새로 산·다 판 종목 없음"))
+        if inst["filers"] > INST_TG_MANAGERS:
+            lines.append(f"  외 {inst['filers'] - INST_TG_MANAGERS}곳")
+        lines.append(f'  <a href="{SITE_URL}/investors">전체 보기</a>')
+
     reviews = b.get("observation_reviews") or []
     if reviews:
         names = load_theme_names()
@@ -1101,6 +1187,7 @@ def main() -> None:
         "kr_disclosures": get_kr_disclosures_week(),
         "insider_week": get_insider_week(),
         "us_8k_week": get_us_8k_week(),
+        "inst_13f_week": get_inst_13f_week(),
         "sentiment_heating": get_sentiment_week(),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),

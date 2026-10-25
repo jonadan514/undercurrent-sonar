@@ -65,6 +65,12 @@ export const PAGE_INTROS = {
     todo: "툴을 얼마나 믿을지 판단하는 데 씁니다. 180일 이상 결과와 표본 수를 함께 보세요 - 짧은 기간 숫자는 우연이 큽니다.",
     terms: ["trap_filter", "insider_buy"],
   },
+  investors: {
+    what: "버크셔·바우포스트·드러켄밀러 등 직접 고른 운용사 15곳이 분기 말에 무엇을 새로 사고, 늘리고, 다 팔았는지(13F) 보여줍니다.",
+    when: "분기마다 - 13F는 분기 끝나고 45일 안에 나옵니다(2월·5월·8월·11월 중순).",
+    todo: "여러 곳이 함께 산 종목이나 내 테마에 걸리는 새 이름을 눌러 재무 판정·테마 동료 비교를 보고, 이유가 궁금하면 관찰 노트로. 매수 신호가 아니라 45일 늦은 사실입니다.",
+    terms: ["form_13f", "trap_filter"],
+  },
 } satisfies Record<string, PageIntro>;
 
 export type PageIntroKey = keyof typeof PAGE_INTROS;

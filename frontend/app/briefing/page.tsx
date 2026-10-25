@@ -55,6 +55,26 @@ interface Briefing {
                    discovery?: InsiderItem[]; discovery_count?: number } | null;
   us_8k_week?: { total: number; by_kind: Record<string, number>; items: Us8kItem[] } | null;
   my_stocks_week?: { watched: number; count: number; items: MyStock[] } | null;
+  // 유명 투자자 13F - 지난 7일 신고한 운용사(2026-10-25부터). 낸 곳이 없으면 null
+  inst_13f_week?: { filers: number; items: InstItem[] } | null;
+}
+type InstPos = { ticker: string | null; issuer: string | null; name?: string | null; value: number | null; prev_value: number | null;
+  weight: number | null; tags: string[]; finance?: { status: string; piotroski: number | null } | null };
+type InstItem = { manager_id: string; name: string; style?: string | null; period: string; filed: string; compared: boolean;
+  counts: { new: number; added: number; reduced: number; sold: number }; new: InstPos[]; sold: InstPos[] };
+const usdM = (v: number | null) => v == null ? "-" : Math.abs(v) >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${Math.round(v / 1e6).toLocaleString()}M`;
+const qLabel = (p: string) => `${p.slice(0, 4)} Q${Math.floor((Number(p.slice(5, 7)) - 1) / 3) + 1}`;
+function InstChip({ x, sold }: { x: InstPos; sold?: boolean }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 text-[12px] px-2 py-1 rounded-lg"
+      style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      {x.ticker ? <StockLabel s={{ market: "US", symbol: x.ticker }} /> : <span className="font-bold" style={{ color: "var(--text-secondary)" }}>{x.issuer}</span>}
+      <span style={{ color: "var(--text-secondary)" }}>{sold ? `직전 ${usdM(x.prev_value)}` : usdM(x.value)}</span>
+      {!sold && x.weight != null && <span style={{ color: "var(--text-muted)" }}>{(x.weight * 100).toFixed(1)}%</span>}
+      {!sold && <FinanceTag f={x.finance ? { status: x.finance.status, piotroski: x.finance.piotroski, reasons: [] } : null} />}
+      <DiscTags tags={x.tags} />
+    </span>
+  );
 }
 // 관심 종목에 생긴 일(2026-10-21) - 내 관심·노트 종목 줄만 아래 칸들에서 모은 것. 눌러서 그 칸으로.
 interface MyStock { market: string; symbol: string; name?: string | null; tags: string[];
@@ -247,6 +267,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
     disclosures: !!b.kr_disclosures && discTotal(b) > 0,
     us8k: (b.us_8k_week?.total ?? 0) > 0,
     insider: (b.insider_week?.total ?? 0) > 0,
+    inst13f: (b.inst_13f_week?.filers ?? 0) > 0,
     turnaround: !!b.turnaround,
     sentiment: (b.sentiment_heating?.length ?? 0) > 0,
   };
@@ -260,6 +281,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
     ...(has.disclosures ? [{ id: "disclosures", label: "한국 공시", count: `${discTotal(b)}`, group: "공시 · 내부자" }] : []),
     ...(has.us8k ? [{ id: "us8k", label: "미국 8-K", count: `${b.us_8k_week!.total}`, group: "공시 · 내부자" }] : []),
     ...(has.insider ? [{ id: "insider", label: "내부자 매수", count: `${b.insider_week!.total}`, group: "공시 · 내부자" }] : []),
+    ...(has.inst13f ? [{ id: "inst13f", label: "13F", count: `${b.inst_13f_week!.filers}곳`, group: "공시 · 내부자" }] : []),
     { id: "watchlist", label: "워치리스트",
       count: wl.has_prev ? `+${wl.added_count ?? wl.added.length} −${wl.removed_count ?? wl.removed.length}` : undefined, group: "종목 변화" },
     ...(has.turnaround ? [{ id: "turnaround", label: "실적 반전", count: b.turnaround!.has_prev ? `+${b.turnaround!.added_count}` : undefined, group: "종목 변화" }] : []),
@@ -552,6 +574,34 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                 </Section>
               );
             })()}
+
+            {has.inst13f && (
+              <Section className={SCROLL_M} id="inst13f" title="🏦 유명 투자자 13F" count={`${b.inst_13f_week!.filers}곳`}
+                sub="지난 7일 신고 · 분기 말 보유(45일 늦음)" right={<a href="/investors" className="hover:underline" style={{ color: "var(--text-muted)" }}>전체 보기 →</a>}>
+                <div className="space-y-3">
+                  {b.inst_13f_week!.items.map((it) => (
+                    <div key={`${it.manager_id}-${it.period}`}>
+                      <p className="text-[13px] mb-1">
+                        <span className="font-bold text-white">{it.name}</span>
+                        <span className="ml-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
+                          {it.style ? `${it.style} · ` : ""}{qLabel(it.period)} 말 · {it.filed.slice(5).replace("-", "/")} 신고
+                          {it.compared && ` · 새로 ${it.counts.new} · 늘림 ${it.counts.added} · 줄임 ${it.counts.reduced} · 다 팖 ${it.counts.sold}`}
+                        </span>
+                      </p>
+                      {!it.compared ? <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>직전 분기 자료가 없어 비교하지 않습니다.</p> : (
+                        <div className="space-y-1">
+                          {it.new.length > 0 && <div className="flex flex-wrap items-center gap-1.5"><span className="text-[12px] w-12 shrink-0" style={{ color: "#4ade80" }}>새로</span>{it.new.map((x, k) => <InstChip key={k} x={x} />)}</div>}
+                          {it.sold.length > 0 && <div className="flex flex-wrap items-center gap-1.5"><span className="text-[12px] w-12 shrink-0" style={{ color: "#fca5a5" }}>다 팖</span>{it.sold.map((x, k) => <InstChip key={k} x={x} sold />)}</div>}
+                          {it.new.length === 0 && it.sold.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>새로 산·다 판 종목 없음</p>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Note>SEC 13F - 고른 운용사 15곳이 분기 말 들고 있던 미국 상장주식(매수 보유만)을 45일 안에 신고한 것 · 산 시점·가격은 모름 ·
+                  평가액은 분기 말 기준, 비중은 그 운용사 주식 보유 중 · 목록은 평가액 순 10개까지 · 노란 칸은 관심 표시 종목 · 재무는 트랩 필터 판정</Note>
+              </Section>
+            )}
           </GroupTitle>
 
           <GroupTitle title="종목 변화">

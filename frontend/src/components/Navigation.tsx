@@ -28,6 +28,7 @@ const NAV_GROUPS = [
     label: "종목",
     items: [
       { href: "/watchlist", label: "워치리스트",  emoji: "🔭", color: "#ffb020" },
+      { href: "/investors", label: "유명 투자자 13F", emoji: "🏦", color: "#ffb020" },
     ],
   },
   {

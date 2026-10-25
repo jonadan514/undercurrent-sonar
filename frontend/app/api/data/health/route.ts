@@ -29,6 +29,7 @@ const SOURCES: Source[] = [
   { key: "earnings", label: "실적 발표일", group: "매주", cadence: "월요일 새벽", okDays: 9, sql: "SELECT MAX(fetched_at) FROM earnings_calendar" },
   { key: "scorecard", label: "성적표(후보 수익률)", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(updated_at) FROM data_pick_returns" },
   { key: "signals", label: "신호 사후 확인", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(logged_at) FROM signal_log" },
+  { key: "inst_13f", label: "유명 투자자 13F", group: "분기", cadence: "매일 확인 · 분기 신고", okDays: 140, sql: "SELECT MAX(filed_on) FROM inst_13f_filings", note: "가장 최근 신고일 - 분기 끝나고 45일 안에 나와 다음 신고 직전엔 4달쯤" },
   { key: "quarterly", label: "분기 리서치", group: "분기", cadence: "분기 재무 공시 뒤", okDays: 110, sql: "SELECT MAX(computed_at) FROM quarterly_theme_classification" },
 ];
 
