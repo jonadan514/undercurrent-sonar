@@ -1,0 +1,32 @@
+name: Report Theme Thresholds
+
+# 읽기 전용 - 테마 레이더 기준값 점검(2026-10-25). 화살표·라벨 분포, 기준선 근처, 주간 뒤집힘. 기준값은 바꾸지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: "최근 몇 주"
+        required: false
+        default: "12"
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Report
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          WEEKS: ${{ inputs.weeks }}
+        run: python scripts/report_theme_thresholds.py --weeks "${WEEKS:-12}" | tee -a "$GITHUB_STEP_SUMMARY"
