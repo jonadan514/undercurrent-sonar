@@ -21,9 +21,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from src.collectors.sec_13f import (combine_period, diff_positions, fetch_filing, list_13f_filings, map_cusips,  # noqa: E402
-                                    quarter_label, submissions, with_weights)
-from src.collectors.sec_client import session  # noqa: E402
+from src.collectors.sec_13f import (combine_period, diff_positions, fetch_filing, is_debt, list_13f_filings, map_cusips,  # noqa: E402
+                                    merge_renamed, name_match, norm_issuer, normalize_rows, quarter_label, submissions,
+                                    value_scale, with_weights)
+from src.collectors.sec_client import SEC_TICKERS_URL, get, session  # noqa: E402
 from src.db.data_store import get_db  # noqa: E402
 
 DDL = [
@@ -73,7 +74,11 @@ def rebuild_positions(conn, manager_id: str, now: str) -> list[str]:
                       (manager_id,)).fetchall()
     by_period: dict[str, list[dict]] = {}
     for acc, form, period, filed, amend in fl:
-        by_period.setdefault(period, []).append({"form": form, "filed": filed, "amendment_type": amend, "rows": load_rows(conn, acc)})
+        raw = load_rows(conn, acc)
+        if value_scale(raw) != 1:
+            _log(f"{manager_id} {quarter_label(period)} {acc}: 가치가 천 달러 단위로 보여 1000을 곱함")
+        # 원본 줄은 그대로 두고 비교할 때만 단위·채권 구분을 맞춘다(원칙 5)
+        by_period.setdefault(period, []).append({"form": form, "filed": filed, "amendment_type": amend, "rows": normalize_rows(raw)})
     periods = sorted(by_period)
     prev = None
     prev_period = None
@@ -81,7 +86,7 @@ def rebuild_positions(conn, manager_id: str, now: str) -> list[str]:
         cur = combine_period(by_period[p])
         # 직전 분기가 바로 앞 분기일 때만 비교(빠진 분기를 건너뛰면 '새로'가 부풀려진다)
         consecutive = prev_period is not None and _quarter_gap(prev_period, p) == 1
-        rows = with_weights(diff_positions(prev if consecutive else None, cur))
+        rows = with_weights(merge_renamed(diff_positions(prev if consecutive else None, cur)))
         filed = max(f["filed"] for f in by_period[p])
         conn.execute("DELETE FROM inst_13f_positions WHERE manager_id = ? AND period = ?", (manager_id, p))
         for i in range(0, len(rows), 100):
@@ -112,6 +117,7 @@ def main() -> int:
     ap.add_argument("--quarters", type=int, default=5, help="최근 몇 분기(비교용으로 하나 더)")
     ap.add_argument("--managers", nargs="*", default=None)
     ap.add_argument("--rebuild", action="store_true", help="새 신고가 없어도 받은 신고로 분기 보유·비교를 다시 계산")
+    ap.add_argument("--remap", action="store_true", help="티커를 못 찾았던 CUSIP도 OpenFIGI에 다시 묻기")
     args = ap.parse_args()
 
     managers = yaml.safe_load(open(ROOT / "config" / "institutions.yaml", encoding="utf-8"))["managers"]
@@ -162,9 +168,10 @@ def main() -> int:
             latest = max((f["period"] for f in fl), default=None)
             _log(f"{m['id']}: 새 신고 없음 (최근 {quarter_label(latest) if latest else '-'})")
 
-    # CUSIP -> 티커: 아직 모르는 것만
-    known = {r[0] for r in conn.execute("SELECT cusip FROM cusip_map").fetchall()}
-    need = sorted({r[0] for r in conn.execute("SELECT DISTINCT cusip FROM inst_13f_positions").fetchall()} - known)
+    # CUSIP -> 티커: 아직 안 물어본 것(--remap이면 못 찾았던 것도)을 OpenFIGI에, 그래도 없으면 SEC 회사 목록 이름 맞추기
+    known = {r[0]: r[1] for r in conn.execute("SELECT cusip, ticker FROM cusip_map").fetchall()}
+    cur = {r[0]: r[1] for r in conn.execute("SELECT DISTINCT cusip, issuer FROM inst_13f_positions WHERE put_call != 'DEBT'").fetchall()}
+    need = sorted(c for c in cur if c not in known or (args.remap and known[c] is None))
     if need:
         _log(f"CUSIP {len(need)}개 티커 찾기(OpenFIGI)")
         res = map_cusips(need, os.environ.get("OPENFIGI_API_KEY") or None, log=_log)
@@ -172,8 +179,20 @@ def main() -> int:
             conn.execute("INSERT OR REPLACE INTO cusip_map (cusip, ticker, name, exch, security_type, source, mapped_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                          (c, d["ticker"] if d else None, d["name"] if d else None, d["exch"] if d else None,
                           d["security_type"] if d else None, "openfigi", now))
-        _log(f"찾음 {sum(1 for d in res.values() if d and d['ticker'])} / 못 찾음 {sum(1 for d in res.values() if not d or not d['ticker'])} / "
-             f"응답 없음 {len(need) - len(res)}")
+        _log(f"찾음 {sum(1 for d in res.values() if d and d['ticker'])} / 없음 {sum(1 for d in res.values() if not d or not d['ticker'])} / "
+             f"다음에 다시 {len(need) - len(res)}")
+    mapped = {r[0] for r in conn.execute("SELECT cusip FROM cusip_map WHERE ticker IS NOT NULL").fetchall()}
+    missing = {c: n for c, n in cur.items() if not is_debt(c) and c not in mapped}
+    if missing:
+        titles: dict[str, set] = {}
+        for v in (get(s, SEC_TICKERS_URL) or {}).values():
+            titles.setdefault(norm_issuer(v.get("title")), set()).add(str(v["ticker"]).upper().replace("-", "."))
+        unique = {k: next(iter(t)) for k, t in titles.items() if k and len(t) == 1}   # 이름이 겹치는 회사(종류주 등)는 맞추지 않는다
+        hits = name_match(missing, unique)
+        for c, t in hits.items():
+            conn.execute("INSERT OR REPLACE INTO cusip_map (cusip, ticker, name, exch, security_type, source, mapped_at) VALUES (?, ?, ?, NULL, NULL, ?, ?)",
+                         (c, t, missing[c], "sec_name", now))
+        _log(f"OpenFIGI로 못 찾은 주식 {len(missing)}개 중 SEC 회사명으로 {len(hits)}개 맞춤")
     apply_tickers(conn)
     conn.commit()
 

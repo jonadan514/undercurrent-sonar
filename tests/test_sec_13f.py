@@ -72,3 +72,34 @@ def test_quarters():
     assert cutoff_period(1, date(2026, 2, 10)) == "2025-09-01"
     assert _quarter_gap("2026-03-31", "2026-06-30") == 1 and _quarter_gap("2025-12-31", "2026-06-30") == 2
     assert quarter_label("2026-06-30") == "2026 Q2" and norm_ticker("BRK/B") == "BRK.B"
+
+
+def test_value_scale_and_debt():
+    from src.collectors.sec_13f import is_debt, normalize_rows, value_scale
+    thousands = {("632307104", ""): {"shares": 3186306, "value": 864923}, ("874039100", ""): {"shares": 589680, "value": 281613}}
+    dollars = {("037833100", ""): {"shares": 227917808, "value": 65950296923}}
+    assert value_scale(thousands) == 1000 and value_scale(dollars) == 1
+    assert is_debt("007973AE0") and not is_debt("037833100")
+    rows = normalize_rows({("632307104", ""): {"cusip": "632307104", "put_call": "", "issuer": "Natera", "title": "COM", "shares": 3186306, "value": 864923},
+                           ("874039100", ""): {"cusip": "874039100", "put_call": "", "issuer": "TSM", "title": "ADR", "shares": 589680, "value": 281613},
+                           ("007973AE0", ""): {"cusip": "007973AE0", "put_call": "", "issuer": "ADV ENERGY", "title": "NOTE", "shares": 1000, "value": 1}})
+    assert rows[("632307104", "")]["value"] == 864923000 and ("007973AE0", "DEBT") in rows
+
+
+def test_merge_renamed_cusip_change():
+    from src.collectors.sec_13f import merge_renamed
+    rows = [
+        {"cusip": "NEW1", "put_call": "", "issuer": "EXXON MOBIL CORP", "shares": 100, "value": 1000, "status": "new", "prev_shares": None, "prev_value": None, "share_chg": None},
+        {"cusip": "OLD1", "put_call": "", "issuer": "Exxon Mobil Corp", "shares": 0, "value": 0, "status": "sold", "prev_shares": 120, "prev_value": 1100, "share_chg": -1.0},
+        {"cusip": "X", "put_call": "", "issuer": "Other Inc", "shares": 5, "value": 5, "status": "new", "prev_shares": None, "prev_value": None, "share_chg": None},
+    ]
+    out = merge_renamed(rows)
+    assert len(out) == 2
+    xom = next(r for r in out if r["cusip"] == "NEW1")
+    assert xom["status"] == "reduced" and xom["prev_shares"] == 120
+
+
+def test_name_match():
+    from src.collectors.sec_13f import name_match, norm_issuer
+    titles = {norm_issuer("Arcosa, Inc."): "ACA"}
+    assert name_match({"039653100": "ARCOSA INC", "Z": "Nothing Corp"}, titles) == {"039653100": "ACA"}

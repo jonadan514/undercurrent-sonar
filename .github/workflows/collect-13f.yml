@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      remap:
+        description: "티커 못 찾은 CUSIP 다시 묻기"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,7 +51,8 @@ jobs:
           QUARTERS: ${{ inputs.quarters || '5' }}
           MANAGERS: ${{ inputs.managers }}
           REBUILD: ${{ inputs.rebuild && '--rebuild' || '' }}
-        run: python scripts/collect_13f.py --quarters "$QUARTERS" ${MANAGERS:+--managers $MANAGERS} $REBUILD
+          REMAP: ${{ inputs.remap && '--remap' || '' }}
+        run: python scripts/collect_13f.py --quarters "$QUARTERS" ${MANAGERS:+--managers $MANAGERS} $REBUILD $REMAP
       # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'
