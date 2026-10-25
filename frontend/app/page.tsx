@@ -99,6 +99,12 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
         sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 밖 ${fresh}` : `종목 ${ins.by_market[m] ?? 0}`) : "브리핑 전"}
         hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 밖은 관심 표시 없는 유니버스 종목(새 이름 찾기용)." />;
     })(),
+    // 유명 투자자 13F - 한국 공시 칸처럼 카드로(2026-10-25 사용자 의견). 미국만(13F는 미국 상장주식)
+    ...(m === "US" ? [
+      <StatTile key="13f" href="/investors" label="유명 투자자 13F" value={inst ? inst.newTotal : "-"}
+        sub={inst ? `${quarterLabel(inst.period)} 새로 삼${inst.sharedCount ? ` · 함께 산 ${inst.sharedCount}` : ""}` : "아직 없음"}
+        hint="고른 운용사 15곳이 분기 말에 새로 산 종목 수(운용사별로 센 합). 45일 늦은 사실이고 매수 신호가 아닙니다." />,
+    ] : []),
   ];
   const labels = radar == null ? null : LABEL_ORDER.filter(l => radar[l]).map(l => `${LABEL_KO[l] ?? l} ${radar[l]}`);
   return (
@@ -114,17 +120,6 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
         </span>
         <span className="ml-auto shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>보기 →</span>
       </a>
-      {m === "US" && inst && (
-        <a href="/investors" className="mt-1.5 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] hover:brightness-125"
-          style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-          <span className="shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>유명 투자자 13F</span>
-          <span className="min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>
-            {quarterLabel(inst.period)} 말 · 새로 산 종목 {inst.newTotal}
-            {inst.sharedCount > 0 ? ` · 2곳 이상 함께: ${inst.shared.join(", ")}${inst.sharedCount > inst.shared.length ? ` 외 ${inst.sharedCount - inst.shared.length}` : ""}` : ""}
-          </span>
-          <span className="ml-auto shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>보기 →</span>
-        </a>
-      )}
       {cands?.total === 0 && (
         <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>이번 주 통과 후보가 없습니다. GitHub → Actions → Weekly Watchlist Screen 실행 여부를 확인하세요.</p>
       )}
