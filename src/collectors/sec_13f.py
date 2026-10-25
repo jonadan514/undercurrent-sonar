@@ -222,19 +222,30 @@ def fetch_filing(s: requests.Session, cik: int, accession: str) -> dict | None:
 
 # ── CUSIP -> 티커 (OpenFIGI, 무료·키 없이 분당 25회·한 번에 10개) ─────────────
 
+US_EXCH = {"US", "UN", "UW", "UQ", "UA", "UR", "UP", "UV", "UF", "UD", "UT"}
+_TICKER_OK = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
+
+
+def valid_ticker(t: str | None) -> bool:
+    """미국 주식 티커 모양만 - 'SMCI 7 06.01.29'(채권), 'CPRXEUR'·'HO1'(해외 상장)처럼 엉뚱한 것을 거른다(2026-10-25 실측)."""
+    return bool(t and _TICKER_OK.match(t))
+
+
 def _pick_figi(data: list[dict]) -> dict | None:
-    """같은 CUSIP에 여러 줄 - 미국 거래소 보통주·ADR 먼저."""
-    if not data:
+    """같은 CUSIP에 여러 줄 - 미국 거래소의 주식(Equity)만, 그중 보통주·ADR 먼저. 없으면 None(회사명으로 표시)."""
+    ok = [d for d in data if d.get("marketSector") == "Equity" and (d.get("exchCode") or "") in US_EXCH
+          and valid_ticker(norm_ticker(d.get("ticker")))]
+    if not ok:
         return None
     def rank(d: dict) -> int:
         st = (d.get("securityType") or "") + " " + (d.get("securityType2") or "")
         return 0 if "Common Stock" in st else 1 if "Depositary" in st or "ADR" in st else 2
-    return sorted(data, key=rank)[0]
+    return sorted(ok, key=rank)[0]
 
 
 def norm_ticker(t: str | None) -> str | None:
-    """OpenFIGI 'BRK/B' -> 'BRK.B'(유니버스 표기)."""
-    return t.replace("/", ".").upper() if t else None
+    """OpenFIGI 'BRK/B' -> 'BRK.B'(유니버스 표기), 'WBD*' 같은 꼬리 기호는 뗀다."""
+    return t.replace("/", ".").upper().rstrip("*") if t else None
 
 
 def _figi_call(body: list[dict], headers: dict, log) -> list | None:
@@ -272,8 +283,8 @@ def map_cusips(cusips: list[str], api_key: str | None = None, log=print) -> dict
             for c, item in zip(chunk, res):
                 if item.get("data"):
                     d = _pick_figi(item["data"])
-                    out[c] = {"ticker": norm_ticker(d.get("ticker")), "name": d.get("name"), "exch": d.get("exchCode"),
-                              "security_type": d.get("securityType")}
+                    out[c] = ({"ticker": norm_ticker(d.get("ticker")), "name": d.get("name"), "exch": d.get("exchCode"),
+                               "security_type": d.get("securityType")} if d else None)
                 elif "No identifier" in str(item.get("warning", "")):
                     out.setdefault(c, None)
                 else:

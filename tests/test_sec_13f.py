@@ -103,3 +103,13 @@ def test_name_match():
     from src.collectors.sec_13f import name_match, norm_issuer
     titles = {norm_issuer("Arcosa, Inc."): "ACA"}
     assert name_match({"039653100": "ARCOSA INC", "Z": "Nothing Corp"}, titles) == {"039653100": "ACA"}
+
+
+def test_figi_pick_only_us_equity():
+    from src.collectors.sec_13f import _pick_figi, norm_ticker, valid_ticker
+    assert _pick_figi([{"ticker": "SMCI 7 06.01.29", "marketSector": "Corp", "exchCode": "US"}]) is None
+    assert _pick_figi([{"ticker": "CPRXEUR", "marketSector": "Equity", "exchCode": "GR"}]) is None
+    d = _pick_figi([{"ticker": "AM6", "marketSector": "Equity", "exchCode": "GF"},
+                    {"ticker": "ACA", "marketSector": "Equity", "exchCode": "UN", "securityType": "Common Stock"}])
+    assert d["ticker"] == "ACA"
+    assert norm_ticker("WBD*") == "WBD" and valid_ticker("BRK.B") and not valid_ticker("HO1")

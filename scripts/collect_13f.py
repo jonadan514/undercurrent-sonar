@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from src.collectors.sec_13f import (combine_period, diff_positions, fetch_filing, is_debt, list_13f_filings, map_cusips,  # noqa: E402
                                     merge_renamed, name_match, norm_issuer, normalize_rows, quarter_label, submissions,
-                                    value_scale, with_weights)
+                                    valid_ticker, value_scale, with_weights)
 from src.collectors.sec_client import SEC_TICKERS_URL, get, session  # noqa: E402
 from src.db.data_store import get_db  # noqa: E402
 
@@ -170,6 +170,14 @@ def main() -> int:
 
     # CUSIP -> 티커: 아직 안 물어본 것(--remap이면 못 찾았던 것도)을 OpenFIGI에, 그래도 없으면 SEC 회사 목록 이름 맞추기
     known = {r[0]: r[1] for r in conn.execute("SELECT cusip, ticker FROM cusip_map").fetchall()}
+    if args.remap:   # 모양이 이상한 티커(채권·해외 상장)도 다시 - 2026-10-25 첫 실행에서 섞였다
+        bad = [c for c, t in known.items() if t is not None and not valid_ticker(t)]
+        for c in bad:
+            known[c] = None
+            conn.execute("UPDATE cusip_map SET ticker = NULL WHERE cusip = ?", (c,))
+        if bad:
+            conn.execute("UPDATE inst_13f_positions SET ticker = NULL WHERE cusip IN (" + ",".join("?" * len(bad)) + ")", tuple(bad))
+            _log(f"모양이 이상한 티커 {len(bad)}개 지우고 다시 찾기")
     cur = {r[0]: r[1] for r in conn.execute("SELECT DISTINCT cusip, issuer FROM inst_13f_positions WHERE put_call != 'DEBT'").fetchall()}
     need = sorted(c for c in cur if c not in known or (args.remap and known[c] is None))
     if need:
