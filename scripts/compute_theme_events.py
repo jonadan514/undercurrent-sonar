@@ -1,7 +1,10 @@
 """테마별 소속 기업 이벤트를 theme_events에 쌓는다 (2026-10-21, 사용자 결정: 테마 레이더 연결). 규칙은 src/analyzers/theme_events.py.
 
 읽는 표: theme_members(최신 승인 run, direct+partial), kr_disclosures, us_8k_filings, insider_trades - 모두 매일 수집분.
-이력 표라 덮어쓰지 않는다(원칙 5): 실행마다 computed_at이 다른 새 줄. 화면은 시장별 가장 최근 실행을 읽는다.
+이력 표라 덮어쓰지 않는다(원칙 5): 실행마다 computed_at이 다른 새 줄.
+저장량(2026-10-25, 사용자 결정): 매일 30일치 목록을 통째로 쌓으면 1년에 100~300MB라, 이력(theme_events)에는 건수(counts)를
+매일, 목록(items)은 주마다 첫 실행에만 남긴다(나머지 날은 빈 문자열). 화면은 최신본 표(theme_events_latest)를 읽는다 -
+이 표는 이력이 아니라 지난 실행을 바꿔 끼우는 캐시다. 목록은 원천 표(kr_disclosures·us_8k_filings·insider_trades)에서 다시 만들 수 있다.
 수집 표가 아직 없으면 그 출처만 빼고 계속한다(로그로 남김).
 
     python scripts/compute_theme_events.py
@@ -28,8 +31,18 @@ CREATE TABLE IF NOT EXISTS theme_events (
   theme_id    TEXT NOT NULL,
   computed_at TEXT NOT NULL,
   counts      TEXT NOT NULL,   -- 최근 7일·30일 건수, 주별 변화(weekly·busier, 2026-10-21) JSON
-  items       TEXT NOT NULL,   -- 최근 30일 이벤트 목록 JSON (공시 원문 값 그대로)
+  items       TEXT NOT NULL,   -- 최근 30일 이벤트 목록 JSON (공시 원문 값 그대로). 2026-10-25부터 주마다 첫 실행만, 나머지는 ''
   PRIMARY KEY (market, theme_id, computed_at)
+)
+"""
+LATEST_DDL = """
+CREATE TABLE IF NOT EXISTS theme_events_latest (
+  market      TEXT NOT NULL,
+  theme_id    TEXT NOT NULL,
+  computed_at TEXT NOT NULL,
+  counts      TEXT NOT NULL,
+  items       TEXT NOT NULL,
+  PRIMARY KEY (market, theme_id)
 )
 """
 
@@ -94,11 +107,20 @@ def events_for(conn, market: str, since: str) -> tuple[list[dict], dict, dict]:
     return events, marks, coverage
 
 
+def keep_items_this_run(conn, market: str, today: date) -> bool:
+    """이번 주(월요일 시작)에 목록을 남긴 실행이 아직 없으면 True - 주마다 목록 한 벌만 이력에 남긴다."""
+    monday = (today - timedelta(days=today.weekday())).isoformat()
+    row = conn.execute("SELECT 1 FROM theme_events WHERE market = ? AND computed_at >= ? AND items != '' LIMIT 1",
+                       (market, monday)).fetchone()
+    return row is None
+
+
 def main() -> int:
     today = date.today()
     since = (today - timedelta(days=FETCH_DAYS)).isoformat()
     conn = get_db()
     conn.execute(DDL)
+    conn.execute(LATEST_DDL)
     try:
         kr_names = {i["symbol"]: i.get("name") for i in json.loads(KR_UNIVERSE.read_text(encoding="utf-8")).get("items", [])}
     except Exception:  # noqa: BLE001
@@ -116,10 +138,16 @@ def main() -> int:
                 e["name"] = e.get("name") or kr_names.get(e["ticker"])
         result = by_theme(members, events, today, marks, coverage)
         _log(f"{market}: 데이터 시작일 공시 {coverage['disclosure']} · 내부자 {coverage['insider']}")
+        keep = keep_items_this_run(conn, market, today)
+        conn.execute("DELETE FROM theme_events_latest WHERE market = ?", (market,))
         for theme_id, r in result.items():
+            counts = json.dumps(r["counts"], ensure_ascii=False)
+            items = json.dumps(r["items"], ensure_ascii=False)
             conn.execute("INSERT OR IGNORE INTO theme_events (market, theme_id, computed_at, counts, items) VALUES (?, ?, ?, ?, ?)",
-                         (market, theme_id, now, json.dumps(r["counts"], ensure_ascii=False),
-                          json.dumps(r["items"], ensure_ascii=False)))
+                         (market, theme_id, now, counts, items if keep else ""))
+            conn.execute("INSERT INTO theme_events_latest (market, theme_id, computed_at, counts, items) VALUES (?, ?, ?, ?, ?)",
+                         (market, theme_id, now, counts, items))
+        _log(f"{market}: 이력에 목록 {'남김(이번 주 첫 실행)' if keep else '안 남김 - 건수만'}")
         busy = sorted(((tid, r["counts"]) for tid, r in result.items() if r["counts"]["companies_30d"]),
                       key=lambda x: -x[1]["companies_30d"])
         _log(f"{market}: 테마 {len(result)}개, 이벤트 {len(events)}건, 30일 안에 이벤트 있는 테마 {len(busy)}개")

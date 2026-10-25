@@ -3354,3 +3354,10 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
   정기 수집(Collect Theme News, 10/18 일요일 밤 성공)은 `theme_news`·`theme_signals` 뉴스 칸에 저장한다 → 백필 날짜가 오래돼 '지연'으로 보였다.
 - 수정: `theme_signals`에서 `news_count`가 있는 최신 `week_start`로 본다(레이더 칸과 같은 기준, 허용 15일).
 - 나머지 19개 칸은 정기 작업이 실제로 쓰는 표인지 확인함(이상 없음).
+
+### 2026-10-25 테마 이벤트 저장량 줄이기
+- 사용자 결정. 매일 30일치 목록(items)을 테마마다 새 줄로 쌓아 1년에 100~300MB 예상이었다.
+- 이력(`theme_events`)은 그대로 매일 새 줄이지만 목록은 **주마다 첫 실행에만**, 나머지 날은 건수(counts)만(items = '').
+  기존 줄은 건드리지 않음(원칙 5). 목록은 원천 표(kr_disclosures·us_8k_filings·insider_trades)에서 다시 만들 수 있다.
+- 화면용 최신본 `theme_events_latest`(시장·테마당 한 줄, 실행마다 바꿔 끼우는 캐시). `/api/radar/events`는 이 표를 읽고,
+  없거나 비면 예전처럼 이력의 가장 최근 실행. 테스트 `tests/test_compute_theme_events_storage.py`.
