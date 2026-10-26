@@ -113,3 +113,15 @@ def test_figi_pick_only_us_equity():
                     {"ticker": "ACA", "marketSector": "Equity", "exchCode": "UN", "securityType": "Common Stock"}])
     assert d["ticker"] == "ACA"
     assert norm_ticker("WBD*") == "WBD" and valid_ticker("BRK.B") and not valid_ticker("HO1")
+
+
+def test_merge_renamed_requires_same_share_class():
+    from src.collectors.sec_13f import merge_renamed
+    rows = [
+        {"cusip": "02079K107", "put_call": "", "issuer": "ALPHABET INC", "title": "CAP STK CL C", "shares": 10, "value": 1, "status": "new",
+         "prev_shares": None, "prev_value": None, "share_chg": None},
+        {"cusip": "02079K305", "put_call": "", "issuer": "ALPHABET INC", "title": "CAP STK CL A", "shares": 0, "value": 0, "status": "sold",
+         "prev_shares": 12, "prev_value": 2, "share_chg": -1.0},
+    ]
+    out = merge_renamed(rows)
+    assert {r["status"] for r in out} == {"new", "sold"}   # 종류가 달라 합치지 않는다

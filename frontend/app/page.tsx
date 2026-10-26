@@ -177,7 +177,7 @@ export default function HomePage() {
         return counts;
       }).catch(() => ({} as Record<string, number>)));
     Promise.all(radarReq).then(([us, kr]) => setRadar({ US: us, KR: kr }));
-    fetch("/api/investors").then(r => r.json())
+    fetch("/api/investors?summary=1").then(r => r.json())
       .then(d => {
         const ms: { period: string; filed_on: string; counts: { new: number } }[] = Array.isArray(d?.managers) ? d.managers : [];
         if (!ms.length) return setInst(null);

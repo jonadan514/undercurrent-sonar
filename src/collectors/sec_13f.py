@@ -134,10 +134,14 @@ def norm_issuer(name: str | None) -> str:
 
 def merge_renamed(rows: list[dict]) -> list[dict]:
     """같은 분기에 '새로'와 '전량 매도'가 회사명이 같으면 CUSIP만 바뀐 같은 보유(본사 이전·재상장 등, 실측: 엑슨모빌)로 합친다."""
-    sold = {norm_issuer(r["issuer"]): r for r in rows if r["status"] == "sold" and not r["put_call"] and norm_issuer(r["issuer"])}
+    # 회사명 + 주식 종류(titleOfClass)가 같아야 한다 - 알파벳 A주를 다 팔고 C주를 새로 산 것을 한 보유로 합치지 않게(2026-10-26 리뷰)
+    def key_of(r: dict) -> str:
+        n = norm_issuer(r["issuer"])
+        return f"{n}|{' '.join((r.get('title') or '').upper().split())}" if n else ""
+    sold = {key_of(r): r for r in rows if r["status"] == "sold" and not r["put_call"] and key_of(r)}
     out, used = [], set()
     for r in rows:
-        key = norm_issuer(r["issuer"])
+        key = key_of(r)
         if r["status"] == "new" and not r["put_call"] and key in sold and key not in used:
             p = sold[key]
             used.add(key)
@@ -146,7 +150,7 @@ def merge_renamed(rows: list[dict]) -> list[dict]:
             out.append({**r, "prev_shares": p["prev_shares"], "prev_value": p.get("prev_value"), "share_chg": chg, "status": status})
         else:
             out.append(r)
-    return [r for r in out if not (r["status"] == "sold" and not r["put_call"] and norm_issuer(r["issuer"]) in used)]
+    return [r for r in out if not (r["status"] == "sold" and not r["put_call"] and key_of(r) in used)]
 
 
 def combine_period(filings: list[dict]) -> dict[tuple[str, str], dict]:

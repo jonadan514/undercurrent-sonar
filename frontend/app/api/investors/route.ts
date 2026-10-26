@@ -13,15 +13,16 @@ const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
 // 확신 매수 기준(2026-10-26 사용자 결정) - 새로 산 종목이 그 운용사 주식 보유의 3% 이상. 임의 기준이라 데이터를 보고 조정.
 const CONVICTION_MIN = 0.03;
 
-async function latestRows(): Promise<Row[]> {
+// symbol이 있으면 그 종목 줄만(종목 상세가 열릴 때마다 부른다 - 전체 수천 줄을 읽지 않게, 2026-10-26 리뷰)
+async function latestRows(symbol?: string | null): Promise<Row[]> {
   const client = getClient();
-  const rs = await client.execute(`
+  const rs = await client.execute({ sql: `
     SELECT p.manager_id, p.period, p.ticker, p.issuer, p.cusip, p.shares, p.value, p.weight, p.status, p.prev_shares, p.prev_value,
            p.share_chg, p.filed_on
     FROM inst_13f_positions p
     JOIN (SELECT manager_id, MAX(period) AS period FROM inst_13f_positions GROUP BY manager_id) l
       ON l.manager_id = p.manager_id AND l.period = p.period
-    WHERE p.put_call = ''`);
+    WHERE p.put_call = ''${symbol ? " AND p.ticker = ?" : ""}`, args: symbol ? [symbol] : [] });
   return rs.rows.map((r) => ({
     manager_id: String(r.manager_id), period: String(r.period), ticker: r.ticker == null ? null : String(r.ticker),
     issuer: r.issuer == null ? null : String(r.issuer), cusip: String(r.cusip), shares: num(r.shares) ?? 0, value: num(r.value) ?? 0,
@@ -52,9 +53,11 @@ const pick = (r: Row) => ({ ticker: r.ticker, issuer: r.issuer, value: r.value, 
   share_chg: r.share_chg, prev_value: r.prev_value });
 
 export async function GET(request: Request) {
-  const symbol = new URL(request.url).searchParams.get("symbol")?.toUpperCase() ?? null;
+  const qs = new URL(request.url).searchParams;
+  const symbol = qs.get("symbol")?.toUpperCase() ?? null;
+  const summary = qs.get("summary") === "1";   // 개요 카드용 - 재무 판정 조회를 건너뛴다
   try {
-    const rows = await latestRows();
+    const rows = await latestRows(symbol);
     if (symbol) {
       const mine = rows.filter((r) => r.ticker === symbol && (r.shares > 0 || r.status === "sold"));
       return NextResponse.json({ holders: mine.map((r) => ({ manager_id: r.manager_id, period: r.period, filed_on: r.filed_on, ...pick(r), shares: r.shares })) });
@@ -96,7 +99,7 @@ export async function GET(request: Request) {
       ...conviction.map((x) => x.ticker)]
       .filter((t): t is string => !!t)));
     const unmapped = rows.filter((r) => !r.ticker && r.shares > 0).length;
-    return NextResponse.json({ managers, shared, conviction, conviction_min: CONVICTION_MIN, screening: await screening(tickers), unmapped });
+    return NextResponse.json({ managers, shared, conviction, conviction_min: CONVICTION_MIN, screening: summary ? {} : await screening(tickers), unmapped });
   } catch {
     return NextResponse.json({ managers: [], shared: [], conviction: [], conviction_min: CONVICTION_MIN, screening: {}, unmapped: 0 });
   }
