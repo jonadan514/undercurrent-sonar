@@ -65,6 +65,43 @@ function PosList({ title, items, kind, screening, empty }: { title: string; item
   );
 }
 
+// 보유 비중 막대(2026-10-26 사용자 요청) - 운용사의 주식 보유 구성을 100% 가로 막대 하나로. 원형보다 길이 비교가 정확하다.
+// 상위 8종목 + 나머지 '기타'(회색). 색은 한 가지(노랑) - 종목은 색이 아니라 순서·라벨로 구분(막대 안 큰 칸은 티커, 아래 줄에 같은 순서로 티커·비중).
+// 칸 사이 2px 틈, 마우스를 올리면 티커·평가액·비중. 비중은 신고서 평가액 그대로(옵션 줄 제외).
+function HoldingsBar({ items, total }: { items: Pos[]; total: number }) {
+  const shown = items.filter((p) => (p.weight ?? 0) > 0);
+  const top = shown.reduce((n, p) => n + (p.weight ?? 0), 0);
+  const rest = Math.max(0, 1 - top);
+  if (shown.length === 0) return null;
+  const label = (p: Pos) => p.ticker ?? (p.issuer ?? "?").split(" ")[0];
+  return (
+    <div className="mb-2.5" role="img" aria-label={`보유 비중: ${shown.map((p) => `${label(p)} ${pct(p.weight, 0)}`).join(", ")}${rest > 0.005 ? `, 기타 ${pct(rest, 0)}` : ""}`}>
+      <div className="flex h-5 w-full gap-[2px] overflow-hidden rounded">
+        {shown.map((p, i) => (
+          <div key={i} className="flex items-center justify-center overflow-hidden text-[11px] font-bold first:rounded-l last:rounded-r"
+            style={{ width: `${(p.weight ?? 0) * 100}%`, background: i % 2 ? "#e09a16" : "#ffb020", color: "#1a1408", minWidth: 2 }}
+            title={`${label(p)}${p.issuer && p.ticker ? ` (${p.issuer})` : ""} · ${usd(p.value)} · 비중 ${pct(p.weight)}`}>
+            {/* 막대 안 티커: 12% 이상은 항상, 8~12%는 넓은 화면만(휴대폰에선 'G…'처럼 잘린다) - 아래 줄에 전부 있다 */}
+            {(p.weight ?? 0) >= 0.08 && <span className={`truncate px-1 ${(p.weight ?? 0) < 0.12 ? "hidden sm:inline" : ""}`}>{label(p)}</span>}
+          </div>
+        ))}
+        {rest > 0.005 && (
+          <div className="flex items-center justify-center rounded-r text-[11px]" title={`나머지 ${Math.max(0, total - shown.length)}종목 · 비중 ${pct(rest)}`}
+            style={{ width: `${rest * 100}%`, background: "#3a3424", color: "var(--text-secondary)" }}>
+            {rest >= 0.1 && <span className="truncate px-1">기타</span>}
+          </div>
+        )}
+      </div>
+      <p className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
+        {shown.map((p, i) => (
+          <span key={i} className="whitespace-nowrap"><Name p={p} /> {pct(p.weight, 0)}</span>
+        ))}
+        {rest > 0.005 && <span className="whitespace-nowrap">기타 {Math.max(0, total - shown.length)}종목 {pct(rest, 0)}</span>}
+      </p>
+    </div>
+  );
+}
+
 function ManagerCard({ m, screening }: { m: Manager; screening: Screen }) {
   const meta = INVESTOR_BY_ID[m.id];
   const [more, setMore] = useState(false);
@@ -72,9 +109,7 @@ function ManagerCard({ m, screening }: { m: Manager; screening: Screen }) {
     <Section title={meta?.ko ?? m.id}
       sub={<>{meta?.en} · <b style={{ color: "var(--text-secondary)" }}>{quarterLabel(m.period)}</b> 말 기준 · {md(m.filed_on)} 신고 · 보유 {m.positions}종목 · {usd(m.value_total)}</>}
       right={m.compared && <span style={{ color: "var(--text-muted)" }}>새로 {m.counts.new} · 늘림 {m.counts.added} · 줄임 {m.counts.reduced} · 다 팖 {m.counts.sold}</span>}>
-      <p className="text-[12px] mb-2" style={{ color: "var(--text-muted)" }}>
-        주요 보유: {m.top_holdings.map((p, i) => <span key={i}>{i > 0 && " · "}<Name p={p} /> {pct(p.weight, 0)}</span>)}
-      </p>
+      <HoldingsBar items={m.top_holdings} total={m.positions} />
       {!m.compared ? (
         <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>직전 분기 신고가 없어 비교하지 않습니다.</p>
       ) : (

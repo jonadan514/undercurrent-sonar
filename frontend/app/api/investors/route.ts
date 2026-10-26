@@ -70,7 +70,7 @@ export async function GET(request: Request) {
         positions: held.length, value_total: held.reduce((n, r) => n + r.value, 0),
         compared: rs.some((r) => r.status != null),
         counts: { new: count("new"), added: count("added"), reduced: count("reduced"), sold: count("sold") },
-        top_holdings: held.sort((a, b) => b.value - a.value).slice(0, 5).map(pick),
+        top_holdings: held.sort((a, b) => b.value - a.value).slice(0, 8).map(pick),   // 비중 막대용 상위 8(나머지는 화면에서 '기타')
         new: top("new", (r) => r.value, 12),
         added: top("added", (r) => r.value - (r.prev_value ?? 0), 8),
         reduced: top("reduced", (r) => (r.prev_value ?? 0) - r.value, 8),
