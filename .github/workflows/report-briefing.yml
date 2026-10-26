@@ -1,0 +1,32 @@
+name: Report Briefing
+
+# 읽기 전용 - 저장된 주간 브리핑 칸별 건수 점검, 2026-10-26.
+on:
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "주차(월요일, 비우면 가장 최근)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Report
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          WEEK: ${{ inputs.week }}
+        run: python scripts/report_briefing.py ${WEEK:+--week $WEEK}
