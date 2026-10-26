@@ -4,7 +4,10 @@
 그 시각 yfinance가 주는 '오늘 막대'의 종가는 장중 가격인데, 끝가(또는 지수 시작가)가 그날이면 그 값으로 채워지고
 COALESCE(이미 채운 값은 그대로)로 굳었다. 두 스크립트는 이제 오늘 막대를 쓰지 않는다(signal_check.completed_bars).
 
-여기서는 그런 실행이 있었던 날(POLLUTED_DAYS, GitHub 실행 기록에서 한국 장중 00:00~07:10 UTC에 시작한 날)을 끝가로 쓴 칸만 NULL로 만든다.
+여기서는 장중 값이 아직 남아 있는 날(POLLUTED_DAYS)을 끝가로 쓴 칸만 NULL로 만든다. 장중 실행은 8/21부터 매주 있었지만(GitHub 실행 기록,
+한국 장중 00:00~07:10 UTC 시작) 지난 날들은 이미 바로잡혔다 - 성적표 표는 실행마다 새 값으로 덮어써 다음 주 실행이 완성된 종가로 고쳤고,
+신호 결과는 10/21 첫 실행 때 지난 월요일들의 완성된 종가로 채워졌다(신호 주차는 월요일, 끝가도 월요일). 남은 건 10/26 실행분뿐이다
+(2026-10-26 보기만 실행: 12일로 잡으면 성적표 234줄·신호 131줄이 걸렸는데 대부분 이미 맞는 값이었다).
 - kr_pick_returns: fwd_{h}d_ret (시작가는 스크리닝 때 적은 가격이라 그대로)
 - kr_benchmark_returns: 시작 막대가 그날이면 entry_price와 모든 기간, 아니면 끝 막대가 그날인 기간만
 - signal_outcomes(KR): ret_{h}d·bench_{h}d, signal_universe_returns(KR): univ_{h}d·n_{h}d
@@ -30,8 +33,7 @@ from scripts.compute_pick_returns import HORIZONS as PICK_HORIZONS
 from src.analyzers.signal_check import HORIZONS as SIGNAL_HORIZONS
 from src.analyzers.signal_check import completed_bars
 
-POLLUTED_DAYS = ("2026-08-21", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-09-30",
-                 "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-21", "2026-10-26")
+POLLUTED_DAYS = ("2026-10-26",)
 
 
 def _log(msg: str) -> None:
