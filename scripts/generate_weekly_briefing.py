@@ -35,6 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.db.turso_http import get_credentials, query as _turso_query
+from src.analyzers.signal_check import sentiment_window
 from src.collectors.kr_disclosures import prelim_has_values, quarter_label, summary as disclosure_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -679,15 +680,17 @@ def get_kr_disclosures_week() -> dict | None:
     return kr_disclosures_week(rows, universe, tags)
 
 
-def get_sentiment_week() -> list[dict]:
-    """최근 7일 안의 관심도 기록이 그 전 마지막 기록보다 올라간 종목.
+def get_sentiment_week(week: str) -> list[dict]:
+    """이번 주 관심도 기록이 그 전 마지막 기록보다 올라간 종목.
     관심도는 주간 네러티브 생성 때 주 1회 적힌다 - 예전에는 '최근 7일 안의 첫 값 vs 마지막 값'이라 지난주 기록이 정확히 7일 전에 있어야만
-    잡혔다(예약 실행이 자정을 넘겨 늦게 돌면 빈 칸). 워치리스트 ▲관심 배지와 같은 '그 전 마지막 기록' 비교로 바꿨다(2026-10-21)."""
+    잡혔다(예약 실행이 자정을 넘겨 늦게 돌면 빈 칸). 워치리스트 ▲관심 배지와 같은 '그 전 마지막 기록' 비교로 바꿨다(2026-10-21).
+    '이번 주' = 신호 기록과 같은 sentiment_window(월요일-6일 ~ 월요일) - '지금-7일'이면 지난주 실행이 월요일 날짜로 적힌 주에
+    지난주 기록까지 이번 주로 들어가 2주 전 값과 비교됐다(2026-10-26)."""
     rows = turso_exec(
         "SELECT market, symbol, date, sentiment FROM narrative_sentiment_history "
         "WHERE date >= date('now', '-35 days') ORDER BY market, symbol, date"
     )
-    cut = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    cut = sentiment_window(week)[0]
     before: dict[str, str] = {}
     within: dict[str, str] = {}
     for r in rows:
@@ -1188,7 +1191,7 @@ def main() -> None:
         "insider_week": get_insider_week(),
         "us_8k_week": get_us_8k_week(),
         "inst_13f_week": get_inst_13f_week(),
-        "sentiment_heating": get_sentiment_week(),
+        "sentiment_heating": get_sentiment_week(week),
         "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),
         "observation_reviews": get_observation_reviews(),

@@ -151,6 +151,14 @@ def _load_candidate_history(conn, market: str) -> list[dict]:
     ]
 
 
+def _completed(df: pd.DataFrame | None, today: date) -> pd.DataFrame | None:
+    """오늘 날짜 막대를 뺀다 - 장중에 받은 오늘 '종가'는 그 시각 가격이다. 정기 실행이 월요일 한국 장중에 돌아
+    한국 지수 시작가·끝가가 장중 가격으로 채워지고 COALESCE로 굳었다(2026-10-26 점검, signal_check.completed_bars와 같은 규칙)."""
+    if df is None or df.empty:
+        return df
+    return df[df.index < pd.Timestamp(today)]
+
+
 def _price_on_or_after(df: pd.DataFrame, target: pd.Timestamp) -> float | None:
     if df is None or df.empty:
         return None
@@ -248,12 +256,12 @@ def run(market: str) -> None:
     price_cache: dict[str, pd.DataFrame] = {}
     _log(f"{market}: 종목 {len(symbols)}개 + 벤치마크({cfg['benchmark']}) 가격 조회 시작 (period={period})")
     for i, sym in enumerate(sorted(symbols), 1):
-        price_cache[sym] = fetcher.fetch_ohlcv(fetch_symbol(sym), period=period)
+        price_cache[sym] = _completed(fetcher.fetch_ohlcv(fetch_symbol(sym), period=period), date.today())
         if i % 25 == 0:
             _log(f"  {i}/{len(symbols)+1} 조회 완료")
         time.sleep(0.2)  # 레이트리밋 여유
     # 벤치마크(SPY/^KS11)는 접미사 변환 대상이 아니다 - 그대로 조회한다.
-    price_cache[cfg["benchmark"]] = fetcher.fetch_ohlcv(cfg["benchmark"], period=period)
+    price_cache[cfg["benchmark"]] = _completed(fetcher.fetch_ohlcv(cfg["benchmark"], period=period), date.today())
 
     empty = sum(1 for s in symbols if price_cache.get(s) is None or price_cache[s].empty)
     if empty:

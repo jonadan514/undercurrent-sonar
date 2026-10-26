@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.collect_insider_trades import targets
 from scripts.compute_theme_events import events_for, members_by_theme
-from src.analyzers.signal_check import (insider_signals, kr_disclosure_signals, sentiment_signals, theme_signals,
+from src.analyzers.signal_check import (insider_signals, kr_disclosure_signals, sentiment_signals, sentiment_window, theme_signals,
                                         turnaround_signals, us8k_signals, week_window)
 from src.analyzers.theme_events import FETCH_DAYS, by_theme
 from src.db.data_store import get_db
@@ -97,12 +97,14 @@ def week_signals(conn, week: str) -> list[dict]:
     u8 = [{"symbol": r[0], "detail": json.loads(r[1])} for r in _rows(
         conn, "SELECT symbol, detail FROM us_8k_filings WHERE filed_on BETWEEN ? AND ?", (start, end))]
     out += us8k_signals(u8)
-    # 관심도는 주 1회 기록 - 그 주 값과 그 전 마지막 기록을 비교하려고 4주 앞부터 읽는다
+    # 관심도는 주 1회 기록 - 그 주 값과 그 전 마지막 기록을 비교하려고 4주 앞부터 읽는다.
+    # 기간은 공시 기간이 아니라 sentiment_window(월요일-6일 ~ 월요일): 실행이 자정을 넘기면 월요일 날짜로 적힌다(2026-10-26)
+    s_start, s_end = sentiment_window(week)
     sent = [dict(zip(("market", "symbol", "date", "sentiment"), r)) for r in _rows(
         conn, "SELECT market, symbol, date, sentiment FROM narrative_sentiment_history WHERE substr(date, 1, 10) BETWEEN ? AND ? "
               "ORDER BY market, symbol, date",
-        ((date.fromisoformat(start) - timedelta(days=28)).isoformat(), end))]
-    out += sentiment_signals(sent, start)
+        ((date.fromisoformat(s_start) - timedelta(days=28)).isoformat(), s_end))]
+    out += sentiment_signals(sent, s_start)
 
     snaps = {r[0]: json.loads(r[1]) for r in _rows(conn, "SELECT week, payload FROM turnaround_weekly_snapshots WHERE week <= ? "
                                                          "ORDER BY week DESC LIMIT 2", (week,))}

@@ -2,6 +2,7 @@
 
 규칙은 src/analyzers/signal_check.py. 성적표(compute_pick_returns.py)와 같은 방식:
 - 시작가 = 신호 주차(월요일) 이후 첫 거래일 종가, 끝가 = 그 날짜 + 28·84일 이후 첫 거래일 종가(수정주가).
+  실행일 막대는 쓰지 않는다(장중이면 종가가 아님, 2026-10-26).
 - 지수(미국 SPY, 한국 ^KS11)도 같은 날짜로 재서 같이 적는다.
 - 유니버스 기준(signal_universe_returns): 같은 유니버스 전체 종목의 같은 기간 수익률 중앙값 - 신호 종목이 중소형주라 지수와만 비교하면
   '중소형주 효과'가 섞여서(2026-10-21 첫 결과 확인 뒤 추가). 화면은 두 기준의 초과수익을 다 보여준다.
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts.compute_pick_returns import _kr_yf_symbol, _load_kr_universe
-from src.analyzers.signal_check import HORIZONS, distribution, fwd_return, median_return
+from src.analyzers.signal_check import HORIZONS, completed_bars, distribution, fwd_return, median_return
 from src.collectors.us_price_fetcher import USPriceFetcher
 from src.db.data_store import get_db
 
@@ -115,7 +116,9 @@ def main() -> int:
         if key not in prices:
             yf = symbol if symbol.startswith("^") or market == "US" else _kr_yf_symbol(symbol, kr_universe)
             df = fetcher.fetch_ohlcv(yf, period=period)
-            prices[key] = [] if df is None or df.empty else [(d.strftime("%Y-%m-%d"), float(c)) for d, c in df["Close"].items()]
+            # 오늘 막대(장중이면 종가가 아님)는 뺀다 - 2026-10-26
+            prices[key] = [] if df is None or df.empty else completed_bars(
+                [(d.strftime("%Y-%m-%d"), float(c)) for d, c in df["Close"].items()], today)
             time.sleep(0.2)
         return prices[key]
 

@@ -28,6 +28,15 @@ def week_window(week: str) -> tuple[str, str]:
     return (mon - timedelta(days=7)).isoformat(), (mon - timedelta(days=1)).isoformat()
 
 
+def sentiment_window(week: str) -> tuple[str, str]:
+    """브리핑 주차(월요일) -> 그 주 관심도 기록의 날짜 범위 [월요일-6일, 월요일].
+    관심도는 일요일 22:00 UTC 워치리스트 실행의 네러티브 단계가 적는데, 예약 실행이 늦으면 자정을 넘겨 월요일 날짜로 적힌다 -
+    공시 기간(월요일-7일 ~ 월요일-1일)을 그대로 쓰면 그런 주의 관심도가 다음 주 신호로 밀렸다(2026-10-26 점검: 10/26 관심도 상승 10건이 0건).
+    일요일·월요일 어느 날짜로 적혀도 그 주에 들어가고, 지난주 실행분(월요일-7일 이전)은 비교 대상('그 전 기록')으로 남는다."""
+    mon = date.fromisoformat(week)
+    return (mon - timedelta(days=6)).isoformat(), mon.isoformat()
+
+
 def insider_signals(rows: list[dict], watched: set[str]) -> list[dict]:
     """insider_trades 줄(그 주 공시분) -> 종목별 신호 하나. watched = 관심 표시가 있는 '시장:종목'."""
     by: dict[str, dict] = {}
@@ -141,6 +150,14 @@ def sentiment_signals(rows: list[dict], start: str) -> list[dict]:
 
 
 # ── 결과 계산 ────────────────────────────────────────────────────────────────
+
+def completed_bars(series: list[tuple[str, float]], today: date) -> list[tuple[str, float]]:
+    """오늘 날짜 막대를 뺀다 - 장중에 받은 오늘 막대의 '종가'는 그 시각 가격이라 끝가·시작가로 쓰면 안 된다.
+    정기 실행이 월요일 00~02시 UTC(한국 장중)에 돌아 한국 결과가 월요일 장중 가격으로 채워지고 COALESCE로 굳었다(2026-10-26 점검).
+    장 마감 뒤 실행이면 오늘 막대가 완성돼 있어도 빠지지만 다음 실행에서 채워질 뿐이다."""
+    t = today.isoformat()
+    return [x for x in series if x[0] < t]
+
 
 def price_on_or_after(series: list[tuple[str, float]], d: str) -> tuple[str, float] | None:
     """(날짜, 종가) 날짜순 목록에서 d 이후 첫 거래일."""

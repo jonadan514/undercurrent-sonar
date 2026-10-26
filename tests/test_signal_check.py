@@ -82,3 +82,26 @@ def test_sentiment_signals_compare_with_previous_record():
             {"market": "US", "symbol": "OLD", "date": "2026-10-04", "sentiment": "COLD"}]    # 그 주 기록 없음
     s = sentiment_signals(rows, "2026-10-12")
     assert [(x["symbol"], x["detail"]["path"]) for x in s] == [("MU", "WARM→HOT")]
+
+
+def test_completed_bars_drops_today_intraday_bar():
+    # 2026-10-26 점검: 월요일 한국 장중 실행이 오늘 막대(장중 가격)를 끝가로 썼다
+    from src.analyzers.signal_check import completed_bars
+    s = [("2026-09-28", 100.0), ("2026-10-23", 104.0), ("2026-10-26", 90.0)]
+    assert completed_bars(s, date(2026, 10, 26)) == s[:2]
+    # 9/28 + 28일 = 10/26 - 오늘 막대를 빼면 아직 끝가 없음 → 다음 실행에서 채움
+    assert fwd_return(completed_bars(s, date(2026, 10, 26)), "2026-09-28", 28, date(2026, 10, 26)) is None
+    assert abs(fwd_return(completed_bars(s, date(2026, 10, 27)), "2026-09-28", 28, date(2026, 10, 27)) - (-0.10)) < 1e-9
+
+
+def test_sentiment_window_includes_monday_run():
+    # 일요일 밤 예약 실행이 자정을 넘기면 관심도가 월요일 날짜로 적힌다 - 그 주에 들어가야 한다
+    from src.analyzers.signal_check import sentiment_signals, sentiment_window
+    assert sentiment_window("2026-10-26") == ("2026-10-20", "2026-10-26")
+    rows = [{"market": "US", "symbol": "MU", "date": "2026-10-19", "sentiment": "WARM"},   # 지난주 실행(월요일 날짜)
+            {"market": "US", "symbol": "MU", "date": "2026-10-26", "sentiment": "HOT"}]    # 이번 주 실행(월요일 날짜)
+    start, end = sentiment_window("2026-10-26")
+    assert [x["detail"]["path"] for x in sentiment_signals([r for r in rows if r["date"] <= end], start)] == ["WARM→HOT"]
+    # 지난주 주차에는 지난주 실행분만
+    start, end = sentiment_window("2026-10-19")
+    assert sentiment_signals([r for r in rows if r["date"] <= end], start) == []

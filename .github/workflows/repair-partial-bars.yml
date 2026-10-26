@@ -1,0 +1,33 @@
+name: Repair Partial Bars
+
+# 한 번 쓰는 정리(2026-10-26) - 한국 장중 가격으로 채워진 성적표·신호 결과 칸을 비운다. 기본은 보기만.
+# 비운 뒤 Performance Tracking을 돌리면 완성된 종가로 다시 채운다. 자세한 건 scripts/repair_partial_bars.py.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "true면 실제로 비운다(기본 false = 몇 칸인지 보기만)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Repair
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          APPLY: ${{ inputs.apply }}
+        run: python scripts/repair_partial_bars.py $([ "$APPLY" = "true" ] && echo --apply)
