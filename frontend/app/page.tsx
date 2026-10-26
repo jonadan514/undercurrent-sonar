@@ -59,7 +59,8 @@ const MKT_NAME: Record<Mkt, { flag: string; name: string; sub: string }> = {
 // 개요 한 장(2026-10-25 사용자 의견) - 예전엔 위 시장 탭으로 미국/한국을 바꿔 봐야 했는데, 매크로는 같고
 // "이번 주 변화"는 칸이 몇 개뿐이라 두 시장을 한 화면에 단락으로 나란히 두고 매크로는 한 번만.
 // 유명 투자자 13F 요약(미국 단락만, 2026-10-25) - /api/investors 값 그대로
-type Inst13f = { period: string; filed: string; newTotal: number; shared: string[]; sharedCount: number };
+type Inst13f = { period: string; filed: string; newTotal: number; shared: { ticker: string; n: number; newN: number }[]; sharedCount: number;
+  conviction: number };
 
 function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
   m: Mkt; brief: WeekBrief | null; cands: { total: number; fresh: number | null } | null;
@@ -99,11 +100,32 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
         sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 밖 ${fresh}` : `종목 ${ins.by_market[m] ?? 0}`) : "브리핑 전"}
         hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 밖은 관심 표시 없는 유니버스 종목(새 이름 찾기용)." />;
     })(),
-    // 유명 투자자 13F - 한국 공시 칸처럼 카드로(2026-10-25 사용자 의견). 미국만(13F는 미국 상장주식)
+    // 유명 투자자 13F - 카드 두 칸 폭에 '여러 곳이 함께 산 종목' 상위 5개(2026-10-26 사용자 결정 - 새로 산 개수보다 겹친 이름이 의미 있다).
+    // 정렬은 겹친 운용사 수 → 새로 산 곳 수 → 평가액(/api/investors 그대로), 점수·추천 아님. 미국만(13F는 미국 상장주식)
     ...(m === "US" ? [
-      <StatTile key="13f" href="/investors" label="유명 투자자 13F" value={inst ? inst.newTotal : "-"}
-        sub={inst ? `${quarterLabel(inst.period)} 새로 삼${inst.sharedCount ? ` · 함께 산 ${inst.sharedCount}` : ""}` : "아직 없음"}
-        hint="고른 운용사 15곳이 분기 말에 새로 산 종목 수(운용사별로 센 합). 45일 늦은 사실이고 매수 신호가 아닙니다." />,
+      <a key="13f" href="/investors#shared" className="col-span-2 rounded-lg px-3 py-2.5 block transition-colors hover:brightness-125"
+        style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}
+        title="고른 운용사 15곳이 각자 가장 최근 분기에 새로 사거나 늘린 종목 중 2곳 이상 겹친 것. 45일 늦은 사실이고 매수 신호가 아닙니다.">
+        <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>
+          유명 투자자 13F · 여러 곳이 함께 산 종목{inst ? ` · ${quarterLabel(inst.period)} 말` : ""}
+        </p>
+        {!inst ? <p className="text-[13px] mt-1" style={{ color: "var(--text-faint)" }}>아직 없음</p>
+          : inst.shared.length === 0 ? <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>2곳 이상 겹친 종목 없음</p> : (
+          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {inst.shared.map((t) => (
+              <span key={t.ticker} className="whitespace-nowrap">
+                <b style={{ color: "var(--num, #ffb020)" }}>{t.ticker}</b>
+                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}> {t.n}곳{t.newN ? `(새로 ${t.newN})` : ""}</span>
+              </span>
+            ))}
+          </p>
+        )}
+        {inst && (
+          <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>
+            {inst.sharedCount > inst.shared.length ? `외 ${inst.sharedCount - inst.shared.length}종목 · ` : ""}확신 매수(새로 샀는데 비중 3%+) {inst.conviction}
+          </p>
+        )}
+      </a>,
     ] : []),
   ];
   const labels = radar == null ? null : LABEL_ORDER.filter(l => radar[l]).map(l => `${LABEL_KO[l] ?? l} ${radar[l]}`);
@@ -159,9 +181,11 @@ export default function HomePage() {
       .then(d => {
         const ms: { period: string; filed_on: string; counts: { new: number } }[] = Array.isArray(d?.managers) ? d.managers : [];
         if (!ms.length) return setInst(null);
-        const sh: { ticker: string }[] = Array.isArray(d?.shared) ? d.shared : [];
+        const sh: { ticker: string; buyers: { status: string }[] }[] = Array.isArray(d?.shared) ? d.shared : [];
         setInst({ period: ms.reduce((p, x) => (x.period > p ? x.period : p), ""), filed: ms.reduce((p, x) => (x.filed_on > p ? x.filed_on : p), ""),
-          newTotal: ms.reduce((n, x) => n + (x.counts?.new ?? 0), 0), shared: sh.slice(0, 4).map(t => t.ticker), sharedCount: sh.length });
+          newTotal: ms.reduce((n, x) => n + (x.counts?.new ?? 0), 0),
+          shared: sh.slice(0, 5).map(t => ({ ticker: t.ticker, n: t.buyers.length, newN: t.buyers.filter(b => b.status === "new").length })),
+          sharedCount: sh.length, conviction: Array.isArray(d?.conviction) ? d.conviction.length : 0 });
       }).catch(() => setInst(null));
     // 매크로는 두 시장에 걸치는 배경 정보라 한 번만
     fetch("/api/data/macro")

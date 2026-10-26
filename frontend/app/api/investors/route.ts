@@ -10,6 +10,8 @@ type Row = { manager_id: string; period: string; ticker: string | null; issuer: 
   value: number; weight: number | null; status: string | null; prev_shares: number | null; prev_value: number | null;
   share_chg: number | null; filed_on: string | null };
 const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
+// 확신 매수 기준(2026-10-26 사용자 결정) - 새로 산 종목이 그 운용사 주식 보유의 3% 이상. 임의 기준이라 데이터를 보고 조정.
+const CONVICTION_MIN = 0.03;
 
 async function latestRows(): Promise<Row[]> {
   const client = getClient();
@@ -81,13 +83,21 @@ export async function GET(request: Request) {
       if (!r.ticker || (r.status !== "new" && r.status !== "added")) continue;
       (together[r.ticker] ??= { ticker: r.ticker, issuer: r.issuer, buyers: [] }).buyers.push({ manager_id: r.manager_id, status: r.status, value: r.value, weight: r.weight });
     }
+    // 정렬: 겹친 운용사 수 → 그중 새로 산 곳 수 → 합계 평가액(같은 곳 수면 회전이 잦은 곳끼리의 우연한 '늘림'보다 '새로'를 앞에). 점수 아님
+    const newN = (t: { buyers: { status: string }[] }) => t.buyers.filter((x) => x.status === "new").length;
+    const valSum = (t: { buyers: { value: number }[] }) => t.buyers.reduce((n, x) => n + x.value, 0);
     const shared = Object.values(together).filter((t) => t.buyers.length >= 2)
-      .sort((a, b) => b.buyers.length - a.buyers.length || b.buyers.filter((x) => x.status === "new").length - a.buyers.filter((x) => x.status === "new").length);
-    const tickers = Array.from(new Set([...managers.flatMap((m) => [...m.new, ...m.added].map((x) => x.ticker)), ...shared.map((t) => t.ticker)]
+      .sort((a, b) => b.buyers.length - a.buyers.length || newN(b) - newN(a) || valSum(b) - valSum(a));
+    // 확신 매수 - 새로 샀는데 비중이 큰 종목(운용사가 새 종목에 크게 실은 경우). 비중 큰 순
+    const conviction = rows.filter((r) => r.status === "new" && (r.weight ?? 0) >= CONVICTION_MIN)
+      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+      .map((r) => ({ manager_id: r.manager_id, period: r.period, ...pick(r) }));
+    const tickers = Array.from(new Set([...managers.flatMap((m) => [...m.new, ...m.added].map((x) => x.ticker)), ...shared.map((t) => t.ticker),
+      ...conviction.map((x) => x.ticker)]
       .filter((t): t is string => !!t)));
     const unmapped = rows.filter((r) => !r.ticker && r.shares > 0).length;
-    return NextResponse.json({ managers, shared, screening: await screening(tickers), unmapped });
+    return NextResponse.json({ managers, shared, conviction, conviction_min: CONVICTION_MIN, screening: await screening(tickers), unmapped });
   } catch {
-    return NextResponse.json({ managers: [], shared: [], screening: {}, unmapped: 0 });
+    return NextResponse.json({ managers: [], shared: [], conviction: [], conviction_min: CONVICTION_MIN, screening: {}, unmapped: 0 });
   }
 }

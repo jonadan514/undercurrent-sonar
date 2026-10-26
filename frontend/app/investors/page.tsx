@@ -16,7 +16,8 @@ type Manager = { id: string; period: string; filed_on: string; positions: number
   top_holdings: Pos[]; new: Pos[]; added: Pos[]; reduced: Pos[]; sold: Pos[] };
 type Shared = { ticker: string; issuer: string | null; buyers: { manager_id: string; status: string; value: number; weight: number | null }[] };
 type Screen = Record<string, { status: string; piotroski: number | null; candidate: boolean }>;
-type Data = { managers: Manager[]; shared: Shared[]; screening: Screen; unmapped: number };
+type Conviction = Pos & { manager_id: string; period: string };
+type Data = { managers: Manager[]; shared: Shared[]; conviction?: Conviction[]; conviction_min?: number; screening: Screen; unmapped: number };
 
 const pct = (v: number | null | undefined, d = 1) => (v == null ? "-" : `${(v * 100).toFixed(d)}%`);
 const md = (d: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "-");
@@ -130,8 +131,9 @@ export default function InvestorsPage() {
           <StatGrid cols={4}>
             <StatTile label="추적 운용사" value={d.managers.length} sub="스타일별 아래 묶음" />
             <StatTile label="최근 분기" value={quarterLabel(latestPeriod)} sub={`분기 말 기준 · ${md(latestFiled)} 신고까지`} />
-            <StatTile label="새로 산 종목 (합계)" value={newTotal} sub="운용사별로 센 수" />
             <StatTile label="2곳 이상이 함께 산 종목" value={d.shared.length} emphasis={d.shared.length ? "accent" : undefined} sub="새로 사거나 늘림" href="#shared" />
+            <StatTile label="확신 매수" value={(d.conviction ?? []).length} href="#conviction"
+              sub={`새로 샀는데 비중 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상`} hint={`새로 산 종목 전체(운용사별 합) ${newTotal}`} />
           </StatGrid>
 
           <Section id="shared" title="여러 곳이 함께 산 종목" count={d.shared.length}
@@ -152,6 +154,28 @@ export default function InvestorsPage() {
                       </span>
                     ))}
                     <Finance s={d.screening[t.ticker]} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* 확신 매수(2026-10-26) - 새로 산 종목 중 그 운용사 주식 보유의 일정 비중 이상. 개수보다 '얼마나 크게 실었나' */}
+          <Section id="conviction" title="확신 매수" count={(d.conviction ?? []).length}
+            info={`새로 산 종목 중 그 운용사 주식 보유에서 비중이 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상인 것. 새 종목에 크게 실었다는 뜻이라 개수보다 무게가 있습니다. 기준은 임의값이고, 소수 종목에 집중하는 운용사가 자주 걸립니다. 비중 큰 순 - 점수가 아닙니다.`}
+            sub={`새로 샀는데 비중 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상 · 비중 큰 순`}>
+            {(d.conviction ?? []).length === 0 ? <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>해당 없음</p> : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                {(d.conviction ?? []).map((x, i) => (
+                  <div key={`${x.manager_id}-${x.ticker ?? x.issuer}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] rounded-lg px-3 py-1.5"
+                    style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                    <Name p={x} />
+                    {x.ticker && <span className="truncate max-w-[10rem]" style={{ color: "var(--text-muted)" }}>{x.issuer}</span>}
+                    <span className="font-bold" style={{ color: "#ffb020" }}>비중 {pct(x.weight)}</span>
+                    <span className="text-white">{usd(x.value)}</span>
+                    <span style={{ color: "var(--text-secondary)" }}>{INVESTOR_BY_ID[x.manager_id]?.ko.split(" (")[0] ?? x.manager_id}
+                      <span style={{ color: "var(--text-faint)" }}> · {INVESTOR_BY_ID[x.manager_id]?.style} · {quarterLabel(x.period)}</span></span>
+                    {x.ticker && <Finance s={d.screening[x.ticker]} />}
                   </div>
                 ))}
               </div>
