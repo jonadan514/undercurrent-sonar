@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -31,8 +32,10 @@ sys.path.insert(0, str(ROOT / "src"))
 from src.db.data_store import get_db
 from src.db.fundamentals_cache import ensure_schema as ensure_fundamentals_schema, get_cached_financials_bulk
 from src.db.theme_signals import (ensure_schema, signal_week_monday, get_approved_theme_members, get_surprises,
-                                   upsert_earn_signal, upsert_member_earnings, upsert_member_fcf)
-from analyzers.theme_earnings import (classify_company_earnings, compute_earn_signal,
+                                   upsert_earn_prelim, upsert_earn_signal, upsert_member_earnings, upsert_member_fcf,
+                                   upsert_member_prelim)
+from analyzers.theme_earnings import (classify_company_earnings, compute_earn_signal, compute_prelim_preview,
+                                      latest_prelims, prelim_market_median, prelim_quarter_end,
                                       reference_growth_for_market, yoy_growth)
 from analyzers.company_growth import quarterly_margin_change
 from collectors.watchlist_collector import get_kr_universe, get_us_universe
@@ -189,6 +192,21 @@ def main() -> None:
     fcf_by_ticker = {t: member_fcf(financials.get(t), universe_cap.get(t)) for t in all_tickers}
     _log(f"FCF 수익률(3년 평균) 계산 {sum(1 for v in fcf_by_ticker.values() if v['yield_3y'] is not None)}/{len(all_tickers)}종목")
 
+    # 한국 잠정실적 미리보기(2026-11-02) - 실적 축에는 안 넣고 같은 주 행에 참고 값으로만(theme_earnings 참고)
+    q_end = prelim_quarter_end(date.today())
+    prelims: dict[str, float] = {}
+    if any(mk == "KR" for _, mk in members_by_theme_market):
+        try:
+            rows = conn.execute("SELECT stock_code, rcept_no, payload FROM kr_disclosures WHERE kind = 'prelim' AND rcept_dt > ?",
+                                (q_end,)).fetchall()
+            prelims = latest_prelims([{"stock_code": r[0], "rcept_no": r[1],
+                                       "payload": json.loads(r[2]) if isinstance(r[2], str) else (r[2] or {})} for r in rows], q_end)
+        except Exception as e:  # noqa: BLE001 - 공시 표가 없으면 미리보기만 빠진다
+            _log(f"잠정실적 조회 실패 {type(e).__name__} - 미리보기 없이")
+    prelim_median = prelim_market_median(prelims)
+    _log(f"KR 잠정실적({q_end} 분기) {len(prelims)}개사, 매출 YoY 중앙값 "
+         + ("표본 부족" if prelim_median is None else f"{prelim_median * 100:+.1f}%"))
+
     now = datetime.utcnow().isoformat()
     for (theme_id, market), members in members_by_theme_market.items():
         result = compute_earn_signal(members, revenue_by_ticker, thresholds,
@@ -219,6 +237,12 @@ def main() -> None:
         upsert_member_earnings(conn, member_rows)
         upsert_member_fcf(conn, [(theme_id, market, week_start, m["ticker"], fcf_by_ticker[m["ticker"]]["yield_3y"],
                                   fcf_by_ticker[m["ticker"]]["negative_years"], now) for m in members])
+        prelim = compute_prelim_preview(members, prelims, prelim_median, q_end) if market == "KR" else None
+        upsert_earn_prelim(conn, theme_id, market, week_start, prelim)
+        if prelim and prelim["n"]:
+            _log(f"  잠정 {prelim['quarter']}: {prelim['n']}개사 발표, 중앙값 초과 {prelim['beat']}")
+        upsert_member_prelim(conn, [(theme_id, market, week_start, m["ticker"], prelims.get(m["ticker"]) if market == "KR" else None,
+                                     prelim["quarter"] if prelim and m["ticker"] in prelims else None, now) for m in members])
         conn.commit()
 
     conn.close()

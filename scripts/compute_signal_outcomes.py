@@ -73,6 +73,25 @@ def us_universe() -> list[str]:
     return sorted(set(out))
 
 
+RETRY_DAYS = 56   # 끝 날짜가 지나고 이만큼 동안만 다시 채워 본다 - 가격이 끝내 없는 종목(상장 폐지)·소속 가격 3개 미만 테마가 매주 다시 조회되지 않게
+
+
+def due_horizons(week: str, today: date) -> list[int]:
+    """지금 채울 기간(일): 끝 날짜가 지났고(오늘이면 아직 - 오늘 막대는 쓰지 않는다, completed_bars) 지난 지 RETRY_DAYS 안."""
+    out = []
+    for h in HORIZONS:
+        end = date.fromisoformat(week) + timedelta(days=h)
+        if end < today and (today - end).days <= RETRY_DAYS:
+            out.append(h)
+    return out
+
+
+def needs_fill(week: str, values, today: date) -> bool:
+    """values = signal_outcomes의 COLS 순서 값(없으면 None). 기간이 지난 기간 중 ret·bench 하나라도 비었으면 True."""
+    vals = dict(zip(COLS, values)) if values else {}
+    return any(vals.get(f"ret_{h}d") is None or vals.get(f"bench_{h}d") is None for h in due_horizons(week, today))
+
+
 def main() -> int:
     today = date.today()
     conn = get_db()
@@ -84,13 +103,17 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001
         _log(f"signal_log 없음({type(e).__name__}) - 할 일 없음")
         return 0
-    done = {tuple(r[:4]) for r in conn.execute(
-        f"SELECT week, kind, market, symbol FROM signal_outcomes WHERE {' AND '.join(f'{c} IS NOT NULL' for c in COLS)}").fetchall()}
-    todo = [r for r in rows if tuple(r[:4]) not in done]
-    # 유니버스 기준(2026-10-21): 신호가 있는 (시장, 주차)마다 유니버스 전체 수익률 중앙값 - 아직 다 안 채운 것만
-    univ_done = {tuple(r) for r in conn.execute(
-        f"SELECT market, week FROM signal_universe_returns WHERE {' AND '.join(f'univ_{h}d IS NOT NULL' for h in HORIZONS)}").fetchall()}
-    univ_todo = sorted({(r[2], r[0]) for r in rows} - univ_done)
+    # 채울 것 = 기간이 지났는데(due_horizons) 아직 빈 기간이 있는 것만(2026-11-02). 예전에는 4주·12주가 다 차야 '끝'이라
+    # 12주가 안 지난 신호까지 매주 전부 다시 계산했다(11/2: 474건 전부 '채울 것'). 계산 자체는 예전과 같다(COALESCE, 오늘 막대 제외).
+    filled = {tuple(r[:4]): r[4:] for r in conn.execute(
+        f"SELECT week, kind, market, symbol, {', '.join(COLS)} FROM signal_outcomes").fetchall()}
+    todo = [r for r in rows if needs_fill(r[0], filled.get(tuple(r[:4])), today)]
+    # 유니버스 기준(2026-10-21): 신호가 있는 (시장, 주차)마다 유니버스 전체 수익률 중앙값 - 기간이 지났는데 빈 것만
+    univ_filled = {tuple(r[:2]): r[2:] for r in conn.execute(
+        f"SELECT market, week, {', '.join(f'univ_{h}d' for h in HORIZONS)} FROM signal_universe_returns").fetchall()}
+    univ_todo = sorted(k for k in {(r[2], r[0]) for r in rows}
+                       if any(v is None for h, v in zip(HORIZONS, univ_filled.get(k, [None] * len(HORIZONS)))
+                              if h in due_horizons(k[1], today)))
     _log(f"기간이 지난 신호 {len(rows)}건 중 채울 것 {len(todo)}건, 유니버스 기준 채울 (시장, 주차) {len(univ_todo)}개")
     if not todo and not univ_todo:
         summarize(conn)

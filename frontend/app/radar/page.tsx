@@ -49,6 +49,10 @@ interface ThemeSignal {
   earn_surprise_beat: number | null;
   earn_surprise_ratio: number | null;
   earn_surprise_median: number | null;
+  earn_prelim_quarter?: string | null;
+  earn_prelim_n?: number | null;
+  earn_prelim_beat?: number | null;
+  earn_prelim_median?: number | null;
   price_arrow: Arrow;
   label: string | null;
   member_count: number | null;
@@ -105,6 +109,25 @@ function EventChip({ ev }: { ev?: ThemeEvents }) {
         <span key={i}>{i > 0 && " · "}<span style={x ? { color: ACCENT, fontWeight: 700 } : undefined}>{t}</span></span>
       ))}
     </span>
+  );
+}
+
+// 한국 잠정실적 미리보기(2026-11-02) - 실적 축은 분기 재무가 들어와야 움직여 늦다. 그 사이 잠정실적 공시로 같은 질문을 미리 본다.
+// 세 축·라벨에는 안 들어간다(출처가 재무 캐시가 아니고 나중에 바뀔 수 있다). 비율·점수 없이 건수만.
+function PrelimLine({ signal }: { signal: ThemeSignal }) {
+  const n = Number(signal.earn_prelim_n ?? 0);
+  if (!n || !signal.earn_prelim_quarter) return null;
+  const med = signal.earn_prelim_median == null ? null : Number(signal.earn_prelim_median);
+  return (
+    <div className="mt-1 text-[12px]" style={{ color: MUTED }}
+      title="한국 잠정실적 공시(DART)의 매출 전년동기 대비. 실적 축 화살표·라벨에는 들어가지 않는 참고 값이고, 확정 실적과 다를 수 있습니다.">
+      <span className="mr-1 rounded px-1 text-[10.5px] font-bold" style={{ border: "1px solid var(--border-ctrl)", color: FAINT }}>잠정</span>
+      {signal.earn_prelim_quarter.replace("-", " ")} 발표 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{n}개사</b>
+      {med != null && signal.earn_prelim_beat != null ? (
+        <> 중 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{signal.earn_prelim_beat}개</b> 매출 성장률이 잠정 발표 회사 중앙값
+          <span style={{ fontFamily: MONO }}> {med >= 0 ? "+" : ""}{(med * 100).toFixed(1)}%</span> 초과</>
+      ) : <span style={{ color: FAINT }}> · 발표 회사가 적어 비교 안 함</span>}
+    </div>
   );
 }
 
@@ -576,6 +599,7 @@ function ThemeCard({ signal, market, compact = false, ev }:
                   )}
                 </>
               ) : "실적 데이터 없음"}
+              <PrelimLine signal={signal} />
             </div>
             <div className="rounded-lg px-3 py-2 text-[13px]" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: MUTED }}>
               뉴스 이번 주 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{signal.news_count ?? "-"}건</b>

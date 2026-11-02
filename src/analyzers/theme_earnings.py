@@ -143,3 +143,57 @@ def compute_earn_signal(members: list[dict], quarterly_revenue_by_ticker: dict[s
 
     return {"members": total, "improved": improved, "insufficient": insufficient,
             "ratio": ratio, "arrow": arrow, "as_of": as_of, "reference_growth": ref}
+
+
+# ── 잠정실적 미리보기 (2026-11-02, 사용자 결정: 실적 시즌 활용 1번) ──────────────
+# 실적 축은 분기 재무가 캐시에 들어와야 움직여서 한국은 분기보고서(분기 끝 45일 뒤) 무렵까지 늦다. 그 사이 한국 회사가 내는
+# 잠정실적 공시(DART 원문 표에서 파싱한 매출·전년동기 대비 %)로 같은 질문 - "시장보다 매출이 더 자랐나" - 을 미리 본다.
+# 세 축 화살표·라벨에는 넣지 않는다: 숫자의 출처가 재무 캐시가 아니고(원칙 2의 '숫자는 fundamentals_cache에서만'),
+# 잠정 값은 나중에 바뀔 수 있으며, 공시를 낸 회사만의 값이라 분기가 섞인다. 화면에는 '잠정'으로 따로 보인다.
+
+def prelim_quarter_end(today) -> str:
+    """지금 잠정실적이 나오는 분기 = 오늘 직전에 끝난 분기 말일('2026-09-30')."""
+    q_end_month = ((today.month - 1) // 3) * 3          # 이번 분기 시작 전 달(0이면 작년 12월)
+    if q_end_month == 0:
+        return f"{today.year - 1}-12-31"
+    last_day = {3: 31, 6: 30, 9: 30}[q_end_month]
+    return f"{today.year}-{q_end_month:02d}-{last_day}"
+
+
+def prelim_rev_yoy(payload: dict) -> float | None:
+    """잠정실적 payload -> 매출 전년동기 대비(소수). 회사가 적은 증감률이 두 금액과 맞을 때만(수집기가 확인한 revenue_yoy_pct)
+    - 월·연간 실적, 확인 안 된 값은 None(데이터부족)."""
+    if payload.get("monthly") or payload.get("annual"):
+        return None
+    pct = payload.get("revenue_yoy_pct")
+    try:
+        return None if pct is None else float(pct) / 100
+    except (TypeError, ValueError):
+        return None
+
+
+def latest_prelims(rows: list[dict], quarter_end: str) -> dict[str, float]:
+    """kr_disclosures 잠정실적 줄(stock_code, rcept_no, payload) -> {종목: 매출 YoY}. 그 분기 것만, 정정이 있으면 가장 늦은 공시."""
+    best: dict[str, tuple[str, float | None]] = {}
+    for r in rows:
+        p = r["payload"]
+        if p.get("period_end") != quarter_end:
+            continue
+        code, no = r["stock_code"], str(r["rcept_no"])
+        if code not in best or no > best[code][0]:
+            best[code] = (no, prelim_rev_yoy(p))
+    return {code: g for code, (_, g) in best.items() if g is not None}
+
+
+def prelim_market_median(prelims: dict[str, float], min_sample: int = MIN_MEDIAN_SAMPLE) -> float | None:
+    """잠정실적을 낸 그 시장 회사들의 매출 YoY 중앙값. 표본이 적으면 None - 비교하지 않고 건수만 보인다."""
+    vals = list(prelims.values())
+    return statistics.median(vals) if len(vals) >= min_sample else None
+
+
+def compute_prelim_preview(members: list[dict], prelims: dict[str, float], median: float | None, quarter_end: str) -> dict:
+    """테마 소속 기업 중 잠정실적을 낸 곳과, 그중 매출 YoY가 시장 잠정 중앙값을 넘은 곳. 비율·화살표는 만들지 않는다(원칙 1)."""
+    vals = [prelims[m["ticker"]] for m in members if m["ticker"] in prelims]
+    q = (int(quarter_end[5:7]) - 1) // 3 + 1
+    return {"quarter": f"{quarter_end[:4]}-Q{q}", "n": len(vals),
+            "beat": None if median is None else sum(1 for g in vals if g > median), "median": median}

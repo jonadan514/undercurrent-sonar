@@ -53,6 +53,8 @@ interface MemberRow {
   price_ret: number | null;
   rev_yoy: number | null;
   rev_quarter: string | null;
+  prelim_rev_yoy?: number | null;   // 한국 잠정실적 매출 전년동기 대비(2026-11-02) - 실적 판정에는 안 쓰는 참고 값
+  prelim_quarter?: string | null;
   earn_status: string | null;
   om_now?: number | null;
   om_change?: number | null;
@@ -440,6 +442,11 @@ function ThemeHistory() {
                             </td>
                             <td className="py-2 text-right" style={{ fontFamily: MONO, color: "var(--text-secondary)" }}>
                               {pct(m.rev_yoy)}{m.rev_quarter && <span className="ml-1 text-[10px]" style={{ color: FAINT }}>{m.rev_quarter.replace("-", " ")}</span>}
+                              {m.prelim_rev_yoy != null && m.prelim_quarter && m.prelim_quarter !== m.rev_quarter && (
+                                <div className="text-[11px]" style={{ color: MUTED }} title="잠정실적 공시 - 실적 판정에는 들어가지 않는 참고 값">
+                                  잠정 {pct(Number(m.prelim_rev_yoy))}<span className="ml-1 text-[10px]" style={{ color: FAINT }}>{m.prelim_quarter.replace("-", " ")}</span>
+                                </div>
+                              )}
                             </td>
                             <td className="py-2 pl-4" style={{ color: st.color }}>{st.text}</td>
                             {hasMargin && (

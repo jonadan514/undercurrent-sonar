@@ -81,7 +81,12 @@ LATE_COLUMNS = [("price_volume_ratio", "REAL"),
                 ("earn_surprise_n", "INTEGER"),
                 ("earn_surprise_beat", "INTEGER"),
                 ("earn_surprise_ratio", "REAL"),
-                ("earn_surprise_median", "REAL")]
+                ("earn_surprise_median", "REAL"),
+                # 잠정실적 미리보기(2026-11-02) - 세 축 계산에 안 들어가는 참고 값(theme_earnings.compute_prelim_preview)
+                ("earn_prelim_quarter", "TEXT"),
+                ("earn_prelim_n", "INTEGER"),
+                ("earn_prelim_beat", "INTEGER"),
+                ("earn_prelim_median", "REAL")]
 
 
 # 분기 재설계(docs/REDESIGN_SPEC.md 6장)용 주간 기사 수 이력.
@@ -176,10 +181,28 @@ def upsert_member_earnings(conn, rows: list[tuple]) -> None:
     _upsert_member_rows(conn, ("rev_yoy", "rev_quarter", "earn_status", "om_now", "om_change", "om_status"), rows)
 
 
+def upsert_member_prelim(conn, rows: list[tuple]) -> None:
+    """rows: (theme_id, market, week_start, ticker, prelim_rev_yoy, prelim_quarter, computed_at)"""
+    _upsert_member_rows(conn, ("prelim_rev_yoy", "prelim_quarter"), rows)
+
+
+def upsert_earn_prelim(conn, theme_id: str, market: str, week_start: str, prelim: dict | None) -> None:
+    """실적 축을 쓴 같은 주 행에 잠정실적 미리보기만 덧붙인다(실적 축 값은 그대로). 없으면 NULL로 - 지난 분기 값이 남지 않게."""
+    p = prelim or {}
+    conn.execute(
+        "UPDATE theme_signals SET earn_prelim_quarter = ?, earn_prelim_n = ?, earn_prelim_beat = ?, earn_prelim_median = ? "
+        "WHERE theme_id = ? AND market = ? AND week_start = ?",
+        (p.get("quarter") if p.get("n") else None, p.get("n") or None, p.get("beat") if p.get("n") else None,
+         p.get("median") if p.get("n") else None, theme_id, market, week_start),
+    )
+
+
 # 처음 만든 뒤 추가된 기업별 열 - CREATE TABLE IF NOT EXISTS는 기존 표에 열을 더하지 않아 ALTER로 붙인다.
 # fcf_*(2026-10-25): 테마 동료 비교(종목 상세)용. 3년 평균 FCF / 시가총액(company_cashflow.fcf_yield), 금융업은 계산 안 함.
+# prelim_*(2026-11-02): 한국 잠정실적 공시의 매출 전년동기 대비 - 실적 축(rev_yoy)과 따로, '잠정'으로 표시만.
 MEMBER_LATE_COLUMNS = [("om_now", "REAL"), ("om_change", "REAL"), ("om_status", "TEXT"),
-                       ("fcf_yield_3y", "REAL"), ("fcf_negative_years", "INTEGER")]
+                       ("fcf_yield_3y", "REAL"), ("fcf_negative_years", "INTEGER"),
+                       ("prelim_rev_yoy", "REAL"), ("prelim_quarter", "TEXT")]
 
 
 def ensure_schema(conn) -> None:

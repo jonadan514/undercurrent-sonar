@@ -105,3 +105,17 @@ def test_sentiment_window_includes_monday_run():
     # 지난주 주차에는 지난주 실행분만
     start, end = sentiment_window("2026-10-19")
     assert sentiment_signals([r for r in rows if r["date"] <= end], start) == []
+
+
+def test_signal_outcomes_fill_only_due_and_empty_horizons():
+    # 2026-11-02: 12주가 안 지난 신호까지 매주 전부 다시 계산하던 것 - 기간이 지났는데 빈 것만
+    from scripts.compute_signal_outcomes import due_horizons, needs_fill
+    today = date(2026, 11, 2)
+    assert due_horizons("2026-10-05", today) == []            # 끝 11/2 = 오늘 → 아직 아님
+    assert due_horizons("2026-09-28", today) == [28]          # 끝 10/26 지남, 84일은 아직
+    assert due_horizons("2026-08-03", today) == [84]          # 4주 끝(8/31)은 56일 넘게 지남, 12주 끝 10/26
+    assert due_horizons("2026-06-01", today) == []            # 끝난 지 56일 넘음 → 더 안 채움
+    assert needs_fill("2026-09-28", None, today)              # 결과 줄 없음
+    assert not needs_fill("2026-09-28", (0.1, 0.02, None, None), today)   # 4주 채움, 12주는 아직 기간 전
+    assert needs_fill("2026-09-28", (None, 0.02, None, None), today)
+    assert not needs_fill("2026-10-12", None, today)          # 아직 4주 전
