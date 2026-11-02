@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
@@ -96,9 +96,8 @@ function FinanceTag({ f }: { f?: InsiderItem["finance"] }) {
 }
 function InsiderRow({ x, showFinance = false, note }: { x: InsiderItem; showFinance?: boolean; note?: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
-      style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-      <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{x.last_date ? x.last_date.slice(5).replace("-", "/") : "-"}</span>
+    <div className={ROW} style={rowMark(x.tags.length > 0)}>
+      <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(x.last_date)}</span>
       <StockLabel s={x} />
       <span className="text-white">{insiderMoney(x.value, x.market)}</span>
       <span style={{ color: x.buyers > 1 ? "#4ade80" : "var(--text-secondary)" }}>
@@ -129,11 +128,9 @@ function YoY({ label, pct, turn }: { label: string; pct?: number | null; turn?: 
 function DiscName({ d }: { d: DisclosureItem }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <StockLink market="KR" symbol={d.symbol} className="font-bold text-white inline-flex items-center gap-1">
-        <FlagIcon market="KR" size={11} />{d.name || d.symbol}
-      </StockLink>
-      <a href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`} target="_blank" rel="noreferrer"
-        className="text-[11px] hover:underline" style={{ color: "var(--text-muted)" }}>원문↗</a>
+      <StockLink market="KR" symbol={d.symbol} className="font-bold text-white">{d.name || d.symbol}</StockLink>
+      <a href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`} target="_blank" rel="noreferrer" title="DART 공시 원문"
+        className="text-[11px] hover:underline" style={{ color: "var(--text-faint)" }}>↗</a>
     </span>
   );
 }
@@ -279,6 +276,63 @@ const SCROLL_M = "scroll-mt-28 lg:scroll-mt-20";
 function Sub({ children }: { children: ReactNode }) {
   return <p className="text-[12px] font-semibold mt-3 first:mt-0 mb-1" style={{ color: "var(--text-secondary)" }}>{children}</p>;
 }
+// 공시·내부자 목록(2026-11-02, 사용자 요청: 공시가 난잡하다 - 중요한 것만). 줄마다 상자를 두르던 것을 한 상자 안의 줄 목록으로,
+// isKey에 걸리는 줄(관심 종목·해지·큰 계약·흑자/적자 전환 등)만 먼저 보이고 나머지는 "나머지 N건"으로 접는다. 걸리는 줄이 없으면 앞 minShow줄.
+// 순위·점수가 아니라 정해 둔 조건에 맞는지일 뿐(원칙 1) - 접힌 줄도 펼치면 그대로 다 보인다.
+function Rows<T>({ items, isKey, render, minShow = 3, restLabel = "나머지" }: {
+  items: T[]; isKey: (x: T) => boolean; render: (x: T) => ReactNode; minShow?: number; restLabel?: string;
+}) {
+  const [all, setAll] = useState(false);
+  const keys = items.filter(isKey);
+  const base = keys.length > 0 ? keys : items.slice(0, minShow);
+  const ordered = keys.length > 0 ? [...keys, ...items.filter((x) => !isKey(x))] : items;
+  const list = all ? ordered : base;
+  const rest = items.length - base.length;
+  if (items.length === 0) return null;
+  return (
+    <>
+      <div className="rounded-lg overflow-hidden" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+        {list.map((x, i) => <div key={i} style={i ? { borderTop: "1px solid var(--border)" } : undefined}>{render(x)}</div>)}
+      </div>
+      {rest > 0 && (
+        <button onClick={() => setAll(!all)} className="mt-1 text-[12px] hover:underline" style={{ color: "#ffb020" }}>
+          {all ? "접기" : `${restLabel} ${rest}건 보기`}
+        </button>
+      )}
+    </>
+  );
+}
+// 8-K 핵심(2026-11-02): 주의 종류이거나, 임원 변동(5.02)·주총 결과(5.07)·공정공시(7.01)·기타(8.01)가 아닌 항목이 있는 것
+const MINOR_8K = new Set(["5.02", "5.07", "7.01", "8.01", "9.01"]);
+const key8k = (x: Us8kItem) => x.warn || x.items.some((i) => !MINOR_8K.has(i.item));
+function Us8kRow({ x }: { x: Us8kItem }) {
+  const [open, setOpen] = useState(false);
+  const ex = x.items.find((i) => i.excerpt)?.excerpt;
+  return (
+    <div style={rowMark(false, x.warn)}>
+      <div className={ROW}>
+        <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(x.date)}</span>
+        <StockLink market="US" symbol={x.symbol} className="font-bold text-white">{x.symbol}</StockLink>
+        {x.url && <a href={x.url} target="_blank" rel="noreferrer" title="SEC 공시 원문" className="text-[11px] hover:underline" style={{ color: "var(--text-faint)" }}>↗</a>}
+        {x.items.map((i) => <span key={i.item} style={{ color: i.warn ? "#f87171" : "var(--text-secondary)" }}>{i.label}</span>)}
+        <DiscTags tags={x.tags} />
+        {ex && (
+          <button onClick={() => setOpen(!open)} className="ml-auto text-[11px] hover:underline" style={{ color: "var(--text-muted)" }} aria-expanded={open}>
+            {open ? "▾ 접기" : "▸ 원문 첫머리"}
+          </button>
+        )}
+      </div>
+      {open && ex && <p className="px-3 pb-2 -mt-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>{ex}</p>}
+    </div>
+  );
+}
+
+// 줄 강조: 관심 종목은 왼쪽 노란 띠, 주의(해지·구조조정 등)는 붉은 띠 - 상자 테두리 대신
+const rowMark = (tagged: boolean, warn = false): CSSProperties =>
+  tagged ? { background: "#f59e0b0d", boxShadow: "inset 3px 0 0 #f59e0b" } : warn ? { background: "#f871710a", boxShadow: "inset 3px 0 0 #f87171" } : {};
+const ROW = "flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[12px] px-3 py-1.5";
+const dayLabel = (d?: string | null) => (d ? d.slice(5).replace("-", "/") : "-");
+
 // 긴 목록은 처음 몇 줄만, 나머지는 "더 보기"로(브리핑 한 주 분량이 공시·내부자만 100줄 넘게 나온다)
 function More<T>({ items, n = 5, render, className = "space-y-1" }: { items: T[]; n?: number; render: (x: T) => ReactNode; className?: string }) {
   const [all, setAll] = useState(false);
@@ -484,6 +538,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             {has.disclosures && (() => {
               const k = b.kr_disclosures!;
               const fix = [...(k.termination?.items ?? []), ...(k.amend?.items ?? [])];
+              // 핵심 조건(2026-11-02): 관심 종목은 늘, 계약은 매출 대비 10% 이상, 잠정실적은 흑자·적자 전환
+              const keyContract = (d: DisclosureItem) => d.tags.length > 0 || (d.pct ?? 0) >= 10;
+              const keyPrelim = (d: DisclosureItem) => d.tags.length > 0 || !!d.operating_income_yoy_turn || !!d.revenue_yoy_turn;
               return (
                 <Section className={SCROLL_M} id="disclosures" title="🇰🇷 한국 공시" count={discTotal(b)}
                   sub={[`지난 7일`, `공급계약 ${k.contract.count}`, `잠정실적 ${k.prelim.count}`,
@@ -491,11 +548,10 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     ...((k.amend?.count ?? 0) > 0 ? [`정정 ${k.amend!.count}`] : [])].join(" · ")}>
                   {fix.length > 0 && (
                     <>
-                      <Sub>계약 해지 · 계약금액 정정 <span className="font-normal" style={{ color: "var(--text-muted)" }}>(날짜만 바뀐 정정은 뺌)</span></Sub>
-                      <More items={fix} render={(d) => (
-                        <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
-                          style={{ background: "#f8717110", border: `1px solid ${d.tags.length > 0 ? "#f59e0b55" : "#f8717133"}` }}>
-                          <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
+                      <Sub>⚠️ 계약 해지 · 금액 정정</Sub>
+                      <Rows items={fix} isKey={() => true} render={(d) => (
+                        <div className={ROW} style={rowMark(d.tags.length > 0, true)}>
+                          <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(d.date)}</span>
                           <DiscName d={d} />
                           <span style={{ color: "#fca5a5" }}>{d.summary}</span>
                           <DiscTags tags={d.tags} />
@@ -505,15 +561,14 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                   )}
                   {k.contract.items.length > 0 && (
                     <>
-                      <Sub>공급계약 <span className="font-normal" style={{ color: "var(--text-muted)" }}>관심 종목 먼저, 그다음 매출 대비 큰 순</span></Sub>
-                      <More items={k.contract.items} render={(d) => (
-                        <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
-                          style={d.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                          <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
+                      <Sub>공급계약 <span className="font-normal" style={{ color: "var(--text-muted)" }}>관심 종목 · 매출 대비 10% 이상 먼저</span></Sub>
+                      <Rows items={k.contract.items} isKey={keyContract} render={(d) => (
+                        <div className={ROW} style={rowMark(d.tags.length > 0)}>
+                          <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(d.date)}</span>
                           <DiscName d={d} />
-                          <span className="text-white">{d.withheld ? "금액 비공개" : eok(d.amount)}</span>
-                          {d.pct != null && <span style={{ color: d.pct >= 10 ? "#4ade80" : "var(--text-secondary)" }}>매출 대비 {d.pct.toFixed(1)}%</span>}
-                          {d.title && <span className="truncate max-w-[16rem]" style={{ color: "var(--text-secondary)" }}>{d.title}</span>}
+                          <span className="font-semibold text-white">{d.withheld ? "금액 비공개" : eok(d.amount)}</span>
+                          {d.pct != null && <span style={{ color: d.pct >= 10 ? "#4ade80" : "var(--text-muted)" }}>매출의 {d.pct.toFixed(1)}%</span>}
+                          {d.title && <span className="truncate max-w-[14rem]" style={{ color: "var(--text-muted)" }}>{d.title}</span>}
                           <DiscTags tags={d.tags} />
                         </div>
                       )} />
@@ -521,13 +576,12 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                   )}
                   {k.prelim.items.length > 0 && (
                     <>
-                      <Sub>잠정실적 <span className="font-normal" style={{ color: "var(--text-muted)" }}>전년 같은 분기 대비, 회사가 공시한 증감률</span></Sub>
-                      <More items={k.prelim.items} render={(d) => (
-                        <div key={d.rcept_no} className="flex items-center gap-2 flex-wrap text-[12px] rounded-lg px-3 py-1.5"
-                          style={d.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                          <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{d.date.slice(5).replace("-", "/")}</span>
+                      <Sub>잠정실적 <span className="font-normal" style={{ color: "var(--text-muted)" }}>관심 종목 · 흑자·적자 전환 먼저 · 전년 같은 분기 대비</span></Sub>
+                      <Rows items={k.prelim.items} isKey={keyPrelim} render={(d) => (
+                        <div className={ROW} style={rowMark(d.tags.length > 0)}>
+                          <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(d.date)}</span>
                           <DiscName d={d} />
-                          {d.quarter && <span style={{ color: "var(--text-muted)" }}>{d.quarter}</span>}
+                          {d.quarter && <span style={{ color: "var(--text-faint)" }}>{d.quarter}</span>}
                           <YoY label="매출" pct={d.revenue_yoy_pct} turn={d.revenue_yoy_turn} />
                           <YoY label="영업익" pct={d.operating_income_yoy_pct} turn={d.operating_income_yoy_turn} />
                           <DiscTags tags={d.tags} />
@@ -535,10 +589,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                       )} />
                     </>
                   )}
-                  {(k.contract.count > k.contract.items.length || k.prelim.count > k.prelim.items.length) && (
-                    <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 종류별 30건까지</p>
-                  )}
-                  <Note>시총 3000억 이상 또는 관심 종목(내 관심·노트·워치리스트·테마) · 정정·자회사 공시 제외 · 이름을 누르면 종목 상세, 원문↗은 DART 공시</Note>
+                  <Note>먼저 보이는 줄: 관심 종목(내 관심·노트·워치리스트·테마), 계약 해지·금액 정정, 매출 대비 10% 이상 공급계약, 흑자·적자 전환 잠정실적 -
+                    나머지는 접어 둠(순위 아님) · 대상: 시총 3000억 이상 또는 관심 종목, 날짜만 바뀐 정정·자회사 공시 제외 · 목록은 종류별 30건까지 ·
+                    이름은 종목 상세, ↗는 DART 원문</Note>
                 </Section>
               );
             })()}
@@ -546,31 +599,12 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             {has.us8k && (
               <Section className={SCROLL_M} id="us8k" title="🇺🇸 미국 8-K" count={b.us_8k_week!.total}
                 sub={`지난 7일 · ${Object.entries(b.us_8k_week!.by_kind).map(([k, n]) => `${k} ${n}`).join(" · ")}`}>
-                <More items={b.us_8k_week!.items} render={(x) => (
-                  <div key={`${x.symbol}-${x.date}-${x.items.map((i) => i.item).join()}`} className="text-[12px] rounded-lg px-3 py-1.5"
-                    style={x.warn ? { background: "#f8717110", border: "1px solid #f8717144" }
-                      : x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{x.date.slice(5).replace("-", "/")}</span>
-                      <StockLabel s={x} />
-                      {x.url && <a href={x.url} target="_blank" rel="noreferrer" className="text-[11px] hover:underline" style={{ color: "var(--text-muted)" }}>원문↗</a>}
-                      {x.items.map((i) => (
-                        <span key={i.item} style={{ color: i.warn ? "#f87171" : "var(--text-secondary)" }}>{i.label}</span>
-                      ))}
-                      <DiscTags tags={x.tags} />
-                    </div>
-                    {x.items.filter((i) => i.excerpt).slice(0, 1).map((i) => (
-                      <p key={i.item} className="text-[12px] mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }} title={i.excerpt ?? ""}>
-                        {i.excerpt}
-                      </p>
-                    ))}
-                  </div>
-                )} />
+                <Rows items={b.us_8k_week!.items} isKey={key8k} restLabel="임원 변동 등 나머지" render={(x) => <Us8kRow x={x} />} />
                 {b.us_8k_week!.total > b.us_8k_week!.items.length && (
                   <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.us_8k_week!.items.length}건까지</p>
                 )}
-                <Note>관심 종목(워치리스트·내 관심·노트·테마)의 8-K · 항목 번호로 나눈 종류, 아래 줄은 공시 원문 첫머리(번역·요약 없음) ·
-                  실적 발표만 있는 8-K는 뺌 · 붉은색은 계약 해지·구조조정·손상·감사인 교체 등 · 임원 변동의 사임/선임은 낱말로 나눈 것</Note>
+                <Note>관심 종목(워치리스트·내 관심·노트·테마)의 8-K · 먼저 보이는 줄: 주의 종류(계약 해지·구조조정·손상·감사인 교체 등, 붉은 띠)와
+                  중요 계약·인수·상장 관련 - 임원 변동·주총 결과·기타 공시는 접어 둠 · 실적 발표만 있는 8-K는 뺌 · ▸를 누르면 원문 첫머리(번역·요약 없음)</Note>
               </Section>
             )}
 
@@ -583,19 +617,20 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                       {ins.items.length > 0 && (
                         <>
                           <Sub>관심 종목 {ins.tagged_count ?? ins.items.length}</Sub>
-                          <More items={ins.items} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />} />
+                          <Rows items={ins.items} isKey={() => true} render={(x) => <InsiderRow x={x} />} />
                         </>
                       )}
                       {ins.discovery.length > 0 && (
                         <>
                           <Sub>🆕 새로 발견(관심 외) {ins.discovery_count ?? ins.discovery.length}{" "}
-                            <span className="font-normal" style={{ color: "var(--text-muted)" }}>매수자 수 → 금액 순, 계획 매수만 있는 종목은 뒤로</span></Sub>
-                          <More items={ins.discovery} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} showFinance note={<NoteBtn s={x} past={past} />} />} />
+                            <span className="font-normal" style={{ color: "var(--text-muted)" }}>여러 명이 함께 산 종목 먼저 · 매수자 수 → 금액 순</span></Sub>
+                          <Rows items={ins.discovery} isKey={(x) => x.buyers > 1 && !x.all_plan} minShow={5} restLabel="1명 매수·계획 매수 등 나머지"
+                            render={(x) => <InsiderRow x={x} showFinance note={<NoteBtn s={x} past={past} />} />} />
                         </>
                       )}
                     </>
                   ) : (
-                    <More items={ins.items} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />} />
+                    <Rows items={ins.items} isKey={() => true} render={(x) => <InsiderRow x={x} />} />
                   )}
                   <Note>임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 금액은 공시 단가 × 주식 수 합계 · 목록은 각 30종목까지
                     {ins.discovery && " · 관심 외는 미국 S&P 500·400, 한국 시총 3000억+ 중 관심 표시가 없는 종목, 재무 판정은 재무 필터 기준(통과·탈락·데이터 부족)"}</Note>
