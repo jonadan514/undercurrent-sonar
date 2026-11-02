@@ -76,6 +76,15 @@ BASE_WEEKS = 4        # 비교 기준: 직전 4주
 BASE_MIN_WEEKS = 2    # 데이터가 있는 직전 주가 이보다 적으면 비교하지 않는다(기준 부족 - 0으로 치지 않는다, 원칙 4)
 BUSY_RATIO = 2.0      # "평소보다 많음": 이번 주가 직전 주 평균의 2배 이상이면서
 BUSY_MIN = {"disclosure": 3, "insider": 2}   # 최소 건수(공시 3건, 내부자 매수 2개사) - 평소 0~1건인 테마가 1~2건으로 튀는 것은 빼려고
+# 주별 숫자·"평소보다 많음"에서 빼는 공시(2026-11-01, 사용자 결정 1번): 한국 잠정실적은 실적 시즌(10월 중순~11월 중순 등)에 거의 모든
+# 회사가 내서 테마와 상관없이 같이 늘었다(10/31: 한국 테마 34개 중 18개가 '평소보다 많음', 최근 3일 대상 공시 187건 중 잠정실적 85건).
+# 미국은 실적 발표만 있는 8-K(2.02)를 처음부터 빼고 있어 같은 규칙. 30일 목록에는 그대로 보인다.
+WEEKLY_EXCLUDE_KINDS = {"잠정실적"}
+
+
+def weekly_disclosure_marks(events: list[dict]) -> list[tuple[str, str]]:
+    """공시 이벤트 -> 주별로 셀 (종목, 날짜). 잠정실적은 뺀다(WEEKLY_EXCLUDE_KINDS)."""
+    return [(e["ticker"], e["date"]) for e in events if e["type"] != "insider" and e.get("kind") not in WEEKLY_EXCLUDE_KINDS]
 
 
 def week_index(d: str, today: date) -> int | None:
@@ -128,7 +137,7 @@ def by_theme(members: dict[str, list[str]], events: list[dict], today: date,
            없으면 events에서 만든다. coverage: 출처별 데이터 시작일 - 그보다 이른 주는 '데이터 없음'."""
     window = _since(today, WINDOW_DAYS)
     if marks is None:
-        marks = {"disclosure": [(e["ticker"], e["date"]) for e in events if e["type"] != "insider"],
+        marks = {"disclosure": weekly_disclosure_marks(events),
                  "insider": [(e["ticker"], e["date"]) for e in events if e["type"] == "insider"]}
     coverage = coverage or {}
     by_ticker: dict[str, list[dict]] = {}

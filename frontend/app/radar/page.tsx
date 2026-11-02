@@ -99,7 +99,7 @@ function EventChip({ ev }: { ev?: ThemeEvents }) {
   const busy = parts.some(([, x]) => x);
   return (
     <span className="whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px]"
-      title={"최근 7일 소속 기업 공시·내부자 장내 매수 (세 축과 별개). 평소 = 직전 4주 주당 평균" + (busy ? " · 굵은 항목은 평소의 2배 이상" : "")}
+      title={"최근 7일 소속 기업 공시·내부자 장내 매수 (세 축과 별개, 한국 잠정실적은 세지 않음). 평소 = 직전 4주 주당 평균" + (busy ? " · 굵은 항목은 평소의 2배 이상" : "")}
       style={{ border: `1px solid ${busy ? ACCENT + "88" : "var(--border-ctrl)"}`, color: "var(--text-secondary)", fontFamily: MONO }}>
       📄 {parts.map(([t, x], i) => (
         <span key={i}>{i > 0 && " · "}<span style={x ? { color: ACCENT, fontWeight: 700 } : undefined}>{t}</span></span>
@@ -140,7 +140,8 @@ function EventList({ ev, market }: { ev?: ThemeEvents; market: string }) {
       </p>
       {c.weekly && (
         <div className="mt-1 space-y-0.5">
-          <WeekRow label="공시" w={c.weekly.disclosure} unit="건" />
+          {/* 한국 잠정실적은 주별 숫자에서 뺀다(2026-11-01) - 실적 시즌에 모든 테마가 같이 늘어서. 아래 목록에는 그대로 */}
+          <WeekRow label={market === "KR" ? "공시(잠정실적 제외)" : "공시"} w={c.weekly.disclosure} unit="건" />
           <WeekRow label="내부자" w={c.weekly.insider} unit="개사" />
         </div>
       )}

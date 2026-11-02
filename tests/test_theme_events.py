@@ -67,3 +67,16 @@ def test_weekly_counts_coverage_and_busier():
     assert wi["weeks"] == [2, 0, 0, 0, 0] and busier(wi, "insider")
     # 평소에도 많은 테마는 '평소보다 많음'이 아니다
     assert not busier({"weeks": [6, 4, 5, 3, 4], "avg": 4.0}, "disclosure")
+
+
+def test_weekly_excludes_kr_prelim_but_list_keeps_it():
+    # 2026-11-01: 실적 시즌 잠정실적이 테마와 상관없이 '평소보다 많음'을 부풀렸다 - 주별 숫자에서만 뺀다
+    base = {"rcept_no": "1", "stock_code": "A", "corp_name": "에이"}
+    events = [kr_event({**base, "rcept_dt": d, "kind": "prelim", "payload": {}}, "잠정실적 x") for d in
+              ("2026-10-20", "2026-10-19", "2026-10-18", "2026-10-17")]
+    events += [kr_event({**base, "rcept_dt": "2026-10-10", "kind": "contract", "payload": {}}, "공급계약 1억"),
+               kr_event({**base, "rcept_dt": "2026-10-02", "kind": "contract", "payload": {}}, "공급계약 1억")]
+    r = by_theme({"t": ["A"]}, events, TODAY)["t"]
+    assert r["counts"]["weekly"]["disclosure"]["weeks"][:3] == [0, 1, 1]
+    assert not r["counts"]["busier"]["disclosure"]
+    assert r["counts"]["disclosure_30d"] == 6 and len(r["items"]) == 6   # 목록에는 그대로

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from src.analyzers.theme_events import FETCH_DAYS, by_theme, insider_events, kr_event, us8k_event
+from src.analyzers.theme_events import FETCH_DAYS, by_theme, insider_events, kr_event, us8k_event, weekly_disclosure_marks
 from src.collectors.kr_disclosures import summary as kr_summary
 from src.db.data_store import get_db
 
@@ -99,7 +99,7 @@ def events_for(conn, market: str, since: str) -> tuple[list[dict], dict, dict]:
         disc_start = _start(conn, "SELECT MIN(filed_on) FROM us_8k_filings", ())
     ins = _rows(conn, "SELECT market, symbol, owner, role, filed_on, value, plan FROM insider_trades WHERE market = ? AND filed_on >= ?",
                 (market, since), ["market", "symbol", "owner", "role", "filed_on", "value", "plan"], "내부자 매수") or []
-    marks = {"disclosure": [(e["ticker"], e["date"]) for e in events],
+    marks = {"disclosure": weekly_disclosure_marks(events),   # 잠정실적은 주별 숫자에서 뺀다(2026-11-01)
              "insider": [(r["symbol"], r["filed_on"]) for r in ins]}   # 내부자는 공시 줄마다 - 목록은 사람별로 묶여 날짜가 하나뿐
     coverage = {"disclosure": disc_start,
                 "insider": _start(conn, "SELECT MIN(filed_on) FROM insider_trades WHERE market = ?", (market,))}
