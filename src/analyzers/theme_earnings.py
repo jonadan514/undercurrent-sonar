@@ -197,3 +197,43 @@ def compute_prelim_preview(members: list[dict], prelims: dict[str, float], media
     q = (int(quarter_end[5:7]) - 1) // 3 + 1
     return {"quarter": f"{quarter_end[:4]}-Q{q}", "n": len(vals),
             "beat": None if median is None else sum(1 for g in vals if g > median), "median": median}
+
+
+# ── 한국 분기 매출 출처: DART 먼저 (2026-11-02, 사용자 결정 1번) ─────────────────
+# 실적 축은 재무 캐시의 yfinance 분기 매출을 썼는데, yfinance는 한국 분기 실적을 늦고 들쭉날쭉하게 올려 분기보고서가 나온 뒤에도
+# 지난 분기에 머물 수 있었다. 토요일 DART 수집(quarterly_financials_raw, 공시 원본 - 연결 우선)이 테마 소속까지 받게 되어,
+# 한국은 둘 중 최신 분기가 더 늦은 쪽을 쓰고 같으면 DART를 쓴다. LLM이 만든 숫자는 어디에도 없다(원칙 2의 취지).
+
+def dart_revenue_series(quarters: list[dict]) -> pd.Series | None:
+    """select_quarters 결과(최신 분기부터) -> yoy_growth가 읽는 분기 매출 Series(최신이 0번째, 인덱스 = 분기 말일).
+    중간에 빠진 분기·매출 없는 분기에서 멈춘다 - iloc[4]가 '작년 같은 분기'여야 해서."""
+    vals, idx = [], []
+    prev = None
+    for r in quarters:
+        key = (int(r["fiscal_year"]), int(r["fiscal_quarter"]))
+        if prev is not None:
+            y, q = prev
+            if key != ((y, q - 1) if q > 1 else (y - 1, 4)):
+                break
+        if r.get("revenue") is None:
+            break
+        vals.append(float(r["revenue"]))
+        idx.append(pd.Period(f"{key[0]}Q{key[1]}", freq="Q").end_time.normalize())
+        prev = key
+    return pd.Series(vals, index=pd.DatetimeIndex(idx)) if vals else None
+
+
+def pick_revenue(yf_series: pd.Series | None, dart_series: pd.Series | None) -> tuple[pd.Series | None, str | None]:
+    """한국 종목 분기 매출 고르기 -> (Series, 'DART'|'yfinance'|None). 최신 분기가 늦은 쪽, 같으면 DART(공시 원본).
+    분기 수가 모자라 yoy를 못 내는 쪽은 고르지 않는다(다른 쪽이 낼 수 있으면)."""
+    def usable(s):
+        return s is not None and len(s) >= MIN_QUARTERS
+
+    def latest(s):
+        return pd.Timestamp(s.index[0]).to_period("Q")
+
+    if usable(dart_series) and (not usable(yf_series) or latest(dart_series) >= latest(yf_series)):
+        return dart_series, "DART"
+    if usable(yf_series):
+        return yf_series, "yfinance"
+    return (dart_series, "DART") if dart_series is not None else (yf_series, "yfinance" if yf_series is not None else None)

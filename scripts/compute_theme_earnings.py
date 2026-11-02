@@ -35,8 +35,9 @@ from src.db.theme_signals import (ensure_schema, signal_week_monday, get_approve
                                    upsert_earn_prelim, upsert_earn_signal, upsert_member_earnings, upsert_member_fcf,
                                    upsert_member_prelim)
 from analyzers.theme_earnings import (classify_company_earnings, compute_earn_signal, compute_prelim_preview,
-                                      latest_prelims, prelim_market_median, prelim_quarter_end,
-                                      reference_growth_for_market, yoy_growth)
+                                      dart_revenue_series, latest_prelims, pick_revenue, prelim_market_median,
+                                      prelim_quarter_end, reference_growth_for_market, yoy_growth)
+from src.db.quarterly_financials import select_quarters_bulk
 from analyzers.company_growth import quarterly_margin_change
 from collectors.watchlist_collector import get_kr_universe, get_us_universe
 from collectors.earnings_surprise_collector import summarize_theme
@@ -159,6 +160,23 @@ def main() -> None:
             revenue_by_ticker[ticker] = None
             continue
         revenue_by_ticker[ticker] = q_df.loc["Total Revenue"].dropna()
+
+    # 한국은 DART 분기 매출(quarterly_financials_raw)을 먼저 - 최신 분기가 더 늦은 쪽, 같으면 DART(2026-11-02, theme_earnings 참고).
+    # 소속 기업과 기준 성장률 표본(유니버스) 모두 같은 규칙이라 기준과 비교 대상의 출처가 어긋나지 않는다.
+    kr_needed = sorted({m["ticker"] for (_, mk), ms in members_by_theme_market.items() if mk == "KR" for m in ms}
+                       | set(universe_by_market.get("KR", [])))
+    if kr_needed:
+        try:
+            dart_q = select_quarters_bulk(conn, kr_needed, "KR")
+        except Exception as e:  # noqa: BLE001 - 표가 없으면 예전처럼 yfinance만
+            _log(f"DART 분기 재무 조회 실패 {type(e).__name__} - 한국도 yfinance만")
+            dart_q = {}
+        src_count = {"DART": 0, "yfinance": 0, None: 0}
+        for t in kr_needed:
+            series, src = pick_revenue(revenue_by_ticker.get(t), dart_revenue_series(dart_q.get(t, [])))
+            revenue_by_ticker[t] = series
+            src_count[src] += 1
+        _log(f"KR 분기 매출 출처: DART {src_count['DART']} · yfinance {src_count['yfinance']} · 없음 {src_count[None]} (대상 {len(kr_needed)})")
 
     # 기준 성장률(시장 중앙값)은 반드시 시장별로 따로 낸다 - 미국과 한국의
     # 성장률 분포가 다른데 한 덩어리로 중앙값을 내면 한쪽이 통째로 위/아래로

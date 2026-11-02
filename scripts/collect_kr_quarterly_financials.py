@@ -20,6 +20,7 @@ Usage:
 2026-10-09: --watchlist(워치리스트 후보 + 내 워치리스트)와 --years 추가. 최근 4개 분기 합을
 직전 4개 분기 합과 비교(company_growth.ttm_revenue_yoy)하려면 연속 8분기가 필요해 재작년 보고서까지 받는다(--years 3).
 매주 토요일 자동 실행은 --watchlist --years 2(올해·작년 보고서) - 새 분기만 이어 붙이면 된다.
+2026-11-02: --themes - 테마 소속(직접·부분)도 새 분기가 DART에 없을 때만 받는다(실적 축이 DART 분기 매출을 먼저 읽게 됨).
 """
 from __future__ import annotations
 
@@ -36,7 +37,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from src.db.data_store import get_db
 from src.db.quarterly_financials import (ensure_schema, insert_quarter, migrate_legacy_rows,
-                                          select_quarters)
+                                          select_quarters, select_quarters_bulk)
 from collectors import dart_client as dart
 from collectors.dart_financials import REPORT_CODES, latest_quarters, quarterly_values
 
@@ -49,15 +50,17 @@ def _log(msg: str) -> None:
     print(f"[dart-fin] {msg}", flush=True)
 
 
-def collect_one(corp_code: str, today: date, years: int = 2) -> dict:
+def collect_one(corp_code: str, today: date, years: int = 2, start_year: int | None = None, fallback: bool = True) -> dict:
+    """start_year부터 거꾸로 years개 사업연도 보고서. fallback이면 5분기가 안 모일 때 한 해 더(재작년)."""
+    start = start_year or today.year
     reports: dict = {}
-    for year in range(today.year, today.year - years, -1):
+    for year in range(start, start - years, -1):
         for code in REPORT_CODES:
             reports[(year, code)] = dart.fetch_key_accounts(corp_code, year, code)
             time.sleep(CALL_SLEEP)
     values = quarterly_values(reports)
-    if len(latest_quarters(values)) < 5 and years < 3:
-        year = today.year - 2
+    if fallback and len(latest_quarters(values)) < 5 and years < 3:
+        year = start - 2
         for code in REPORT_CODES:
             reports[(year, code)] = dart.fetch_key_accounts(corp_code, year, code)
             time.sleep(CALL_SLEEP)
@@ -80,6 +83,39 @@ def watchlist_tickers() -> list[str]:
     return sorted(out)
 
 
+def theme_tickers() -> list[str]:
+    """실적 축이 쓰는 한국 테마 소속(승인, 직접·부분 연관). 2026-11-02 추가 - 실적 축이 DART 분기 매출을 먼저 읽는다."""
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT DISTINCT ticker FROM theme_members WHERE market = 'KR' AND approved = 1 "
+                            "AND linkage IN ('direct', 'partial')").fetchall()
+    except Exception as e:  # noqa: BLE001
+        _log(f"테마 소속 조회 실패({type(e).__name__}) - 건너뜀")
+        rows = []
+    conn.close()
+    return sorted({r[0] for r in rows if r[0]})
+
+
+def target_quarter(today: date) -> tuple[int, int]:
+    """지금 나올 차례인 분기 = 오늘 직전에 끝난 분기(11월이면 3분기)."""
+    q = (today.month - 1) // 3
+    return (today.year - 1, 4) if q == 0 else (today.year, q)
+
+
+def incremental_plan(quarters: list[dict], target: tuple[int, int]) -> str:
+    """테마 소속 한 종목을 어떻게 받을지: 'skip'(DART에 그 분기가 이미 있음) / 'one_year'(직전 4분기는 있어 그 분기 연도만) / 'full'.
+    테마 소속은 약 300종목이라 매주 다 받으면 오래 걸린다(종목당 8회 호출 약 16초) - 새 분기가 나올 때만, 필요한 만큼만."""
+    have = {(r["fiscal_year"], r["fiscal_quarter"]) for r in quarters if r.get("source") == "DART" and r.get("revenue") is not None}
+    if target in have:
+        return "skip"
+    y, q = target
+    prev = []
+    for _ in range(4):
+        y, q = (y, q - 1) if q > 1 else (y - 1, 4)
+        prev.append((y, q))
+    return "one_year" if all(k in have for k in prev) and target[1] != 4 else "full"
+
+
 def fmt_eok(v) -> str:
     """원 -> 억원(표 확인용)."""
     return "-" if v is None else f"{v / 1e8:,.0f}"
@@ -93,6 +129,8 @@ def main() -> int:
     ap.add_argument("--watchlist", action="store_true",
                     help="유니버스 전체 대신 워치리스트 후보 + 내 워치리스트(KR)")
     ap.add_argument("--years", type=int, default=2, help="받을 사업연도 수(올해부터 거꾸로). 연속 8분기에는 3")
+    ap.add_argument("--themes", action="store_true",
+                    help="테마 소속(직접·부분)도 - 새 분기가 DART에 없는 종목만, 필요한 연도만(incremental_plan)")
     args = ap.parse_args()
 
     universe = {i["symbol"]: i for i in json.loads(UNIVERSE.read_text(encoding="utf-8"))["items"]}
@@ -104,14 +142,25 @@ def main() -> int:
         tickers = tickers[args.offset:end]
 
     corp = dart.load_corp_codes(CORP_CACHE)
-    _log(f"기업코드 매핑 {len(corp)}건 / 대상 {len(tickers)}종목")
-
     conn = get_db()
     ensure_schema(conn)
+    today = date.today()
+    # 테마 소속(워치리스트에 없는 것만): 새 분기가 DART에 아직 없으면 받는다 - 실적 축이 DART 분기 매출을 먼저 읽는다(2026-11-02)
+    plan: dict[str, str] = {}
+    if args.themes and not args.tickers:
+        target = target_quarter(today)
+        extra = [t for t in theme_tickers() if t not in set(tickers)]
+        have = select_quarters_bulk(conn, extra, "KR")
+        plan = {t: incremental_plan(have.get(t, []), target) for t in extra}
+        skip = sum(1 for v in plan.values() if v == "skip")
+        tickers = tickers + [t for t in extra if plan[t] != "skip"]
+        _log(f"테마 소속(워치리스트 밖) {len(extra)}종목 - {target[0]}Q{target[1]}가 이미 있음 {skip}, "
+             f"받을 것 {len(extra) - skip}(그 연도만 {sum(1 for v in plan.values() if v == 'one_year')})")
+    _log(f"기업코드 매핑 {len(corp)}건 / 대상 {len(tickers)}종목")
+
     moved = migrate_legacy_rows(conn)   # 예전 테이블 값을 raw로 옮긴다(여러 번 돌려도 안전)
     if moved:
         _log(f"예전 테이블에서 {moved}행을 원본 테이블로 옮겼다")
-    today = date.today()
     now = datetime.utcnow().isoformat()
     stats = {"ok": 0, "no_corp": 0, "no_data": 0, "lt5": 0, "error": 0, "ofs": 0}
     first_error = ""
@@ -123,7 +172,10 @@ def main() -> int:
             _log(f"  {t} {universe.get(t, {}).get('name', '')}: DART 기업코드 없음")
             continue
         try:
-            values = collect_one(cc, today, args.years)
+            if plan.get(t) == "one_year":
+                values = collect_one(cc, today, 1, start_year=target_quarter(today)[0], fallback=False)
+            else:
+                values = collect_one(cc, today, args.years)
         except dart.DartKeyError:
             raise
         except Exception as e:  # noqa: BLE001 - 한 종목 실패로 전체를 멈추지 않는다

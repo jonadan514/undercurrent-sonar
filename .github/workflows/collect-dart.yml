@@ -3,6 +3,7 @@ name: Collect DART
 # 분기 재설계(docs/REDESIGN_SPEC.md 4-1). 한국 분기 재무와 사업정보 보강을 DART에서 받는다.
 # DART_API_KEY는 저장소 Secrets에 둔다.
 # 2026-10-09: 매주 토요일 워치리스트 종목 분기 재무 자동 갱신(mode=watchlist, 올해·작년 보고서) - 최근 4개 분기 합 비교용.
+# 2026-11-02: 같은 실행에 테마 소속(새 분기가 없을 때만)도 - 한국 실적 축 출처.
 on:
   schedule:
     # 토요일 09:00 UTC (18:00 KST). 처음엔 21:00 UTC였는데 예약이 3시간 밀려 일요일 09:00 KST에 돌았고,
@@ -55,7 +56,8 @@ jobs:
         run: |
           case "${{ inputs.mode || 'watchlist' }}" in
             watchlist)
-              python scripts/collect_kr_quarterly_financials.py --watchlist --years ${{ inputs.years || '2' }} ;;
+              # --themes(2026-11-02): 테마 소속도 새 분기가 DART에 없는 종목만 - 실적 축이 DART 분기 매출을 먼저 읽는다
+              python scripts/collect_kr_quarterly_financials.py --watchlist --themes --years ${{ inputs.years || '2' }} ;;
             sample)
               python scripts/collect_kr_quarterly_financials.py --tickers ${{ inputs.tickers }}
               python scripts/fill_kr_profiles_from_dart.py --tickers ${{ inputs.tickers }} ;;
