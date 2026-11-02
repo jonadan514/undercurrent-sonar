@@ -24,3 +24,6 @@ mapping_audit:        # 근거 감사: 근거가 사실인가 / 테마에 맞는
 
 mapping_requote:      # 인용 검증에 실패한 건의 원문 문구 재질의
   model: gpt-4o-mini
+
+briefing_comment:     # 주간 브리핑 총평 '이번 주 짚을 점' 서술(주 1회 한 번 호출, 2026-11-02)
+  model: gpt-4o-mini

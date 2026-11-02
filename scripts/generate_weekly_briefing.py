@@ -894,7 +894,7 @@ def _clean_names(xs) -> list[str]:
 COMMENT_8K = {"3.01": "상장 관련 통지(상장 기준 미달 통보 또는 거래소 이전 - 어느 쪽인지는 공시 본문 확인 필요)"}
 
 # 데이터에 없는 효과를 짐작한 문장(11/2 미리 보기: "기관 순매수가 지수에 긍정적인 영향을 미쳤을 것") - 프롬프트로 막아도 새어 나와 코드로 뺀다
-_SPECULATION_RE = re.compile(r"영향을\s*(미쳤|미친|미칠|줬|준|줄|주었)|(긍정적|부정적|우호적|호재|악재)(인|으로|이다|입니다)?|기여(했|한|할)|덕분|때문|끌어올|끌어내|견인|이끌")
+_SPECULATION_RE = re.compile(r"영향을\s*(미쳤|미친|미칠|줬|준|줄|주었)|(긍정적|부정적|우호적|호재|악재)(인|으로|이다|입니다)?|기여(했|한|할)|덕분|때문|끌어올|끌어내|견인|이끌|이로 인해|그로 인해|그 결과")
 
 # 한국어 조사: 받침 있는 말 뒤 / 없는 말 뒤
 _PARTICLES = (("이", "가"), ("은", "는"), ("을", "를"), ("과", "와"))
@@ -1049,16 +1049,20 @@ def comment_points(b: dict) -> list[dict]:
 _LAST_RAW_COMMENT = [""]
 
 
-def assemble_comment(market: str, bodies: list[str], points: list[dict]) -> str:
-    """소제목은 코드가 붙인다(GPT가 제목을 바꾸지 못하게). 본문이 비면(실패·전부 걸러짐) 사실을 그대로 잇는다."""
+def assemble_comment(market: str, bodies: list, points: list[dict]) -> str:
+    """소제목은 코드가 붙인다(GPT가 제목을 바꾸지 못하게). 본문이 비면(실패·전부 걸러짐) 사실을 그대로 잇는다.
+    bodies 항목은 글 또는 {"body", "next"} - next(이어서 볼 것)는 '→ 이어서 볼 것:' 줄로 붙인다."""
     names = [p.get("title_name") or "" for p in points] + [f.split(":")[0] for p in points for f in p["facts"]]
     clean = lambda t: strip_numeric_sentences(strip_speculation(fix_names(t or "", [n for n in names if n])))  # noqa: E731
     out = []
     if (m := clean(market)):
         out += ["■ 시장 분위기", m, ""]
     for i, p in enumerate(points):
-        body = clean(bodies[i] if i < len(bodies) else "") or (" · ".join(p["facts"]) + ".")
-        out += [f"■ {p['title']}", body, ""]
+        item = bodies[i] if i < len(bodies) else ""
+        text, nxt = (str(item.get("body") or ""), str(item.get("next") or "")) if isinstance(item, dict) else (str(item), "")
+        body = clean(text) or (" · ".join(p["facts"]) + ".")
+        nxt = clean(nxt).rstrip(".")
+        out += [f"■ {p['title']}", body + (f"\n→ 이어서 볼 것: {nxt}" if nxt else ""), ""]
     return "\n".join(out).strip()
 
 
@@ -1070,6 +1074,8 @@ def gpt_comment(briefing: dict) -> str:
         return ""
 
     import requests
+
+    from src.llm.openai_json import build_payload, model_for
 
     market = comment_facts(briefing).get("시장") or {}
     points = comment_points(briefing)
@@ -1088,35 +1094,29 @@ def gpt_comment(briefing: dict) -> str:
 
 테마 라벨 뜻: {json.dumps(label_meaning, ensure_ascii=False)}
 
-JSON으로만 답하세요: {{"market": "...", "points": ["...", ...]}}
+JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next": "..."}}, ...]}}
 - market: 시장 분위기 한두 문장. 지수·금리·환율·수급 중 서로 엇갈리거나 같은 방향인 것을 짚기. "~로 보입니다" 정도로.
-- points: 짚을 점과 같은 순서·같은 개수. 각각 두세 문장으로, 그 점의 사실들이 어떻게 맞물리는지(같은 방향인지, 엇갈리는지, 내 기대와 맞았는지) 쓰고,
-  마지막 문장은 이어서 확인할 것 하나(예: 다음 분기 실적이 관심을 따라가는지, 다음 주 라벨이 유지되는지).
-- 제목은 쓰지 마세요(코드가 붙입니다). 사실에 없는 원인·효과·전망은 쓰지 마세요("영향", "때문", "덕분", "긍정적", "부정적" 금지).
+- points: 짚을 점과 같은 순서·같은 개수.
+  body: 두세 문장. 그 점의 사실들이 서로 어떻게 맞물리는지 - 같은 방향인지, 엇갈리는지, 내 기대(관찰 노트)와 맞았는지. 소속 종목이 있으면 이름을 들어서.
+  next: 이어서 확인할 것 한 가지를 짧은 명사구로(예: "다음 분기 영업이익이 관심도를 따라가는지", "다음 주에도 라벨이 유지되는지").
+- 제목은 쓰지 마세요(코드가 붙입니다). 늘고 줄어든 것은 사실에 적힌 말(늘어남·줄어듦·크게) 그대로 쓰고, 좋다·나쁘다로 바꾸지 마세요.
+- 사실에 없는 원인·효과·전망은 쓰지 마세요("영향", "때문", "덕분", "이로 인해", "긍정적", "부정적" 금지).
 - 숫자(%·금액·건수)는 쓰지 마세요. 이름은 적힌 글자 그대로. 매수·매도 권유 금지."""
 
     try:
         resp = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": "당신은 구체적이고 정직한 투자 리서치 브리핑 작가입니다. 주어진 사실만 쓰고, 사실 사이의 관계를 짚습니다."},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.4,
-                "max_tokens": 1500,
-                "response_format": {"type": "json_object"},
-            },
+            json=build_payload(model_for("briefing_comment"),
+                               "당신은 구체적이고 정직한 투자 리서치 브리핑 작가입니다. 주어진 사실만 쓰고, 사실 사이의 관계를 짚습니다.",
+                               prompt, max_output_tokens=2000, temperature=0.4),
             timeout=90,
         )
         resp.raise_for_status()
         raw = resp.json()["choices"][0]["message"]["content"].strip()
         _LAST_RAW_COMMENT[0] = raw   # 미리 보기에서 뒷손질 전후를 비교하려고
         data = json.loads(raw)
-        bodies = data.get("points") or []
-        return assemble_comment(str(data.get("market") or ""), [str(x) for x in bodies], points)
+        return assemble_comment(str(data.get("market") or ""), list(data.get("points") or []), points)
     except Exception as e:
         logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
         return ""

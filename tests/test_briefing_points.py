@@ -64,6 +64,13 @@ def test_theme_review_macro_and_members():
     assert "게임 테마" not in by                                  # 라벨 하나뿐이고 이어지는 게 없으면 뺀다
     assert not any("infra" in t for t in by)                      # 기대도 안 적고 이어지는 것도 없는 회고는 뺀다
     assert by["ai_semi 테마 · 관찰 노트 회고"]["kind"] == "review_plain"
+    # 소속 종목 신호로만 이어지는 노트는 라벨·매크로로 이어지는 노트보다 뒤, 다른 시장 종목은 잇지 않는다
+    b2 = _b(observation_reviews=[{"kind": "theme", "market": "US", "theme_id": "infra", "checkpoint": "4", "expect_results": {}},
+                                 {"kind": "theme", "market": "KR", "theme_id": "ai_semi", "checkpoint": "4", "expect_results": {"earn_hold": True}}],
+            kr_disclosures={"prelim": {"items": [{"symbol": "000660", "name": "SK하이닉스", "operating_income_yoy_pct": 600},
+                                                 {"symbol": "047040", "name": "대우건설", "operating_income_yoy_pct": 224}]}})
+    p2 = bp.find_points(b2, {}, {("KR", "infra"): {"047040"}, ("KR", "ai_semi"): {"000660"}}, set())
+    assert [(p["title"], p["kind"]) for p in p2] == [("ai_semi 테마 · 관찰 노트 회고", "review_members")]
     order = [p["kind"] for p in pts]
     assert order == sorted(order, key=bp.PRIORITY.index)
 
@@ -79,7 +86,9 @@ def test_assemble_comment_titles_fallback_and_cleanup():
     pts = [{"title": "한미사이언스 · 신호가 엇갈림", "title_name": "한미사이언스", "facts": ["관심도 상승(낮음→높음)", "잠정실적 영업이익 크게 줄어듦"]},
            {"title": "천연가스·LNG 테마", "facts": ["미국: '기대 과열' 라벨이 새로 붙음"]}]
     out = g.assemble_comment("지수는 엇갈렸습니다. 기관 매수가 지수에 긍정적인 영향을 줬습니다.",
-                             ["한미사이언스는 관심이 올랐지만 영업이익은 크게 줄었습니다. 영업이익이 51% 줄었습니다."], pts)
+                             [{"body": "한미사이언스는 관심이 올랐지만 영업이익은 크게 줄었습니다. 영업이익이 51% 줄었습니다.",
+                               "next": "다음 분기 영업이익이 관심도를 따라가는지."}], pts)
     assert out == ("■ 시장 분위기\n지수는 엇갈렸습니다.\n\n"
-                   "■ 한미사이언스 · 신호가 엇갈림\n한미사이언스는 관심이 올랐지만 영업이익은 크게 줄었습니다.\n\n"
+                   "■ 한미사이언스 · 신호가 엇갈림\n한미사이언스는 관심이 올랐지만 영업이익은 크게 줄었습니다.\n"
+                   "→ 이어서 볼 것: 다음 분기 영업이익이 관심도를 따라가는지\n\n"
                    "■ 천연가스·LNG 테마\n미국: '기대 과열' 라벨이 새로 붙음.")   # 본문이 모자라면 사실을 그대로 잇는다

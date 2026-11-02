@@ -11,8 +11,8 @@
 from __future__ import annotations
 
 # 고르는 차례 - 내 것 먼저(내 관심 종목, 이번 주 라벨·매크로와 이어지는 내 관찰 노트), 엇갈림(가장 읽을 만함), 주의 겹침,
-# 테마(라벨 + 매크로·소속 종목), 이어지는 게 없는 관찰 노트, 좋은 쪽 겹침
-PRIORITY = ("mine", "review", "mixed", "warn", "theme", "review_plain", "aligned")
+# 테마(라벨 + 매크로·소속 종목), 소속 종목 신호로만 이어지는 관찰 노트, 이어지는 게 없는 관찰 노트, 좋은 쪽 겹침
+PRIORITY = ("mine", "review", "mixed", "warn", "theme", "review_members", "review_plain", "aligned")
 MAX_POINTS = 5
 MAX_STOCK_POINTS = 3
 
@@ -136,20 +136,23 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
     tl = b.get("theme_labels") or {}
     by: dict[str, dict] = {}
 
-    def entry(tid: str) -> dict:
-        return by.setdefault(tid, {"labels": [], "reviews": [], "macro": None, "members": []})
+    def entry(tid: str, market: str | None = None) -> dict:
+        e = by.setdefault(tid, {"labels": [], "reviews": [], "macro": None, "members": [], "markets": set()})
+        if market:
+            e["markets"].add(market)
+        return e
 
     for t in tl.get("new_labels") or []:
-        entry(t["theme_id"])["labels"].append(f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 새로 붙음")
+        entry(t["theme_id"], t.get("market"))["labels"].append(f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 새로 붙음")
     for t in tl.get("dropped_labels") or []:
-        entry(t["theme_id"])["labels"].append(f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 떨어짐")
+        entry(t["theme_id"], t.get("market"))["labels"].append(f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 떨어짐")
     for rv in b.get("observation_reviews") or []:
         if rv.get("kind") != "theme" or not rv.get("theme_id"):
             continue
         res = rv.get("expect_results") or {}
         said = [f"'{EXPECT_KO.get(k, k)}'이라 봤는데 " + ("판단할 데이터가 없음" if v is None else "실제로 그렇게 됨" if v else "그렇게 되지 않음")
                 for k, v in res.items()]
-        entry(rv["theme_id"])["reviews"].append(
+        entry(rv["theme_id"], rv.get("market"))["reviews"].append(
             f"{MARKET_KO.get(rv.get('market'), '')} 관찰 노트({rv.get('checkpoint')}주 전): " + ("; ".join(said) if said else "기대를 적지 않음"))
 
     out = []
@@ -159,7 +162,7 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
             word = qual_macro(mkey, (b.get("macro") or {}).get(mkey))
             if word and word != "보합":
                 e["macro"] = f"같은 주 {mname} 1주 {word}"
-        for m in ("US", "KR"):
+        for m in sorted(e["markets"]):   # 라벨·노트가 있는 시장의 소속 종목만(미국 노트에 한국 종목을 잇지 않게)
             for sym in sorted(members.get((m, tid)) or []):
                 s = signals.get((m, sym))
                 if s and s["signals"]:
@@ -167,10 +170,10 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
         name = theme_names.get(tid, tid)
         facts = e["labels"] + e["reviews"] + ([e["macro"]] if e["macro"] else []) + \
             ([f"소속 종목 중 이번 주 신호: " + " / ".join(e["members"][:3])] if e["members"] else [])
-        linked = bool(e["labels"] or e["macro"] or e["members"])
-        if e["reviews"] and not linked and all("기대를 적지 않음" in r for r in e["reviews"]):
+        linked = bool(e["labels"] or e["macro"])
+        if e["reviews"] and not (linked or e["members"]) and all("기대를 적지 않음" in r for r in e["reviews"]):
             continue   # 기대도 안 적었고 이번 주 이어지는 것도 없으면 할 말이 없다
-        kind = ("review" if linked else "review_plain") if e["reviews"] else "theme"
+        kind = ("review" if linked else "review_members" if e["members"] else "review_plain") if e["reviews"] else "theme"
         title = f"{name} 테마" + (" · 관찰 노트 회고" if e["reviews"] else "")
         if kind == "theme" and not (e["macro"] or e["members"] or len(e["labels"]) > 1):
             continue   # 라벨 하나만 새로 붙고 이어지는 게 없으면 화면의 라벨 칸으로 충분
