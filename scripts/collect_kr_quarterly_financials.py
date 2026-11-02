@@ -196,7 +196,7 @@ def main() -> int:
         conn.commit()
         stats["ok"] += 1
         recent = latest_quarters(values)
-        if len(recent) < 5:
+        if len(recent) < 5 and plan.get(t) != "one_year":   # 그 연도만 받은 종목은 앞 분기가 이미 표에 있다 - 세지 않는다
             stats["lt5"] += 1
         if recent and recent[0][1].get("fs_div") == "OFS":
             stats["ofs"] += 1
