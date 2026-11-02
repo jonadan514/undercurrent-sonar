@@ -341,7 +341,12 @@ def test_comment_facts_label_meaning_and_clean_names():
                   watchlist={"has_prev": True, "added": [{"name": "MSC Industrial Direct Company, "}], "removed": []},
                   kr_disclosures={"contract": {"items": [{"name": "에이치브이엠", "pct": 20}, {"name": "에이치브이엠", "pct": 15}]}})
     facts = g.comment_facts(b)
-    assert facts["새로 붙은 테마 라벨"][0].endswith("(한국) - Hidden Strength · 숨은 강세")
-    assert "시장이 덜 본" in facts["테마 라벨 뜻"]["Hidden Strength · 숨은 강세"]
+    assert "(한국) - Hidden Strength · 숨은 강세: 실적은 크게 좋아졌는데" in facts["새로 붙은 테마 라벨"][0]
     assert facts["워치리스트 새로 들어온 종목"] == ["MSC Industrial Direct Company"]
     assert facts["한국 공시 - 매출 대비 큰 공급계약(10% 이상)"] == ["에이치브이엠"]
+
+
+def test_split_headings():
+    # 소제목 줄에 본문이 붙어 나온 경우(11/2 미리 보기) 두 줄로 - 화면은 ■ 줄 전체를 소제목으로 그린다
+    txt = "■ 시장 - 지수가 올랐습니다.\n\n■ 공시·내부자: ALB 8-K가 있었습니다.\n■ 테마\n본문 - 그대로."
+    assert g.split_headings(txt) == "■ 시장\n지수가 올랐습니다.\n\n■ 공시·내부자\nALB 8-K가 있었습니다.\n■ 테마\n본문 - 그대로."

@@ -882,6 +882,15 @@ def _clean_names(xs) -> list[str]:
     return out
 
 
+def split_headings(text: str) -> str:
+    """'■ 시장 - 본문…'처럼 소제목 줄에 본문이 붙어 나오면 두 줄로 나눈다 - 화면은 ■ 줄 전체를 소제목으로 그린다."""
+    out = []
+    for line in text.split("\n"):
+        m = re.match(r"^(■\s*[^-:：\n]{1,20}?)\s*[-:：]\s+(.+)$", line.strip())
+        out += [m.group(1).strip(), m.group(2).strip()] if m else [line.rstrip()]
+    return "\n".join(out)
+
+
 def comment_facts(b: dict) -> dict:
     """GPT에 넘길 사실 묶음 - 이름·종류·말로 바꾼 크기만(숫자 없음). 빈 칸은 빼서 쓸 거리가 없는 문단을 만들지 않게."""
     mc = b.get("macro") or {}
@@ -898,6 +907,10 @@ def comment_facts(b: dict) -> dict:
     }
     nm = lambda x: x.get("name") or x.get("symbol")  # noqa: E731
     mk_ko = {"US": "미국", "KR": "한국"}
+
+    def lab(t: dict) -> str:   # 라벨 뜻을 항목에 바로 붙인다 - 따로 두면 GPT가 이름만 늘어놓고 뜻을 빼먹었다(11/2 미리 보기)
+        head = f"{names.get(t['theme_id'], t['theme_id'])}({mk_ko.get(t.get('market'), '')}) - {label_display(t['label'])}"
+        return head + (f": {LABEL_MEANING[t['label']]}" if t["label"] in LABEL_MEANING else "")
     wl = b.get("watchlist") or {}
     ta = b.get("turnaround") or {}
     tl = b.get("theme_labels") or {}
@@ -914,10 +927,8 @@ def comment_facts(b: dict) -> dict:
         "워치리스트에서 빠진 종목": [nm(a) for a in (wl.get("removed") or [])[:10]] if wl.get("has_prev") else [],
         "실적 반전(3년 정체·역성장인데 최근 성장) 새로 들어온 종목": [nm(a) for a in (ta.get("added") or [])[:8]],
         "관심도 상승 종목": [f"{nm(h)} ({h['path']})" for h in (b.get("sentiment_heating") or [])[:8]],
-        "새로 붙은 테마 라벨": [f"{names.get(t['theme_id'], t['theme_id'])}({mk_ko.get(t.get('market'), '')}) - {label_display(t['label'])}"
-                          for t in (tl.get("new_labels") or [])[:8]],
-        "사라진 테마 라벨": [f"{names.get(t['theme_id'], t['theme_id'])}({mk_ko.get(t.get('market'), '')}) - {label_display(t['label'])}"
-                         for t in (tl.get("dropped_labels") or [])[:8]],
+        "새로 붙은 테마 라벨": [lab(t) for t in (tl.get("new_labels") or [])[:8]],
+        "사라진 테마 라벨": [lab(t) for t in (tl.get("dropped_labels") or [])[:8]],
         "한국 공시 - 계약 해지": [nm(x) for x in ((kd.get("termination") or {}).get("items") or [])[:5]],
         "한국 공시 - 매출 대비 큰 공급계약(10% 이상)": [nm(x) for x in ((kd.get("contract") or {}).get("items") or []) if (x.get("pct") or 0) >= 10][:8],
         "한국 잠정실적 - 흑자·적자 전환": [f"{nm(x)} 영업이익 {x.get('operating_income_yoy_turn')}" for x in ((kd.get("prelim") or {}).get("items") or [])
@@ -930,9 +941,6 @@ def comment_facts(b: dict) -> dict:
         "이번 주 실적 발표(관심 종목)": [f"{nm(x)}" for x in (ew.get("items") or []) if x.get("tags")][:10],
     }
     facts = {k: (_clean_names(v) if isinstance(v, list) else v) for k, v in facts.items()}
-    used = {t["label"] for t in (tl.get("new_labels") or [])[:8] + (tl.get("dropped_labels") or [])[:8]}
-    if used & LABEL_MEANING.keys():
-        facts["테마 라벨 뜻"] = {label_display(l): LABEL_MEANING[l] for l in LABEL_MEANING if l in used}
     return {k: v for k, v in facts.items() if v}
 
 
@@ -948,16 +956,24 @@ def gpt_comment(briefing: dict) -> str:
 
 {json.dumps(facts, ensure_ascii=False, indent=1)}
 
-이 데이터만 근거로 주간 총평을 한국어로 쓰세요. 형식:
-- 아래 순서의 소제목을 "■ 소제목" 한 줄로 쓰고, 그 아래 2~4문장. 그 소제목에 해당하는 데이터가 없으면 소제목째 빼세요.
-  ■ 시장 - 미국·한국 지수, 금리·환율·달러, 원자재, 외국인·기관 수급을 함께 묶어 어떤 분위기였는지(예: 금리가 내렸는데 환율은 올라 엇갈림, 기관이 크게 사며 지수를 끌어올림 등). 단정하지 말고 "~로 보입니다" 정도로.
-  ■ 내 관심 종목 - "내 관심 종목에 생긴 일"이 있을 때만. 종목 이름과 생긴 일을 구체적으로. 실적 발표 일정은 여기 쓰지 말고 관전 포인트에.
-  ■ 종목 변화 - 새로 들어오고 빠진 종목·실적 반전·관심도 상승 종목을 이름으로 들고, 어떤 업종·성격의 회사들인지 공통점을 짚기.
-  ■ 테마 - 새로 붙거나 사라진 라벨을 테마 이름·시장과 함께, 뜻은 "테마 라벨 뜻"에 적힌 그대로 풀어 쓰기(뜻을 새로 짓지 말 것). 시장 움직임과 겹치는 게 있으면 연결(예: 원자재 가격과 같은 이름의 테마).
-  ■ 공시·내부자 - 계약 해지, 큰 공급계약, 흑자·적자 전환, 여러 명의 내부자 매수, 미국 8-K 주의 공시, 13F 신규 매수 중 있는 것을 이름과 함께. 종류별로 한 문장씩.
-  ■ 이번 주 관전 포인트 - 실적 발표가 있는 관심 종목, 그리고 위 내용에서 이어서 확인할 것 2~3가지(예: 기대 과열 라벨이 붙은 테마의 실적이 따라오는지, 계약 해지 공시 종목의 후속 공시).
+이 데이터만 근거로 주간 총평을 한국어로 쓰세요.
+
+형식: 소제목은 "■ 소제목" 한 줄에 그것만 쓰고, 다음 줄부터 본문 2~4문장. 예)
+■ 시장
+(본문)
+
+소제목과 쓸 내용(이 순서, 해당 데이터가 없으면 소제목째 뺌):
+1. 시장 - 미국·한국 지수, 금리·환율·달러, 원자재, 외국인·기관 수급을 묶어 어떤 분위기였는지(예: 금리가 내렸는데 환율은 올라 엇갈림, 기관이 크게 사며 지수를 끌어올림). 단정하지 말고 "~로 보입니다" 정도로.
+2. 내 관심 종목 - "내 관심 종목에 생긴 일"이 있을 때만. 종목 이름과 생긴 일을 구체적으로. 실적 발표 일정은 여기 쓰지 말 것.
+3. 종목 변화 - 워치리스트에 들어오고 빠진 종목, 실적 반전에 새로 든 종목, 관심도가 오른 종목을 각각 구분해서 이름으로(워치리스트와 실적 반전을 섞지 말 것). 업종은 짐작해 붙이지 말 것.
+4. 테마 - 새로 붙거나 사라진 라벨마다 테마 이름·시장과 함께 ":" 뒤에 적힌 뜻을 풀어 쓰기(뜻을 새로 짓지 말 것). 시장 데이터와 이름이 겹치면 연결(예: 천연가스 가격과 천연가스 테마).
+5. 공시·내부자 - 계약 해지, 큰 공급계약, 흑자·적자 전환, 여러 명의 내부자 매수, 미국 8-K 주의 공시, 13F 신규 매수 중 있는 것을 종류별로 한 문장씩, 이름과 함께.
+6. 이번 주 관전 포인트 - 실적 발표가 있는 관심 종목, 그리고 위 내용에서 이어서 확인할 것 두세 가지(예: 기대 과열 테마의 실적이 따라오는지, 계약 해지 종목의 후속 공시).
+
+규칙:
 - 문장마다 데이터의 구체적인 이름이나 사실이 하나 이상 들어가야 합니다. "향후 주가에 영향을 미칠 수 있습니다", "주의 깊게 살펴볼 필요가 있습니다", "주목됩니다"처럼 아무 데나 붙는 빈말 문장은 쓰지 마세요.
 - 원인이나 효과(예: "에너지 자산에 긍정적")를 짐작해 덧붙이지 마세요. 데이터끼리의 연결만 쓰세요.
+- 종목·테마 이름은 데이터에 적힌 글자 그대로 옮기세요.
 - 마크다운(**, # 등) 없이 평문. 종목·테마 이름은 데이터에 있는 그대로.
 - 숫자(등락률·금액·건수·%)는 절대 쓰지 마세요 - 숫자는 화면에 따로 표시됩니다.
 - 데이터에 없는 사실(뉴스·원인·전망 수치)을 지어내지 마세요. 매수·매도 권유는 하지 마세요."""
@@ -978,7 +994,7 @@ def gpt_comment(briefing: dict) -> str:
             timeout=90,
         )
         resp.raise_for_status()
-        return strip_numeric_sentences(resp.json()["choices"][0]["message"]["content"].strip())
+        return strip_numeric_sentences(split_headings(resp.json()["choices"][0]["message"]["content"].strip()))
     except Exception as e:
         logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
         return ""
