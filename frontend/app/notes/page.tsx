@@ -1,6 +1,6 @@
 "use client";
 
-// 관찰 노트 (2026-10-05) - 내가 남긴 가설과 4주·12주 회고. 판정은 사람이 하고, 툴은 그때와 지금을 나란히 놓는다.
+// 관찰 노트 (2026-10-05) - 내가 남긴 가설과 4주·12주 회고. 판정은 사람이 하고, 도구는 그때와 지금을 나란히 놓는다.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";

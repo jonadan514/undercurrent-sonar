@@ -143,7 +143,7 @@ function SignalSection({ market }: { market: string }) {
             {d.recent.map((r) => (
               <div key={`${r.week}-${r.kind}-${r.symbol}`} className="flex flex-wrap gap-x-2 text-[12px]">
                 <span style={{ color: "var(--text-faint)" }}>{r.week.slice(5)}</span>
-                <span style={{ color: "var(--text-muted)" }}>{KIND_KO[r.kind] ?? r.kind}{r.watched === false ? "·관심 밖" : ""}</span>
+                <span style={{ color: "var(--text-muted)" }}>{KIND_KO[r.kind] ?? r.kind}{r.watched === false ? "·관심 외" : ""}</span>
                 {r.kind === "theme_busier"
                   ? <span style={{ color: "var(--text-primary)" }}>{themeName(r.symbol).ko}</span>
                   : <StockLink market={market} symbol={r.symbol} className="font-bold" style={{ color: "var(--text-primary)" }}>{r.symbol}</StockLink>}

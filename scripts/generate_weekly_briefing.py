@@ -881,7 +881,7 @@ def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str]) -
     for g in (ins.get("items") or []) + (ins.get("discovery") or []):
         who = g["roles"][0] if g["buyers"] == 1 else f"{g['buyers']}명"
         add(f"{g['market']}:{g['symbol']}", "내부자 매수", f"{who} {fmt_money(g['value'], g['market'])}", "insider", g.get("last_date"))
-    inst_ko = {"new": "새로 삼", "added": "늘림", "reduced": "줄임", "sold": "다 팖"}
+    inst_ko = {"new": "신규 매수", "added": "추가 매수", "reduced": "일부 매도", "sold": "전량 매도"}
     for x in (b.get("inst_13f_week") or {}).get("tagged", []):
         add(f"US:{x['ticker']}", "13F", f"{x['manager'].split(' (')[0]} {inst_ko.get(x['status'], x['status'])}", "inst13f",
             None, x["status"] in ("sold", "reduced"))
@@ -1058,7 +1058,7 @@ def build_telegram_summary(b: dict) -> str:
             lines.append(ins_line(g, " · ".join(DISC_TAG_KO.get(t, t) for t in g["tags"])))
         disc = ins.get("discovery") or []
         if disc:
-            lines.append(f"  🆕 관심 밖 {ins.get('discovery_count', len(disc))}종목")
+            lines.append(f"  🆕 새로 발견(관심 외) {ins.get('discovery_count', len(disc))}종목")
             for g in disc[:INSIDER_DISC_TG_MAX]:
                 lines.append(ins_line(g, FIN_KO.get((g.get("finance") or {}).get("status"), "재무 미확인")))
 
@@ -1082,10 +1082,10 @@ def build_telegram_summary(b: dict) -> str:
             nm = lambda x: html.escape(x.get("ticker") or (x.get("issuer") or "?"))  # noqa: E731
             parts = []
             if it["new"]:
-                parts.append("새로 " + ", ".join(nm(x) for x in it["new"][:INST_TG_NAMES]) + (f" 외 {it['counts']['new'] - INST_TG_NAMES}" if it["counts"]["new"] > INST_TG_NAMES else ""))
+                parts.append("신규 " + ", ".join(nm(x) for x in it["new"][:INST_TG_NAMES]) + (f" 외 {it['counts']['new'] - INST_TG_NAMES}" if it["counts"]["new"] > INST_TG_NAMES else ""))
             if it["sold"]:
-                parts.append("다 팖 " + ", ".join(nm(x) for x in it["sold"][:INST_TG_NAMES]) + (f" 외 {it['counts']['sold'] - INST_TG_NAMES}" if it["counts"]["sold"] > INST_TG_NAMES else ""))
-            lines.append(f"  {html.escape(it['name'])} ({_quarter(it['period'])}): " + (" · ".join(parts) if parts else "새로 산·다 판 종목 없음"))
+                parts.append("전량 매도 " + ", ".join(nm(x) for x in it["sold"][:INST_TG_NAMES]) + (f" 외 {it['counts']['sold'] - INST_TG_NAMES}" if it["counts"]["sold"] > INST_TG_NAMES else ""))
+            lines.append(f"  {html.escape(it['name'])} ({_quarter(it['period'])}): " + (" · ".join(parts) if parts else "신규 매수·전량 매도 종목 없음"))
         if inst["filers"] > INST_TG_MANAGERS:
             lines.append(f"  외 {inst['filers'] - INST_TG_MANAGERS}곳")
         lines.append(f'  <a href="{SITE_URL}/investors">전체 보기</a>')

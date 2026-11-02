@@ -3,7 +3,7 @@ import { getClient } from "@/src/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// 네러티브 브리프는 주간 파이프라인(scripts/generate_narratives.py)이
+// 내러티브 브리프는 주간 파이프라인(scripts/generate_narratives.py)이
 // 뉴스 + GPT-4o mini로 생성해 narrative_briefs 테이블에 저장한다.
 // 이 라우트는 읽기 전용.
 export async function GET(request: Request) {

@@ -1,15 +1,15 @@
 // 용어 사전 - 화면 어디서든 같은 설명이 뜨게 한 곳에 모은다(2026-10-23, 처음 쓰는 사람 안내).
 // <Term k="psr">PSR</Term>(src/components/Term.tsx)과 가이드의 "용어 사전" 칸이 이 목록을 그대로 쓴다.
 //
-// 쓰는 원칙: 투자 공부를 안 한 사람이 읽고 바로 알 말로. 한 줄 뜻(short) + 이 툴에서 어떻게 쓰나(use).
-// 숫자 기준은 실제 코드와 같아야 한다(트랩 필터 기준값은 CLAUDE.md 원칙 3 - 바꾸지 않는다).
-// "사라/팔라"는 말은 쓰지 않는다 - 이 툴은 매수 추천을 하지 않는다.
+// 쓰는 원칙: 투자 공부를 안 한 사람이 읽고 바로 알 말로. 한 줄 뜻(short) + 이 도구에서 어떻게 쓰나(use).
+// 숫자 기준은 실제 코드와 같아야 한다(재무 필터 기준값은 CLAUDE.md 원칙 3 - 바꾸지 않는다).
+// "사라/팔라"는 말은 쓰지 않는다 - 이 도구는 매수 추천을 하지 않는다.
 
 export type GlossaryEntry = {
   term: string;        // 화면에 보이는 이름
   group: "기본" | "재무" | "테마 레이더" | "신호·공시" | "시장";
   short: string;       // 한 줄 뜻
-  use?: string;        // 이 툴에서 어떻게 쓰나
+  use?: string;        // 이 도구에서 어떻게 쓰나
 };
 
 export const GLOSSARY: Record<string, GlossaryEntry> = {
@@ -17,7 +17,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   theme: {
     term: "테마", group: "기본",
     short: "같은 흐름으로 함께 움직이는 산업 묶음입니다. 예: AI 반도체, 원전, K-뷰티.",
-    use: "이 툴은 종목보다 테마를 먼저 봅니다. 업황이 좋아지는 테마를 찾고, 그 안에서 튼튼한 회사를 고르는 순서입니다.",
+    use: "이 도구는 종목보다 테마를 먼저 봅니다. 업황이 좋아지는 테마를 찾고, 그 안에서 튼튼한 회사를 고르는 순서입니다.",
   },
   member: {
     term: "소속 기업", group: "기본",
@@ -36,7 +36,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   no_rank: {
     term: "순위 없음", group: "기본",
-    short: "이 툴은 종목에 점수를 매겨 줄 세우지 않습니다. 목록은 이름순입니다.",
+    short: "이 도구는 종목에 점수를 매겨 줄 세우지 않습니다. 목록은 이름순입니다.",
     use: "점수가 높다고 사는 대신, 화면이 보여주는 사실을 보고 직접 판단하도록 만든 설계입니다.",
   },
 
@@ -44,7 +44,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   quiet_strength: {
     term: "Quiet Strength · 조용한 강세", group: "테마 레이더",
     short: "실적은 크게 좋아졌는데(↑↑) 뉴스는 조용하고 주가도 아직 제자리(→)인 테마입니다.",
-    use: "시장이 아직 주목하기 전일 수 있어 이 툴이 가장 먼저 보라고 하는 조합입니다. 실적이 일시적인지는 직접 확인해야 합니다.",
+    use: "시장이 아직 주목하기 전일 수 있어 이 도구가 가장 먼저 보라고 하는 조합입니다. 실적이 일시적인지는 직접 확인해야 합니다.",
   },
   quiet_recovery: {
     term: "Quiet Recovery · 조용한 회복", group: "테마 레이더",
@@ -78,7 +78,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 
   // ── 재무 ──
   trap_filter: {
-    term: "트랩 필터 (재무 건전성 필터)", group: "재무",
+    term: "재무 필터 (재무 건전성 필터)", group: "재무",
     // 기준은 src/analyzers/trap_filter.py 그대로(7가지) - 바꾸면 여기도 고칠 것.
     short: "싸 보이지만 재무가 부실한 '함정' 종목을 거르는 기준입니다. 하나라도 걸리면 탈락: F-Score 6점 미만, ROE 미국 12%·한국 8% 미만, 이자보상배율 3배 미만, 부채비율 150% 초과(금융업 제외), 영업현금흐름 2년 연속 마이너스, 매출·순이익 3년 연속 동시 감소, 관리종목·감사의견 비적정(한국).",
     use: "통과한 종목만 워치리스트 후보가 됩니다. 통과 = 매수 신호가 아니라 '살펴볼 만큼 튼튼하다'입니다. 자료가 모자란 종목은 탈락이 아니라 '데이터 부족'으로 따로 둡니다.",
@@ -147,7 +147,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     short: "발표된 이익(EPS)이 전문가들 예상보다 얼마나 높거나 낮았는지입니다.",
   },
   narrative: {
-    term: "네러티브 브리프", group: "신호·공시",
+    term: "내러티브 브리프", group: "신호·공시",
     short: "최근 뉴스로 AI가 요약한 이 회사의 이야기 - 장기 스토리, 다가오는 일, 깨질 수 있는 조건.",
     use: "참고용 요약입니다. 숫자는 AI가 만들지 않고 재무 자료에서만 가져옵니다.",
   },

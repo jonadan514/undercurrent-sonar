@@ -70,10 +70,10 @@ export async function GET(request: Request) {
       });
     }
 
-    // 재무 판정 - watchlist_screening_results에 통과/탈락/데이터부족 3분류가
+    // 재무 판정 - watchlist_screening_results에 통과/탈락/데이터 부족 3분류가
     // 사유와 함께 남는다(SPEC_fundamentals_cache.md §4). 이 테이블이 생기기 전에는
     // 통과 종목만 담는 watchlist_candidates만 있어서, 화면에 안 보이는 종목이
-    // 탈락인지 데이터부족인지 구분할 수 없어 전부 "미확인"으로 표시했었다.
+    // 탈락인지 데이터 부족인지 구분할 수 없어 전부 "미확인"으로 표시했었다.
     // 이 테이블에도 없으면(아직 스크리닝 대상이 아니었던 종목) 그때만 "미확인".
     type Fin = { status: string; piotroski: number | null; reasons: string[] };
     const financeByTicker: Record<string, Fin> = {};

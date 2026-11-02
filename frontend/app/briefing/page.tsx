@@ -87,10 +87,10 @@ interface Us8kItem { market: string; symbol: string; name?: string | null; date:
 interface InsiderItem { market: string; symbol: string; name?: string | null; owners: string[]; roles: string[]; buyers: number;
   value: number | null; trades: number; last_date: string | null; all_plan: boolean; tags: string[];
   finance?: { status: string; piotroski: number | null; reasons: string[] } | null }
-// 트랩 필터 3분류 - 계산 못 한 것은 탈락이 아니라 데이터부족, 스크리닝 결과가 없으면 미확인(원칙 4)
+// 재무 필터 3분류 - 계산 못 한 것은 탈락이 아니라 데이터 부족, 스크리닝 결과가 없으면 미확인(원칙 4)
 function FinanceTag({ f }: { f?: InsiderItem["finance"] }) {
   const [label, color] = f?.status === "pass" ? [`재무 통과${f.piotroski != null ? ` F${f.piotroski}` : ""}`, "#4ade80"]
-    : f?.status === "fail" ? ["재무 탈락", "#f87171"] : f?.status === "insufficient" ? ["데이터부족", "var(--text-muted)"] : ["재무 미확인", "var(--text-muted)"];
+    : f?.status === "fail" ? ["재무 탈락", "#f87171"] : f?.status === "insufficient" ? ["데이터 부족", "var(--text-muted)"] : ["재무 미확인", "var(--text-muted)"];
   return <span className="text-[11px] px-1.5 rounded" style={{ color, border: "1px solid var(--border)" }} title={f?.reasons?.join(" / ") || undefined}>{label}</span>;
 }
 function InsiderRow({ x, showFinance = false, note }: { x: InsiderItem; showFinance?: boolean; note?: ReactNode }) {
@@ -220,7 +220,7 @@ function MacroWeek({ macro, hist, week }: { macro: NonNullable<Briefing["macro"]
       )}
       {hasLines && (
         <p className="text-[11.5px] mt-1" style={{ color: "var(--text-faint)" }}>
-          음영이 지난주(직전 거래일 종가부터), 흐린 선은 그 앞 3주 · 칸을 누르면 큰 그래프 · 판정 아님
+          음영이 지난주(직전 거래일 종가부터), 흐린 선은 그 앞 3주 · 누르면 큰 그래프 · 판정 아님
         </p>
       )}
     </div>
@@ -236,7 +236,7 @@ function StockLabel({ s }: { s: StockRef }) {
   );
 }
 
-// 브리핑에서 바로 관찰 노트(2026-10-25) - 🆕 관심 밖 새 이름·⭐ 관심 종목 줄. 발견 → 재무 확인 → 관찰 시작을 브리핑 안에서.
+// 브리핑에서 바로 관찰 노트(2026-10-25) - 🆕 새로 발견·⭐ 관심 종목 줄. 발견 → 재무 확인 → 관찰 시작을 브리핑 안에서.
 // 노트는 저장하는 순간의 값을 고정한다 - 지난 주 브리핑에서 열어도 그 주 값이 아니라 오늘 값이라 창에 적어 둔다.
 function NoteBtn({ s, past }: { s: { market: string; symbol: string; name?: string | null }; past: boolean }) {
   const [open, setOpen] = useState(false);
@@ -405,7 +405,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                   </div>
                 ))}
               </div>
-              <Note>아래 칸(실적 발표·한국 공시·미국 8-K·내부자 매수·실적 반전)과 노트 회고에서 내 관심·노트 종목 줄만 모았습니다 · 누르면 그 칸으로</Note>
+              <Note>아래 항목(실적 발표·한국 공시·미국 8-K·내부자 매수·실적 반전)과 노트 회고에서 내 관심·노트 종목만 모았습니다 · 누르면 해당 항목으로</Note>
             </Section>
           )}
 
@@ -462,7 +462,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     </div>
                   ))}
                 </div>
-                <Note>워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;), 한국은 결산실적 공시예고가 있으면 그 날짜 · 노란 칸이 내 관심·노트·실적 반전</Note>
+                <Note>워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;), 한국은 결산실적 공시예고가 있으면 그 날짜 · 노란색은 내 관심·노트·실적 반전 종목</Note>
               </Section>
             )}
             {has.catalysts && (
@@ -569,7 +569,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                   <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>목록은 {b.us_8k_week!.items.length}건까지</p>
                 )}
                 <Note>관심 종목(워치리스트·내 관심·노트·테마)의 8-K · 항목 번호로 나눈 종류, 아래 줄은 공시 원문 첫머리(번역·요약 없음) ·
-                  실적 발표만 있는 8-K는 뺌 · 붉은 칸은 계약 해지·구조조정·손상·감사인 교체 등 · 임원 변동의 사임/선임은 낱말로 나눈 것</Note>
+                  실적 발표만 있는 8-K는 뺌 · 붉은색은 계약 해지·구조조정·손상·감사인 교체 등 · 임원 변동의 사임/선임은 낱말로 나눈 것</Note>
               </Section>
             )}
 
@@ -587,8 +587,8 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                       )}
                       {ins.discovery.length > 0 && (
                         <>
-                          <Sub>🆕 관심 밖 — 새 이름 {ins.discovery_count ?? ins.discovery.length}{" "}
-                            <span className="font-normal" style={{ color: "var(--text-muted)" }}>산 사람 수 → 금액 순, 계획 매수만 있는 종목은 뒤로</span></Sub>
+                          <Sub>🆕 새로 발견(관심 외) {ins.discovery_count ?? ins.discovery.length}{" "}
+                            <span className="font-normal" style={{ color: "var(--text-muted)" }}>매수자 수 → 금액 순, 계획 매수만 있는 종목은 뒤로</span></Sub>
                           <More items={ins.discovery} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} showFinance note={<NoteBtn s={x} past={past} />} />} />
                         </>
                       )}
@@ -597,7 +597,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     <More items={ins.items} render={(x) => <InsiderRow key={`${x.market}:${x.symbol}`} x={x} />} />
                   )}
                   <Note>임원·이사·대주주가 장내에서 직접 산 것만(스톡옵션·증여·장외 제외) · 금액은 공시 단가 × 주식 수 합계 · 목록은 각 30종목까지
-                    {ins.discovery && " · 관심 밖은 미국 S&P 500·400, 한국 시총 3000억+ 중 관심 표시 없는 종목, 재무는 트랩 필터 판정(통과·탈락·데이터부족)"}</Note>
+                    {ins.discovery && " · 관심 외는 미국 S&P 500·400, 한국 시총 3000억+ 중 관심 표시가 없는 종목, 재무 판정은 재무 필터 기준(통과·탈락·데이터 부족)"}</Note>
                 </Section>
               );
             })()}
@@ -612,21 +612,21 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                         <span className="font-bold text-white">{it.name}</span>
                         <span className="ml-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
                           {it.style ? `${it.style} · ` : ""}{qLabel(it.period)} 말 · {it.filed.slice(5).replace("-", "/")} 신고
-                          {it.compared && ` · 새로 ${it.counts.new} · 늘림 ${it.counts.added} · 줄임 ${it.counts.reduced} · 다 팖 ${it.counts.sold}`}
+                          {it.compared && ` · 신규 ${it.counts.new} · 추가 ${it.counts.added} · 일부 매도 ${it.counts.reduced} · 전량 매도 ${it.counts.sold}`}
                         </span>
                       </p>
                       {!it.compared ? <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>직전 분기 자료가 없어 비교하지 않습니다.</p> : (
                         <div className="space-y-1">
-                          {it.new.length > 0 && <div className="flex flex-wrap items-center gap-1.5"><span className="text-[12px] w-12 shrink-0" style={{ color: "#4ade80" }}>새로</span>{it.new.map((x, k) => <InstChip key={k} x={x} />)}</div>}
-                          {it.sold.length > 0 && <div className="flex flex-wrap items-center gap-1.5"><span className="text-[12px] w-12 shrink-0" style={{ color: "#fca5a5" }}>다 팖</span>{it.sold.map((x, k) => <InstChip key={k} x={x} sold />)}</div>}
-                          {it.new.length === 0 && it.sold.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>새로 산·다 판 종목 없음</p>}
+                          {it.new.length > 0 && <div className="flex flex-wrap items-center gap-1.5"><span className="text-[12px] w-14 shrink-0" style={{ color: "#4ade80" }}>신규 매수</span>{it.new.map((x, k) => <InstChip key={k} x={x} />)}</div>}
+                          {it.sold.length > 0 && <div className="flex flex-wrap items-center gap-1.5"><span className="text-[12px] w-14 shrink-0" style={{ color: "#fca5a5" }}>전량 매도</span>{it.sold.map((x, k) => <InstChip key={k} x={x} sold />)}</div>}
+                          {it.new.length === 0 && it.sold.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>신규 매수·전량 매도 종목 없음</p>}
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
                 <Note>SEC 13F - 고른 운용사 15곳이 분기 말 들고 있던 미국 상장주식(매수 보유만)을 45일 안에 신고한 것 · 산 시점·가격은 모름 ·
-                  평가액은 분기 말 기준, 비중은 그 운용사 주식 보유 중 · 목록은 평가액 순 10개까지 · 노란 칸은 관심 표시 종목 · 재무는 트랩 필터 판정</Note>
+                  평가액은 분기 말 기준, 비중은 그 운용사 주식 보유 중 · 목록은 평가액 순 10개까지 · 노란색은 관심 표시 종목 · 재무 판정은 재무 필터 기준</Note>
               </Section>
             )}
           </GroupTitle>
@@ -634,7 +634,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
           <GroupTitle title="종목 변화">
             <Section className={SCROLL_M} id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
               {!wl.has_prev ? (
-                <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>첫 스냅샷 주간 — 다음 주부터 신규/탈락 비교가 표시돼요.</p>
+                <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>첫 기록 주입니다 — 다음 주부터 신규·탈락을 비교합니다.</p>
               ) : wl.added.length === 0 && wl.removed.length === 0 ? (
                 <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>변동 없음</p>
               ) : (
@@ -666,7 +666,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
             {has.turnaround && (
               <Section className={SCROLL_M} id="turnaround" title="실적 반전"
-                sub={`${byMarket(b.turnaround!.by_market) || "0"}${b.turnaround!.has_prev ? ` · 새로 ${b.turnaround!.added_count} · 빠짐 ${b.turnaround!.removed_count}` : ""}`}>
+                sub={`${byMarket(b.turnaround!.by_market) || "0"}${b.turnaround!.has_prev ? ` · 신규 ${b.turnaround!.added_count} · 빠짐 ${b.turnaround!.removed_count}` : ""}`}>
                 {b.turnaround!.added.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {b.turnaround!.added.map((s) => (
@@ -842,12 +842,12 @@ export default function BriefingPage() {
     <div className="max-w-5xl">
       <PageHeader title="주간 브리핑" intro="briefing"
         asOf={!loading && <AsOf date={briefings[0]?.week} cadence="매주 월요일 아침" staleDays={8} />}
-        desc="지난주를 돌아보고 이번 주를 준비하는 문서. 한 주씩 봅니다 - 맨 위 ⭐ 관심 종목에 생긴 일부터, 목차를 누르면 그 칸으로." />
+        desc="지난주를 돌아보고 이번 주를 준비하는 문서. 한 주씩 봅니다 - 맨 위 ⭐ 관심 종목에 생긴 일부터, 목차를 누르면 해당 항목으로 갑니다." />
 
       {loading ? (
         <div className="h-24 rounded-xl animate-pulse" style={{ background: "#111009" }} />
       ) : !b ? (
-        <EmptyState title="아직 브리핑이 없어요"
+        <EmptyState title="아직 브리핑이 없습니다"
           hint="매주 일요일 밤 워치리스트 스크리닝 뒤 자동으로 만들어집니다. 지금 만들려면 GitHub → Actions → Weekly Watchlist Screen → Run workflow" />
       ) : (
         <BriefingView key={b.week} b={b} past={idx > 0} macroHist={macroHist}

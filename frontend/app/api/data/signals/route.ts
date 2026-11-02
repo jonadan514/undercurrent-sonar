@@ -25,10 +25,10 @@ function distribution(values: number[]): Dist {
 // market: 그 시장에만 있는 신호. expect: 기대 방향이 하락인 신호(해지·주의 종류)는 초과수익이 마이너스여야 '맞은 쪽' - 화면에 같이 적는다.
 const GROUPS: { key: string; label: string; desc: string; kind: string; market?: "US" | "KR"; expect?: "down";
                 test?: (d: Record<string, unknown>) => boolean }[] = [
-  { key: "insider_new", label: "내부자 장내 매수 · 관심 밖", desc: "브리핑 '🆕 새 이름'", kind: "insider_buy", test: (d) => !d.watched },
+  { key: "insider_new", label: "내부자 장내 매수 · 관심 외", desc: "브리핑 '🆕 새로 발견'", kind: "insider_buy", test: (d) => !d.watched },
   { key: "insider_watched", label: "내부자 장내 매수 · 관심 종목", desc: "워치리스트·내 관심·노트·테마 종목", kind: "insider_buy", test: (d) => !!d.watched },
   { key: "turnaround_new", label: "실적 반전 새로 들어옴", desc: "워치리스트 실적 반전 목록 신규", kind: "turnaround_new" },
-  { key: "theme_quiet", label: "테마 공시 평소보다 많음 · 축은 조용", desc: "테마 레이더 '축은 조용' 칸 (소속 기업 중앙값)", kind: "theme_busier", test: (d) => d.quiet_axes === true },
+  { key: "theme_quiet", label: "테마 공시 평소보다 많음 · 세 축 잠잠", desc: "테마 레이더 '세 축은 잠잠한데 공시가 많은 테마' (소속 기업 중앙값)", kind: "theme_busier", test: (d) => d.quiet_axes === true },
   { key: "theme_all", label: "테마 공시 평소보다 많음 · 전체", desc: "축이 움직인 테마 포함 (소속 기업 중앙값)", kind: "theme_busier" },
   // 브리핑 다른 칸(2026-10-21 추가)
   { key: "kr_contract_big", label: "공급계약 · 매출 대비 10% 이상", desc: "브리핑 한국 공시 칸", kind: "kr_contract_big", market: "KR" },

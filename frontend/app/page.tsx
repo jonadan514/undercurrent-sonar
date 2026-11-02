@@ -76,7 +76,7 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
       const added = ta.added.filter(a => a.market === m).length;
       // 브리핑에는 새로 들어온 종목을 10개까지만 담는다 - 잘렸으면 시장별로 셀 수 없어 미·한 합계를 그대로 쓴다
       return <StatTile key="ta" href={`${wl}&preset=turnaround`} label="실적 반전" value={ta.by_market[m] ?? 0}
-        sub={!ta.has_prev ? "비교는 다음 주부터" : ta.added_count > ta.added.length ? `새로 ${ta.added_count} (미·한 합계)` : `새로 ${added}`}
+        sub={!ta.has_prev ? "비교는 다음 주부터" : ta.added_count > ta.added.length ? `신규 ${ta.added_count} (미·한 합계)` : `신규 ${added}`}
         hint="매출 3년은 정체·역성장인데 최근 1년(없으면 분기)은 성장" />;
     })(),
     (() => {
@@ -97,25 +97,25 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
       const mine = sp ? sp.tagged : (ins?.items ?? []).filter(x => x.market === m).length;
       const fresh = sp ? sp.discovery : (ins?.discovery ?? []).filter(x => x.market === m).length;
       return <StatTile key="ins" href="/briefing#insider" label="내부자 장내 매수 (7일)" value={ins ? ins.by_market[m] ?? 0 : "-"}
-        sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 밖 ${fresh}` : `종목 ${ins.by_market[m] ?? 0}`) : "브리핑 전"}
-        hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 밖은 관심 표시 없는 유니버스 종목(새 이름 찾기용)." />;
+        sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 외 ${fresh}` : `종목 ${ins.by_market[m] ?? 0}`) : "브리핑 전"}
+        hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 외는 관심 표시가 없는 유니버스 종목입니다(새 종목 발견용)." />;
     })(),
     // 유명 투자자 13F - 카드 두 칸 폭에 '여러 곳이 함께 산 종목' 상위 5개(2026-10-26 사용자 결정 - 새로 산 개수보다 겹친 이름이 의미 있다).
     // 정렬은 겹친 운용사 수 → 새로 산 곳 수 → 평가액(/api/investors 그대로), 점수·추천 아님. 미국만(13F는 미국 상장주식)
     ...(m === "US" ? [
       <a key="13f" href="/investors#shared" className="col-span-2 rounded-lg px-3 py-2.5 block transition-colors hover:brightness-125"
         style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}
-        title="고른 운용사 15곳이 각자 가장 최근 분기에 새로 사거나 늘린 종목 중 2곳 이상 겹친 것. 45일 늦은 사실이고 매수 신호가 아닙니다.">
+        title="고른 운용사 15곳이 각자 가장 최근 분기에 신규·추가 매수한 종목 중 2곳 이상이 함께 산 것. 45일 늦은 사실이고 매수 신호가 아닙니다.">
         <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>
           유명 투자자 13F · 여러 곳이 함께 산 종목{inst ? ` · ${quarterLabel(inst.period)} 말` : ""}
         </p>
         {!inst ? <p className="text-[13px] mt-1" style={{ color: "var(--text-faint)" }}>아직 없음</p>
-          : inst.shared.length === 0 ? <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>2곳 이상 겹친 종목 없음</p> : (
+          : inst.shared.length === 0 ? <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>2곳 이상이 함께 산 종목 없음</p> : (
           <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px]" style={{ fontVariantNumeric: "tabular-nums" }}>
             {inst.shared.map((t) => (
               <span key={t.ticker} className="whitespace-nowrap">
                 <b style={{ color: "var(--num, #ffb020)" }}>{t.ticker}</b>
-                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}> {t.n}곳{t.newN ? `(새로 ${t.newN})` : ""}</span>
+                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}> {t.n}곳{t.newN ? `(신규 ${t.newN})` : ""}</span>
               </span>
             ))}
           </p>
@@ -214,7 +214,7 @@ export default function HomePage() {
     <div className="space-y-3">
       {/* 공통 머리말 - 시장 탭 없이 한 장(2026-10-25). 시장별 숫자는 아래 두 단락, 매크로는 공통 */}
       <PageHeader title="이번 주 물밑 흐름" intro="home"
-        desc="미국·한국 두 시장의 이번 주 변화를 한 장에. 숫자 칸을 누르면 그 목록으로 갑니다 - 순위나 추천이 아닙니다." />
+        desc="미국·한국 두 시장의 이번 주 변화를 한 장에. 숫자를 누르면 해당 목록으로 갑니다 - 순위나 추천이 아닙니다." />
       {/* 첫 방문 안내 - 닫으면 이 브라우저에서는 안 보인다(2026-10-23). 다른 화면처럼 제목 아래에(2026-10-25 화면 통일) */}
       <WelcomePanel />
 

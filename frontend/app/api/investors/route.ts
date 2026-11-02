@@ -31,7 +31,7 @@ async function latestRows(symbol?: string | null): Promise<Row[]> {
   }));
 }
 
-// 트랩 필터 판정(미국 유니버스만 있음) + 워치리스트 후보 여부 - 없으면 '미확인'(원칙 4)
+// 재무 필터 판정(미국 유니버스만 있음) + 워치리스트 후보 여부 - 없으면 '미확인'(원칙 4)
 async function screening(tickers: string[]): Promise<Record<string, { status: string; piotroski: number | null; candidate: boolean }>> {
   const out: Record<string, { status: string; piotroski: number | null; candidate: boolean }> = {};
   if (tickers.length === 0) return out;

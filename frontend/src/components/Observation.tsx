@@ -1,7 +1,7 @@
 "use client";
 
 // 관찰 노트 공용 UI (2026-10-05) - 작성 창과 "그때 vs 지금" 카드. 규칙은 app/api/notes/route.ts 참고:
-// 가설·그때 값은 고치지 않고, 회고의 판단·배운 점만 사람이 붙인다. 툴은 기대가 일어났는지 사실만 적는다.
+// 가설·그때 값은 고치지 않고, 회고의 판단·배운 점만 사람이 붙인다. 도구는 기대가 일어났는지 사실만 적는다.
 
 import { useState } from "react";
 import StockLink from "@/src/components/StockLink";
@@ -196,7 +196,7 @@ function StockRows({ cols }: { cols: { head: string; snap: Snap }[] }) {
           <span style={{ color: FAINT }}> (지수 {pct(s.index_ret_since)})</span></span>
       : <span style={{ color: FAINT }}>기준</span>) },
     { label: "4주 수익률", render: (s) => pct(s?.price_ret_4w) },
-    { label: "실적", render: (s) => ({ improved: "중앙값 초과", not_improved: "미달", insufficient: "데이터부족" } as Record<string, string>)[s?.earn_status as string] ?? "-" },
+    { label: "실적", render: (s) => ({ improved: "중앙값 초과", not_improved: "미달", insufficient: "데이터 부족" } as Record<string, string>)[s?.earn_status as string] ?? "-" },
     { label: "밸류·성장", render: (s) => [s?.valuation_tier, s?.growth_tier].filter(Boolean).join(" · ") || "-" },
     { label: "소속 테마", render: (s) => <span className="text-[11px]">{themeUps(s)}</span> },
   ];

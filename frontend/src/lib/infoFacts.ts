@@ -2,7 +2,7 @@ import type { getClient } from "@/src/lib/db";
 
 // yfinance 기업 정보(fetch_status.info_payload)에서 꺼내 쓰는 사실 값 (2026-10-05).
 // 주간 워치리스트 스크리닝이 받아 둔 값이라 수집 시점(as_of) 기준이다 - 화면에 날짜를 같이 적는다.
-// 애널리스트 수: 적을수록 시장이 덜 보는 종목(이 툴의 "아직 조용한 곳"과 같은 방향). 목표가는 판단을 끌고 가는
+// 애널리스트 수: 적을수록 시장이 덜 보는 종목(이 도구의 "아직 조용한 곳"과 같은 방향). 목표가는 판단을 끌고 가는
 // 숫자 하나라 일부러 꺼내지 않는다. 52주 위치: 수집 시점 가격의 고점·저점 대비 거리.
 export interface InfoFacts {
   analysts: number | null;

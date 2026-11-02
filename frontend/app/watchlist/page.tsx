@@ -227,7 +227,7 @@ const INDICATOR_INFO = {
         + "밸류(PSR)는 후보들 중 상대적인 순위지만, 성장은 절대 기준입니다 - 후보 대부분이 "
         + "이미 성장 중이라 순위로 나누면 +3% 성장 기업에 '역성장' 라벨이 붙기 때문입니다. "
         + "역성장이 재무 부실을 뜻하지는 않습니다 - 무차입 흑자 기업도 매출이 줄 수 있고, "
-        + "함정 필터가 걸러내지 못하는 부분을 보여주는 것이 이 지표의 목적입니다. "
+        + "재무 필터가 걸러내지 못하는 부분을 보여주는 것이 이 지표의 목적입니다. "
         + "옆의 '1년' 배지는 최근 4개 분기 매출 합을 그 전 4개 분기와, '분기' 배지는 최근 분기를 1년 전 같은 분기와 비교한 같은 경계의 판정입니다(1년이 있으면 그것을 보여 줌) - "
         + "3년 기준은 업황이 막 바뀐 기업(예: 3년 전이 직전 호황 고점)을 늦게 잡으므로 지금 흐름을 따로 보여 줍니다. "
         + "두 판정은 합치지 않고, 필터·정렬은 3년 기준을 씁니다.",
@@ -417,7 +417,7 @@ function InfoModal({ info, onClose }: { info: typeof INDICATOR_INFO[keyof typeof
   );
 }
 
-// ── 네러티브 브리프 (Perplexity 실시간 검색) ─────────────────────────────────
+// ── 내러티브 브리프 (Perplexity 실시간 검색) ─────────────────────────────────
 const SENTIMENT_STYLE: Record<string, { label: string; color: string; emoji: string }> = {
   HOT:  { label: "시장 관심 높음", color: BAD, emoji: "🔥" },
   WARM: { label: "꾸준한 관심",    color: WARN, emoji: "🌤" },
@@ -445,7 +445,7 @@ function NarrativeSection({ c }: { c: Candidate }) {
         if (!res.ok) throw new Error(data.error ?? "요청 실패");
         setBrief(data);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "네러티브를 불러오지 못했어요");
+        if (!cancelled) setError(e instanceof Error ? e.message : "내러티브를 불러오지 못했습니다");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -458,14 +458,14 @@ function NarrativeSection({ c }: { c: Candidate }) {
   return (
     <div>
       <div className="p-3 space-y-2.5" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-        <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>네러티브 브리프 — 투자 논리</p>
+        <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>내러티브 브리프 — 투자 논리</p>
 
         {loading && (
           <p className="text-[12px] animate-pulse" style={{ color: TEXT_SECONDARY }}>불러오는 중...</p>
         )}
         {pending && !loading && (
           <p className="text-[12px]" style={{ color: TEXT_SECONDARY }}>
-            아직 네러티브가 생성되지 않았어요. 다음 주간 워치리스트 스크리닝(주 1회 자동 실행) 후 표시돼요.
+            아직 내러티브가 없습니다. 다음 주간 워치리스트 스크리닝(주 1회 자동 실행) 뒤에 표시됩니다.
           </p>
         )}
         {error && !loading && (
@@ -622,7 +622,7 @@ function Us8kSection({ c }: { c: Candidate }) {
   );
 }
 
-// 후보가 아닌 종목으로 들어왔을 때(브리핑 "관심 밖 내부자 매수" 등, 2026-10-21) - 트랩 필터 판정과 사유, 내부자 장내 매수·8-K.
+// 후보가 아닌 종목으로 들어왔을 때(브리핑 "관심 밖 내부자 매수" 등, 2026-10-21) - 재무 필터 판정과 사유, 내부자 장내 매수·8-K.
 // 탈락이어도 왜 떨어졌는지가 정보다. 판정이 없으면 "미확인"(원칙 4).
 // 필터 칩 묶음 - 앞에 작은 이름(시장·목록·밸류·성장·체제)
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
@@ -636,7 +636,7 @@ function FilterGroup({ label, children }: { label: string; children: React.React
 
 // ── 유명 투자자 13F (2026-10-25) ─────────────────────────────────────────────
 // 사용자가 고른 운용사 15곳 중 이 종목을 가장 최근 분기 말에 들고 있던(또는 그 분기에 다 판) 곳. 미국 종목만(13F는 미국 상장주식).
-const STATUS_KO: Record<string, string> = { new: "새로 삼", added: "늘림", reduced: "줄임", same: "그대로", sold: "다 팖" };
+const STATUS_KO: Record<string, string> = { new: "신규 매수", added: "추가 매수", reduced: "일부 매도", same: "변동 없음", sold: "전량 매도" };
 function InstitutionSection({ c }: { c: Candidate }) {
   const [holders, setHolders] = useState<{ manager_id: string; period: string; value: number; weight: number | null; status: string | null; share_chg: number | null; prev_value: number | null }[]>([]);
   useEffect(() => {
@@ -680,14 +680,14 @@ function InstitutionSection({ c }: { c: Candidate }) {
 
 // ── 테마 동료 비교 (2026-10-25) ───────────────────────────────────────────────
 // 이 종목이 사업 소속인 테마마다, 소속 기업들의 중앙값·가운데 절반(25~75%) 옆에 이 종목 값을 둔다(/api/radar/peers).
-// 지표마다 따로 보여 줄 뿐 합치지 않고 순위도 매기지 않는다(원칙 1). 동료 값이 5곳 미만이면 비교하지 않는다(데이터부족).
+// 지표마다 따로 보여 줄 뿐 합치지 않고 순위도 매기지 않는다(원칙 1). 동료 값이 5곳 미만이면 비교하지 않는다(데이터 부족).
 type PeerMetric = { self: number | null; n: number; median: number | null; q1: number | null; q3: number | null };
 type PeerTheme = { theme_id: string; week: string | null; members: number; metrics: Record<string, PeerMetric> };
 const PEER_ROWS: { key: string; label: string; fmt: (v: number) => string; hint: string }[] = [
   { key: "rev_yoy", label: "매출 YoY", fmt: (v) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}%`, hint: "최근 분기 매출, 1년 전 같은 분기 대비" },
   { key: "om_now", label: "영업이익률", fmt: (v) => `${(v * 100).toFixed(1)}%`, hint: "최근 분기" },
   { key: "fcf_yield_3y", label: "FCF 수익률", fmt: (v) => `${(v * 100).toFixed(1)}%`, hint: "3년 평균 잉여현금흐름 / 시가총액, 금융업은 계산 안 함" },
-  { key: "roe", label: "ROE", fmt: (v) => `${v.toFixed(1)}%`, hint: "트랩 필터가 계산한 값" },
+  { key: "roe", label: "ROE", fmt: (v) => `${v.toFixed(1)}%`, hint: "재무 필터가 계산한 값" },
 ];
 const PEER_GRID = "sm:grid-cols-[6rem_4.5rem_7.5rem_minmax(0,1fr)_9rem] gap-x-2";
 function PeerBar({ m }: { m: PeerMetric }) {
@@ -768,7 +768,7 @@ function ThemePeerSection({ c }: { c: Candidate }) {
         </div>
       ))}
       <p className="text-[12px]" style={{ color: TEXT_MUTED }}>
-        숫자는 저장된 재무 그대로(소속 기업 주간 계산·트랩 필터) · 동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 가운데 절반, 세로선 = 중앙값, 점 = 이 종목 ·
+        숫자는 저장된 재무 그대로(소속 기업 주간 계산·재무 필터) · 동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 가운데 절반, 세로선 = 중앙값, 점 = 이 종목 ·
         업종이 섞인 테마는 이익률·FCF 정상 범위가 달라 참고로만
       </p>
     </div>
@@ -786,9 +786,9 @@ function MissDetail({ market, symbol }: { market: string; symbol: string }) {
     return () => { cancelled = true; };
   }, [market, symbol]);
   const c = { market, symbol } as Candidate;
-  const label = sc === undefined ? "확인 중..." : !sc ? "트랩 필터 판정 없음(미확인 - 스크리닝 대상 밖이거나 아직 안 돌았음)"
-    : sc.status === "pass" ? `트랩 필터 통과${sc.piotroski != null ? ` (F-Score ${sc.piotroski})` : ""}`
-    : sc.status === "fail" ? "트랩 필터 탈락" : "트랩 필터 데이터부족(계산 못 한 항목이 있음 - 탈락 아님)";
+  const label = sc === undefined ? "확인 중..." : !sc ? "재무 필터 판정 없음(미확인 - 스크리닝 대상 밖이거나 아직 안 돌았음)"
+    : sc.status === "pass" ? `재무 필터 통과${sc.piotroski != null ? ` (F-Score ${sc.piotroski})` : ""}`
+    : sc.status === "fail" ? "재무 필터 탈락" : "재무 필터 데이터 부족(계산 못 한 항목이 있음 - 탈락 아님)";
   return (
     <div style={{ flexBasis: "100%" }} className="space-y-2">
       <p style={{ color: sc?.status === "fail" ? BAD : sc?.status === "pass" ? GOOD : TEXT_SECONDARY, fontSize: 12 }}>
@@ -979,7 +979,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
             </div>
           )}
 
-          {/* 2단: 투자 논리(네러티브) | 기술적 타이밍(차트) */}
+          {/* 2단: 투자 논리(내러티브) | 기술적 타이밍(차트) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <NarrativeSection c={c} />
             <div>
@@ -1638,7 +1638,7 @@ export default function WatchlistPage() {
   const cheapCount = candidates.filter((c) => c.valuation_tier === "싼 편").length;
   const tierKnown = candidates.some((c) => c.valuation_tier != null);
 
-  // 함정 필터가 못 거르는 것 - 무차입 흑자인데 매출이 3년째 주는 기업. "싼 편만"과
+  // 재무 필터가 못 거르는 것 - 무차입 흑자인데 매출이 3년째 주는 기업. "싼 편만"과
   // 나란히 둬야 그 조합(싸면서 안 자라는 것)이 눈에 보인다(SPEC_watchlist_growth.md).
   const growingCount = candidates.filter((c) => c.growth_tier === "성장").length;
   const growthKnown = candidates.some((c) => c.growth_tier != null);
@@ -1678,7 +1678,7 @@ export default function WatchlistPage() {
       {/* 헤더 */}
       <PageHeader title="워치리스트" intro="watchlist"
         asOf={!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
-        desc="재무 건전성 필터(트랩 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·네러티브를 한 화면에." />
+        desc="재무 필터(재무 건전성 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·내러티브를 한 화면에." />
 
       {/* 통계 - 공용 요약 칸(2026-10-25 화면 통일) */}
       <div style={{ marginBottom: 24 }}>
@@ -1877,9 +1877,9 @@ export default function WatchlistPage() {
             <div style={{ color: TEXT_MUTED, textAlign: "center", padding: 60 }}>불러오는 중...</div>
           ) : sorted.length === 0 ? (
             candidates.length === 0
-              ? <EmptyState title="스크리닝 데이터가 없습니다" hint="매주 월요일 아침(일요일 밤 실행) 트랩 필터 스크리닝 뒤 표시됩니다." />
+              ? <EmptyState title="스크리닝 데이터가 없습니다" hint="매주 월요일 아침(일요일 밤 실행) 재무 필터 스크리닝 뒤 표시됩니다." />
               : searchQuery.trim()
-                ? <EmptyState title="일치하는 종목이 없습니다" hint={`트랩 필터 통과 후보 ${candidates.length}종목 안에서만 찾습니다. 후보가 아닌 종목은 다른 화면의 종목 이름을 누르면 안내가 뜹니다.`} />
+                ? <EmptyState title="일치하는 종목이 없습니다" hint={`재무 필터 통과 후보 ${candidates.length}종목 안에서만 찾습니다. 후보가 아닌 종목은 다른 화면의 종목 이름을 누르면 안내가 뜹니다.`} />
                 : <EmptyState title="필터 조건에 맞는 종목이 없습니다" hint="조합 보기나 지표 필터를 풀어 보세요." />
           ) : (
             <>
@@ -2021,7 +2021,7 @@ export default function WatchlistPage() {
       {/* ── 내 워치리스트 탭 ── */}
       {tab === "my" && (
         myList.length === 0 ? (
-          <div style={{ color: TEXT_MUTED, textAlign: "center", padding: 60 }}>아직 추가한 종목이 없어요.</div>
+          <div style={{ color: TEXT_MUTED, textAlign: "center", padding: 60 }}>아직 담은 종목이 없습니다.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {myList.map((item) => (

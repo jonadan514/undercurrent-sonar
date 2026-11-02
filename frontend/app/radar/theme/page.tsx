@@ -124,7 +124,7 @@ function cellTitle(axis: string, r: WeekRow | undefined): string {
   if (axis === "earn_arrow")
     return r.earn_members == null ? "실적 데이터 없음"
       : `${r.earn_members}개사 중 ${r.earn_improved ?? 0}개 매출 성장률이 시장 중앙값 초과` +
-        (r.earn_insufficient ? ` (데이터부족 ${r.earn_insufficient})` : "") + (r.earn_as_of ? ` · ${r.earn_as_of}` : "");
+        (r.earn_insufficient ? ` (데이터 부족 ${r.earn_insufficient})` : "") + (r.earn_as_of ? ` · ${r.earn_as_of}` : "");
   return r.price_median_ret == null ? "주가 데이터 없음"
     : `소속 중앙값 ${pct(r.price_median_ret)} · 지수 대비 ${pct(r.price_excess)}p (4주)`;
 }
@@ -177,7 +177,7 @@ function Sparkline({ values, format }: { values: (number | null)[]; format: (v: 
 const EARN_STATUS: Record<string, { text: string; color: string }> = {
   improved: { text: "중앙값 초과", color: GOOD },
   not_improved: { text: "미달", color: MUTED },
-  insufficient: { text: "데이터부족", color: FAINT },
+  insufficient: { text: "데이터 부족", color: FAINT },
 };
 
 function ThemeHistory() {
@@ -403,7 +403,7 @@ function ThemeHistory() {
               <>
                 <p className="mb-3 text-[12px]" style={{ color: FAINT }}>
                   {data.members_week && `${md(data.members_week)} 주 · `}사업 소속(직접·부분) {members.length}개사 · 4주 수익률 높은 순 ·
-                  실적 중앙값 초과 {earnCounts.improved ?? 0} / 미달 {earnCounts.not_improved ?? 0} / 데이터부족 {earnCounts.insufficient ?? 0}
+                  실적 중앙값 초과 {earnCounts.improved ?? 0} / 미달 {earnCounts.not_improved ?? 0} / 데이터 부족 {earnCounts.insufficient ?? 0}
                   {hasMargin && <> · 영업이익률(전년 같은 분기 대비) 개선 {omCounts["개선"] ?? 0} / 유지 {omCounts["유지"] ?? 0} / 악화 {omCounts["악화"] ?? 0}</>}
                   {withSurprise.length > 0 && <> · 최근 100일 실적 발표 {withSurprise.length}개사 중 추정치 상회 {surpriseBeat}</>}
                 </p>
@@ -451,7 +451,7 @@ function ThemeHistory() {
                             <td className="py-2 pl-4" style={{ color: st.color }}>{st.text}</td>
                             {hasMargin && (
                               <td className="py-2 text-right whitespace-nowrap" style={{ fontFamily: MONO }}
-                                title={m.om_status ? `1년 전 같은 분기 대비 ${m.om_status}` : "데이터부족(분기 손익 부족)"}>
+                                title={m.om_status ? `1년 전 같은 분기 대비 ${m.om_status}` : "데이터 부족(분기 손익 부족)"}>
                                 {m.om_now != null ? <span style={{ color: "var(--text-secondary)" }}>{(m.om_now * 100).toFixed(1)}%</span> : <span style={{ color: FAINT }}>-</span>}
                                 {m.om_change != null && (
                                   <span className="ml-1 text-[11px]" style={{ color: m.om_status === "개선" ? GOOD : m.om_status === "악화" ? DANGER : MUTED }}>
@@ -499,7 +499,7 @@ function ThemeHistory() {
                   </button>
                 )}
                 <p className="mt-2 text-[12px]" style={{ color: FAINT }}>
-                  워치리스트 "후보"는 재무 함정 필터를 통과한 종목입니다. 실적 판정은 테마 실적 축과 같은 기준(시장 유니버스 매출 성장률 중앙값)입니다.
+                  워치리스트 "후보"는 재무 필터를 통과한 종목입니다. 실적 판정은 테마 실적 축과 같은 기준(시장 유니버스 매출 성장률 중앙값)입니다.
                   {hasMargin && " 영업이익률은 최근 분기를 1년 전 같은 분기와 비교한 참고 값으로, 실적 축 계산에는 들어가지 않습니다."}
                   {hasFacts && ` 52주 고점 대비·애널리스트 수는 워치리스트 스크리닝 때 받은 기업 정보 기준${factsAsOf ? `(${md(factsAsOf)})` : ""}입니다.`}
                 </p>

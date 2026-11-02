@@ -48,7 +48,7 @@ export default function StockTechPanel({ market, symbol }: { market: string; sym
   if (state === "error" || !data) {
     return (
       <p className="text-[12px]" style={{ color: "#a39c88" }}>
-        차트 데이터를 불러오지 못했어요 (가격 조회 실패).
+        차트 데이터를 불러오지 못했습니다(가격 조회 실패).
       </p>
     );
   }

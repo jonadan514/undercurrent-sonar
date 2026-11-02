@@ -49,7 +49,7 @@ function healthLabel(h: HealthSummary | null): { label: string; sub: string | nu
   if (!h) return { label: "데이터 상태 확인 중", sub: null, color: "#423e33" };
   if (h.late === 0 && h.missing === 0) return { label: `데이터 ${h.total}개 모두 정상`, sub: null, color: "#4ade80" };
   const parts = [h.late > 0 ? `지연 ${h.late}` : null, h.missing > 0 ? `없음 ${h.missing}` : null].filter(Boolean).join(" · ");
-  return { label: `데이터 ${h.total}개 중 ${parts}`, sub: "눌러서 어떤 칸인지 보기", color: h.late > 0 ? "#facc15" : "#f87171" };
+  return { label: `데이터 ${h.total}개 중 ${parts}`, sub: "눌러서 어떤 데이터인지 보기", color: h.late > 0 ? "#facc15" : "#f87171" };
 }
 
 function SidebarInner({

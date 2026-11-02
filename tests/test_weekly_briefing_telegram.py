@@ -216,7 +216,7 @@ def test_insider_week_grouping_and_telegram():
     assert ins["discovery"][1]["buyers"] == 2 and ins["discovery"][1]["all_plan"] and ins["discovery"][1]["finance"] is None
     text = g.build_telegram_summary(_briefing(insider_week=ins))
     assert "내부자 장내 매수</b> 지난 7일 🇺🇸 2 · 🇰🇷 1종목" in text
-    assert "🇰🇷 파루 10%이상주주 1.9억 · 테마" in text and "🆕 관심 밖 2종목" in text
+    assert "🇰🇷 파루 10%이상주주 1.9억 · 테마" in text and "🆕 새로 발견(관심 외) 2종목" in text
     assert "OXY President and CEO · 이사 $250K · 재무 통과" in text and "DVN 2명 $150K (계획 매수) · 재무 미확인" in text
     assert g.fmt_money(1.2e6, "US") == "$1.2M" and g.fmt_money(3e7, "KR") == "3,000만"
 
@@ -301,6 +301,6 @@ def test_inst_13f_week_items_and_my_stocks_and_telegram():
     assert it["sold"][0]["ticker"] == "KO"
     assert {x["ticker"] for x in inst["tagged"]} == {"AAPL", "MU"}   # 관심 표시 종목만(늘림 포함)
     my = g.my_stocks_week({"inst_13f_week": inst}, {"US:MU": ["my"]}, {})
-    assert my["items"][0]["events"][0]["kind"] == "13F" and "늘림" in my["items"][0]["events"][0]["text"]
+    assert my["items"][0]["events"][0]["kind"] == "13F" and "추가 매수" in my["items"][0]["events"][0]["text"]
     text = g.build_telegram_summary(_briefing(inst_13f_week=inst))
-    assert "유명 투자자 13F" in text and "새로 AAPL" in text and "다 팖 KO" in text and "2026 Q3" in text
+    assert "유명 투자자 13F" in text and "신규 AAPL" in text and "전량 매도 KO" in text and "2026 Q3" in text

@@ -110,7 +110,7 @@ function prevDisplay(t: ThemeQuarterly): string {
   return `지난 분기 ${t.previous_classification}`;
 }
 
-// SPEC 2-4 - 데이터부족 "왜 못 들어갔는지".
+// SPEC 2-4 - 데이터 부족 "왜 못 들어갔는지".
 function naReason(t: ThemeQuarterly): string {
   const finMissing = t.financial_on === null;
   const newsMissing = t.news_high === null;
@@ -158,7 +158,7 @@ function sortMembers(members: CompanySignal[]): CompanySignal[] {
 
 // ── 작은 컴포넌트 ────────────────────────────────────────────
 
-// SPEC 3-4 - "-"(데이터부족)와 X(탈락)를 절대 같은 모양으로 그리지 않는다.
+// SPEC 3-4 - "-"(데이터 부족)와 X(탈락)를 절대 같은 모양으로 그리지 않는다.
 function TriChip({ label, value }: { label: string; value: boolean | null }) {
   const style =
     value === null
@@ -180,7 +180,7 @@ function ChangedBadge({ value }: { value: boolean | null }) {
   if (value === null) {
     return (
       <span className="whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px]" style={{ color: FAINT, border: "1px solid var(--border)" }}>
-        데이터부족
+        데이터 부족
       </span>
     );
   }
@@ -237,7 +237,7 @@ function FinanceBadge({ finance }: { finance: CompanySignal["finance"] }) {
     );
   }
   if (finance.status === "insufficient") {
-    return <span className={base} style={{ background: MUTED_SOFT, color: MUTED }}>데이터부족</span>;
+    return <span className={base} style={{ background: MUTED_SOFT, color: MUTED }}>데이터 부족</span>;
   }
   return <span className={base} style={{ color: FAINT, border: "1px solid var(--border)" }}>미확인</span>;
 }
@@ -554,7 +554,7 @@ export default function QuarterlyPage() {
                 style={{ color: MUTED }}
               >
                 <span style={{ transform: showNa ? "rotate(90deg)" : "none", display: "inline-block", transition: "transform 0.15s" }}>▸</span>
-                데이터부족 <span style={{ fontFamily: MONO, color: FAINT }}>{naThemes.length}개</span>
+                데이터 부족 <span style={{ fontFamily: MONO, color: FAINT }}>{naThemes.length}개</span>
               </button>
               {showNa && (
                 <div className="mt-2">

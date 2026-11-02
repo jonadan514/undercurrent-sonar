@@ -212,7 +212,7 @@ const STAGES = [
     when: "발견 단계 1/3 · 시장이 아직 안 움직임",
     color: "var(--accent)",
     labels: ["Quiet Strength", "Quiet Recovery"],
-    desc: "실적은 동종보다 앞서는데 뉴스·주가는 조용한 테마. 뉴스만 봐서는 찾을 수 없어서, 이 툴이 존재하는 이유입니다.",
+    desc: "실적은 동종보다 앞서는데 뉴스·주가는 조용한 테마. 뉴스만 봐서는 찾을 수 없어서, 이 도구가 존재하는 이유입니다.",
   },
   {
     key: "buzz",
@@ -236,7 +236,7 @@ const STAGES = [
 // 주에도 화면이 줄무늬처럼 되지 않으면서, 배지 강도가 "얼마나 이른 신호인가"와
 // 그대로 대응한다.
 const BADGE_STYLE: Record<string, React.CSSProperties> = {
-  "Quiet Strength": { background: "var(--accent)", color: "#000" },                                    // 이 툴의 존재 이유 - 유일하게 채운 색
+  "Quiet Strength": { background: "var(--accent)", color: "#000" },                                    // 이 도구의 존재 이유 - 유일하게 채운 색
   "Quiet Recovery": { color: "var(--accent)", boxShadow: "inset 0 0 0 1.5px var(--accent)" },          // 같은 그룹, 한 단계 약하게
   "Early Buzz": { background: INFO_SOFT, color: INFO },
   "Overheated Buzz": { background: INFO_SOFT, color: INFO },
@@ -833,7 +833,7 @@ export default function RadarPage() {
           {quietWithEvents.length > 0 && (
             <div className="mt-10">
               <div className="mb-1 flex items-baseline gap-2.5">
-                <h2 className="text-[15px] font-bold">{hasWeekly ? "축은 조용, 소속 기업 공시는 평소보다 많음" : "축은 조용, 소속 기업 공시는 있음"}</h2>
+                <h2 className="text-[15px] font-bold">{hasWeekly ? "세 축은 잠잠한데 소속 기업 공시가 평소보다 많은 테마" : "세 축은 잠잠한데 소속 기업 공시가 있는 테마"}</h2>
                 <span className="text-[12px]" style={{ color: FAINT, fontFamily: MONO }}>{quietWithEvents.length}개</span>
               </div>
               <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>

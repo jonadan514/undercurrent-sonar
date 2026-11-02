@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Term from "@/src/components/Term";
 import { WELCOME_STORAGE_KEY } from "@/src/lib/pageIntros";
 
-// 첫 방문 안내(2026-10-23). 처음 들어온 사람에게 이 툴이 무엇이고 어디서 시작하는지 3단계로.
+// 첫 방문 안내(2026-10-23). 처음 들어온 사람에게 이 도구가 무엇이고 어디서 시작하는지 3단계로.
 // "다시 보지 않기"를 누르면 이 브라우저에서는 접힌다(가이드의 "안내 다시 보기"로 되살림).
 const STEPS: { title: string; body: React.ReactNode; href: string; cta: string }[] = [
   {

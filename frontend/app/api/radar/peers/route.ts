@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 // 테마 동료 비교(2026-10-25) - 종목 상세에서 "이 종목이 자기 테마 안에서 어디쯤인가".
 // 이 종목이 사업 소속(직접·부분)인 테마마다, 그 테마 소속 기업들의 최근 주 값으로 중앙값·가운데 절반(25~75%)을 낸다.
 // 숫자는 저장된 값 그대로(theme_member_signals: 매출 YoY·영업이익률·FCF 수익률, watchlist_screening_results: ROE).
-// 순위·점수는 만들지 않는다(원칙 1). 값이 있는 동료가 PEER_MIN곳 미만이면 중앙값을 내지 않는다(데이터부족, 원칙 4).
+// 순위·점수는 만들지 않는다(원칙 1). 값이 있는 동료가 PEER_MIN곳 미만이면 중앙값을 내지 않는다(데이터 부족, 원칙 4).
 const PEER_MIN = 5;
 const METRICS = ["rev_yoy", "om_now", "fcf_yield_3y", "roe"] as const;
 type Metric = typeof METRICS[number];

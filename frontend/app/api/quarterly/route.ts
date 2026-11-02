@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // (docs/SPEC_quarterly_screen.md 4-3). @libsql/client(이 라우트가 쓰는 JS 클라이언트)는
 // 자체적으로 숫자 타입을 돌려주지만, 혹시 문자열이 섞여 와도 깨지지 않도록 여기서
 // 한 번 더 안전하게 변환한다. **null을 0으로 만들면 절대 안 된다** - 0(꺼짐/적음)과
-// null(데이터부족)은 이 화면에서 의미가 다르다.
+// null(데이터 부족)은 이 화면에서 의미가 다르다.
 function toNum(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const n = Number(v);
