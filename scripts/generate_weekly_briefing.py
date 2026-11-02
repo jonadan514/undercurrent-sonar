@@ -887,6 +887,75 @@ def _clean_names(xs) -> list[str]:
     return out
 
 
+# 총평에 넘길 때만 쓰는 8-K 설명 - 화면 이름 '상장 유지 기준 미달·이전'은 짧게 줄인 말이라 GPT가 "기준 미달로 이전"처럼 잘못 이었다(11/2 미리 보기).
+# 3.01은 상장폐지 통보·기준 미달·거래소 이전을 한 항목에 묶으므로 어느 쪽인지 단정하지 않게 쓴다.
+COMMENT_8K = {"3.01": "상장 관련 통지(상장 기준 미달 통보 또는 거래소 이전 - 어느 쪽인지는 공시 본문 확인 필요)"}
+
+# 데이터에 없는 효과를 짐작한 문장(11/2 미리 보기: "기관 순매수가 지수에 긍정적인 영향을 미쳤을 것") - 프롬프트로 막아도 새어 나와 코드로 뺀다
+_SPECULATION_RE = re.compile(r"영향을\s*(미쳤|미친|미칠|줬|준|줄|주었)|(긍정적|부정적|우호적|호재|악재)(인|으로|이다|입니다)?|기여(했|한|할)|덕분|때문")
+
+# 한국어 조사: 받침 있는 말 뒤 / 없는 말 뒤
+_PARTICLES = (("이", "가"), ("은", "는"), ("을", "를"), ("과", "와"))
+
+
+def _has_batchim(ch: str) -> bool | None:
+    o = ord(ch)
+    return (o - 0xAC00) % 28 != 0 if 0xAC00 <= o <= 0xD7A3 else None
+
+
+def fix_names(text: str, names: list[str]) -> str:
+    """GPT가 고유명사 끝 글자를 빠뜨린 것(큐리옥스바이오시스템즈 → …시스템)을 데이터의 이름으로 되돌리고, 뒤 조사를 받침에 맞춘다.
+    본래 이름이 글에 한 번도 없고, 끝 한두 글자만 뺀 꼴(네 글자 이상)이 있을 때만 - 다른 이름의 일부면 건드리지 않는다."""
+    for name in sorted(set(names), key=len, reverse=True):
+        if len(name) < 5 or name in text:
+            continue
+        for cut in (1, 2):
+            short = name[:-cut]
+            if len(short) < 4 or short not in text or any(short in o for o in names if o != name):
+                continue
+            def rep(m: re.Match) -> str:
+                p = m.group(1)
+                b = _has_batchim(name[-1])
+                for with_b, without_b in _PARTICLES:
+                    if b is not None and p in (with_b, without_b):
+                        p = with_b if b else without_b
+                return name + p
+            text = re.sub(re.escape(short) + r"(이|가|은|는|을|를|과|와)?", lambda m: rep(m) if m.group(1) else name, text)
+            break
+    return text
+
+
+def strip_speculation(text: str) -> str:
+    """효과·원인을 짐작한 문장을 뺀다(소제목 줄은 남김). 원칙: 데이터에 없는 사실을 만들지 않는다."""
+    out = []
+    for line in text.split("\n"):
+        if line.startswith("■"):
+            out.append(line)
+            continue
+        parts = re.split(r"(?<=[.!?。다요])\s+", line)
+        out.append(" ".join(p for p in parts if not _SPECULATION_RE.search(p)).strip())
+    return "\n".join(out).strip()
+
+
+def _fact_names(facts: dict) -> list[str]:
+    """사실 묶음에 든 이름(종목·테마) - 'X: …'·'X (…)'·'X - …' 꼴은 앞 이름만."""
+    out = []
+    for k, v in facts.items():
+        if not isinstance(v, list):
+            continue
+        for x in v:
+            if "8-K" in k:   # 'GM 상장 관련 통지(…)' - 앞 티커만
+                out.append(x.split(" ", 1)[0])
+                continue
+            out.append(re.split(r"\s*(?::|\s\(|\(|\s-\s)", x, maxsplit=1)[0].strip())
+    return [n for n in out if n]
+
+
+def polish_comment(text: str, facts: dict) -> str:
+    """GPT 글 뒷손질: 소제목 줄 분리 → 이름 되돌리기 → 짐작 문장 빼기 → 수치 문장 빼기."""
+    return strip_numeric_sentences(strip_speculation(fix_names(split_headings(text), _fact_names(facts))))
+
+
 def split_headings(text: str) -> str:
     """'■ 시장 - 본문…'처럼 소제목 줄에 본문이 붙어 나오면 두 줄로 나눈다 - 화면은 ■ 줄 전체를 소제목으로 그린다."""
     out = []
@@ -941,13 +1010,17 @@ def comment_facts(b: dict) -> dict:
                                 if x.get("operating_income_yoy_turn")][:8],
         "내부자 매수 - 여러 명이 함께 산 종목": [nm(g) for g in (ins.get("items") or []) + (ins.get("discovery") or [])
                                    if g.get("buyers", 0) > 1 and not g.get("all_plan")][:8],
-        "미국 8-K 주의 공시": [f"{x['symbol']} " + ", ".join(i["label"] for i in x["items"] if i.get("warn")) for x in (u8.get("items") or []) if x.get("warn")][:4],
+        "미국 8-K 주의 공시": [f"{x['symbol']} " + ", ".join(COMMENT_8K.get(i.get("item"), i["label"]) for i in x["items"] if i.get("warn"))
+                          for x in (u8.get("items") or []) if x.get("warn")][:4],
         "13F 이번 주 신고 운용사와 신규 매수 상위": [f"{it['name']}: " + ", ".join((p.get("ticker") or p.get("issuer") or "?") for p in it["new"][:3])
                                        for it in (inst.get("items") or [])[:6]],
         "이번 주 실적 발표(관심 종목)": [f"{nm(x)}" for x in (ew.get("items") or []) if x.get("tags")][:6],
     }
     facts = {k: (_clean_names(v) if isinstance(v, list) else v) for k, v in facts.items()}
     return {k: v for k, v in facts.items() if v}
+
+
+_LAST_RAW_COMMENT = [""]
 
 
 def gpt_comment(briefing: dict) -> str:
@@ -980,7 +1053,8 @@ def gpt_comment(briefing: dict) -> str:
 - 목록을 그대로 옮겨 적지 말고 읽히는 문장으로 쓰세요. 한 문장에 이름은 서너 개까지 - 전체 목록은 화면에 따로 있으니 대표만 들고 "등"으로 줄이세요.
 - 테마 라벨은 한글 이름(예: 기대 과열)만 쓰고, 뜻은 자기 말로 풀어 쓰세요. 예) "미국 천연가스·LNG 테마는 뉴스와 주가가 크게 앞서 갔지만 실적은 오히려 나빠져 기대 과열 라벨이 새로 붙었습니다. 같은 주 천연가스 가격도 큰 폭으로 올랐습니다."
 - 문장마다 데이터의 구체적인 이름이나 사실이 하나 이상 들어가야 합니다. "향후 주가에 영향을 미칠 수 있습니다", "주의 깊게 살펴볼 필요가 있습니다", "주목됩니다"처럼 아무 데나 붙는 빈말 문장은 쓰지 마세요.
-- 원인이나 효과(예: "에너지 자산에 긍정적")를 짐작해 덧붙이지 마세요. 데이터끼리의 연결만 쓰세요.
+- 원인이나 효과(예: "에너지 자산에 긍정적", "기관 매수가 지수에 영향")를 짐작해 덧붙이지 마세요. "영향", "긍정적", "부정적", "때문", "덕분" 같은 말은 쓰지 마세요. 데이터끼리 나란히 놓는 것까지만.
+- 공시 설명은 데이터에 적힌 말 그대로 쓰세요(괄호 속 "어느 쪽인지 확인 필요"도 살려서).
 - 종목·테마 이름은 데이터에 적힌 글자 그대로 옮기세요.
 - 마크다운(**, # 등) 없이 평문. 종목·테마 이름은 데이터에 있는 그대로.
 - 숫자(등락률·금액·건수·%)는 절대 쓰지 마세요 - 숫자는 화면에 따로 표시됩니다.
@@ -1002,7 +1076,9 @@ def gpt_comment(briefing: dict) -> str:
             timeout=90,
         )
         resp.raise_for_status()
-        return strip_numeric_sentences(split_headings(resp.json()["choices"][0]["message"]["content"].strip()))
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        _LAST_RAW_COMMENT[0] = raw   # 미리 보기에서 뒷손질 전후를 비교하려고
+        return polish_comment(raw, facts)
     except Exception as e:
         logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
         return ""
@@ -1354,7 +1430,10 @@ def main() -> None:
             return
         b = rows[0]["_data"]
         print("== 넘기는 사실 ==\n" + json.dumps(comment_facts(b), ensure_ascii=False, indent=1))
-        print(f"\n== 총평 ({b.get('week')}) ==\n" + (gpt_comment(b) or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
+        final = gpt_comment(b)
+        if _LAST_RAW_COMMENT[0] and _LAST_RAW_COMMENT[0] != final:
+            print("\n== GPT 원문(뒷손질 전) ==\n" + _LAST_RAW_COMMENT[0])
+        print(f"\n== 총평 ({b.get('week')}) ==\n" + (final or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
         return
 
     now = datetime.now(timezone.utc)

@@ -352,3 +352,28 @@ def test_split_headings():
     # 소제목 줄에 본문이 붙어 나온 경우(11/2 미리 보기) 두 줄로 - 화면은 ■ 줄 전체를 소제목으로 그린다
     txt = "■ 시장 - 지수가 올랐습니다.\n\n■ 공시·내부자: ALB 8-K가 있었습니다.\n■ 테마\n본문 - 그대로."
     assert g.split_headings(txt) == "■ 시장\n지수가 올랐습니다.\n\n■ 공시·내부자\nALB 8-K가 있었습니다.\n■ 테마\n본문 - 그대로."
+
+
+def test_fix_names_restores_dropped_tail_and_particle():
+    # 11/2 미리 보기: '큐리옥스바이오시스템즈'를 '큐리옥스바이오시스템이'로 옮겨 적음 - 이름을 되돌리고 조사도 받침에 맞춘다
+    names = ["큐리옥스바이오시스템즈", "에이치브이엠", "삼성전자", "삼성전자우"]
+    assert g.fix_names("큐리옥스바이오시스템이 계약을 해지했습니다.", names) == "큐리옥스바이오시스템즈가 계약을 해지했습니다."
+    assert g.fix_names("큐리옥스바이오시스템의 후속 공시", names) == "큐리옥스바이오시스템즈의 후속 공시"
+    assert g.fix_names("에이치브이엠은 그대로.", names) == "에이치브이엠은 그대로."       # 이름이 맞으면 손대지 않음
+    assert g.fix_names("삼성전자가 올랐다.", names) == "삼성전자가 올랐다."             # 다른 이름(삼성전자)의 일부면 건드리지 않음
+
+
+def test_strip_speculation_keeps_facts():
+    txt = ("■ 시장\nKOSPI가 큰 폭 상승했습니다. 기관은 큰 폭으로 순매수하여 지수에 긍정적인 영향을 미쳤을 것으로 보입니다. "
+           "금리는 내렸지만 환율은 올라 엇갈린 분위기로 보입니다.")
+    assert g.strip_speculation(txt) == "■ 시장\nKOSPI가 큰 폭 상승했습니다. 금리는 내렸지만 환율은 올라 엇갈린 분위기로 보입니다."
+
+
+def test_comment_8k_listing_wording_and_polish():
+    b = _briefing(us_8k_week={"items": [{"symbol": "GM", "warn": True,
+                                         "items": [{"item": "3.01", "label": "상장 유지 기준 미달·이전", "warn": True}]}]})
+    f = g.comment_facts(b)
+    assert f["미국 8-K 주의 공시"] == ["GM 상장 관련 통지(상장 기준 미달 통보 또는 거래소 이전 - 어느 쪽인지는 공시 본문 확인 필요)"]
+    assert "GM" in g._fact_names(f)
+    out = g.polish_comment("■ 공시·내부자 - GM이 상장 관련 통지를 냈습니다. 이는 주가에 부정적일 수 있습니다.", f)
+    assert out == "■ 공시·내부자\nGM이 상장 관련 통지를 냈습니다."
