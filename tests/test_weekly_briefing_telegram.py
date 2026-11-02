@@ -307,7 +307,7 @@ def test_inst_13f_week_items_and_my_stocks_and_telegram():
 
 
 def test_telegram_group_order_and_empty_groups_dropped():
-    # 2026-11-02: 웹 브리핑과 같은 순서(종목 변화 → 테마 → 시장 → 일정 → 공시·내부자), 빈 묶음은 머리째 뺀다
+    # 2026-11-02: 웹 브리핑과 같은 순서(시장 → 종목 변화 → 테마 → 일정 → 공시·내부자), 빈 묶음은 머리째 뺀다
     text = g.build_telegram_summary(_briefing())
     heads = [l for l in text.split("\n") if l.startswith("━━")]
     assert heads == ["━━ 🌐 시장 ━━", "━━ 🔖 종목 변화 ━━", "━━ 📡 테마 ━━"]   # 일정·공시가 없는 주는 머리 없음
@@ -333,3 +333,15 @@ def test_comment_facts_have_no_raw_numbers():
     facts = g.comment_facts(b)
     assert facts["시장"]["미 10년물 금리 1주"] == "큰 폭 하락" and facts["시장"]["KOSPI 외국인 5거래일"] == "큰 폭 순매수"
     assert not re.search(r"\d+(\.\d+)?\s*(%|억|조|원)", json.dumps(facts, ensure_ascii=False))
+
+
+def test_comment_facts_label_meaning_and_clean_names():
+    # 2026-11-02 미리 보기: 라벨 뜻을 GPT가 짐작해 틀리게 풀었다(숨은 강세='주목받는') - 뜻을 같이 넘긴다. 이름 끝 쉼표·중복도 정리
+    b = _briefing(theme_labels={"new_labels": [{"theme_id": "x", "label": "Quiet Strength", "market": "KR"}], "dropped_labels": []},
+                  watchlist={"has_prev": True, "added": [{"name": "MSC Industrial Direct Company, "}], "removed": []},
+                  kr_disclosures={"contract": {"items": [{"name": "에이치브이엠", "pct": 20}, {"name": "에이치브이엠", "pct": 15}]}})
+    facts = g.comment_facts(b)
+    assert facts["새로 붙은 테마 라벨"][0].endswith("(한국) - Hidden Strength · 숨은 강세")
+    assert "시장이 덜 본" in facts["테마 라벨 뜻"]["Hidden Strength · 숨은 강세"]
+    assert facts["워치리스트 새로 들어온 종목"] == ["MSC Industrial Direct Company"]
+    assert facts["한국 공시 - 매출 대비 큰 공급계약(10% 이상)"] == ["에이치브이엠"]
