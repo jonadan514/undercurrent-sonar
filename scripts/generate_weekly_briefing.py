@@ -1097,8 +1097,9 @@ def gpt_comment(briefing: dict) -> str:
 JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next": "..."}}, ...]}}
 - market: 시장 분위기 한두 문장. 지수·금리·환율·수급 중 서로 엇갈리거나 같은 방향인 것을 짚기. "~로 보입니다" 정도로.
 - points: 짚을 점과 같은 순서·같은 개수.
-  body: 두세 문장. 그 점의 사실들이 서로 어떻게 맞물리는지 - 같은 방향인지, 엇갈리는지, 내 기대(관찰 노트)와 맞았는지. 소속 종목이 있으면 이름을 들어서.
-  next: 이어서 확인할 것 한 가지를 짧은 명사구로(예: "다음 분기 영업이익이 관심도를 따라가는지", "다음 주에도 라벨이 유지되는지").
+  body: 두세 문장. 그 점의 사실들이 서로 어떻게 맞물리는지 - 같은 방향인지, 엇갈리는지, 내 기대(관찰 노트)와 맞았는지.
+    라벨은 이름만 대지 말고 뜻을 풀어서(예: 숨은 강세 = 실적은 좋아졌는데 뉴스·주가는 아직 조용). 소속 종목이 있으면 이름을 들어서.
+  next: 이어서 확인할 것 한 가지를 짧은 명사구로. 그 점의 사실에서 나온 것이어야 하고, 점마다 서로 달라야 합니다(같은 문구 반복 금지).
 - 제목은 쓰지 마세요(코드가 붙입니다). 늘고 줄어든 것은 사실에 적힌 말(늘어남·줄어듦·크게) 그대로 쓰고, 좋다·나쁘다로 바꾸지 마세요.
 - 사실에 없는 원인·효과·전망은 쓰지 마세요("영향", "때문", "덕분", "이로 인해", "긍정적", "부정적" 금지).
 - 숫자(%·금액·건수)는 쓰지 마세요. 이름은 적힌 글자 그대로. 매수·매도 권유 금지."""
@@ -1478,11 +1479,13 @@ def main() -> None:
         print(f"\n== 총평 ({b.get('week')}) ==\n" + (final or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
         if final:
             b["gpt_comment"] = final
-        print("\n== 텔레그램(지금 코드의 순서) ==\n" + build_telegram_summary(b))
+        if os.environ.get("PREVIEW_TELEGRAM"):
+            print("\n== 텔레그램(지금 코드의 순서) ==\n" + build_telegram_summary(b))
         # 웹 화면 미리 보기용 - 새 총평을 넣은 브리핑 한 주치(사이트 /api/briefing이 주는 것과 같은 내용). 저장은 하지 않는다.
         import base64
         import gzip
-        print("\n== PAYLOAD_B64 ==\n" + base64.b64encode(gzip.compress(json.dumps(b, ensure_ascii=False).encode())).decode())
+        if os.environ.get("PREVIEW_PAYLOAD"):   # 로그가 길어져서 필요할 때만
+            print("\n== PAYLOAD_B64 ==\n" + base64.b64encode(gzip.compress(json.dumps(b, ensure_ascii=False).encode())).decode())
         return
 
     now = datetime.now(timezone.utc)
