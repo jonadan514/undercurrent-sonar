@@ -107,7 +107,7 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
         style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}
         title="고른 운용사 15곳이 각자 가장 최근 분기에 신규·추가 매수한 종목 중 2곳 이상이 함께 산 것. 45일 늦은 사실이고 매수 신호가 아닙니다.">
         <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>
-          유명 투자자 13F · 여러 곳이 함께 산 종목{inst ? ` · ${quarterLabel(inst.period)} 말` : ""}
+          유명 투자자 13F · 여러 곳이 함께 산 종목{inst ? ` · 📄 ${quarterLabel(inst.period)} 보유 · ${inst.filed ? `${inst.filed.slice(0, 4)}.${Number(inst.filed.slice(5, 7))}.${Number(inst.filed.slice(8, 10))} 신고` : ""}` : ""}
         </p>
         {!inst ? <p className="text-[13px] mt-1" style={{ color: "var(--text-faint)" }}>아직 없음</p>
           : inst.shared.length === 0 ? <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>2곳 이상이 함께 산 종목 없음</p> : (

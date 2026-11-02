@@ -21,6 +21,25 @@ type Data = { managers: Manager[]; shared: Shared[]; conviction?: Conviction[]; 
 
 const pct = (v: number | null | undefined, d = 1) => (v == null ? "-" : `${(v * 100).toFixed(d)}%`);
 const md = (d: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "-");
+const ymd = (d: string) => (d ? `${d.slice(0, 4)}.${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}` : "-");   // 2026.8.14
+const daysAgo = (d: string) => (d ? Math.max(0, Math.round((Date.now() - Date.parse(`${d.slice(0, 10)}T00:00:00Z`)) / 86_400_000)) : null);
+
+// 보고서 날짜(2026-11-02, 사용자 요청: 최근 보고서가 언제인지 더 분명하게) - 어느 분기 말 보유인지와 언제 신고했는지를 한 덩어리로.
+// 다른 운용사보다 한 분기 이전 보고서면(아직 새 분기 신고 전) 주황 '이전 분기'를 붙인다 - 함께 산 종목에 분기가 섞일 때 알아보게.
+function ReportDate({ period, filed, stale }: { period: string; filed: string; stale?: boolean }) {
+  const ago = daysAgo(filed);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] whitespace-nowrap"
+      style={{ background: "var(--bg-inset)", border: `1px solid ${stale ? "#fb923c66" : "var(--border-ctrl)"}` }}>
+      <span aria-hidden>📄</span>
+      <b style={{ color: "var(--text-primary)" }}>{quarterLabel(period)} 보유</b>
+      <span style={{ color: "var(--text-muted)" }}>({md(period)} 기준)</span>
+      <span style={{ color: "var(--text-faint)" }}>·</span>
+      <span style={{ color: "var(--text-secondary)" }}>{ymd(filed)} 신고{ago != null ? ` · ${ago}일 전` : ""}</span>
+      {stale && <b style={{ color: "#fb923c" }}>이전 분기</b>}
+    </span>
+  );
+}
 
 function Finance({ s }: { s?: Screen[string] }) {
   const [label, color] = !s ? ["재무 미확인", "var(--text-muted)"]
@@ -132,15 +151,16 @@ function StyleGroup({ s, count, children }: { s: InvestorStyle; count: number; c
   );
 }
 
-function ManagerCard({ m, screening }: { m: Manager; screening: Screen }) {
+function ManagerCard({ m, screening, latestPeriod }: { m: Manager; screening: Screen; latestPeriod: string }) {
   const meta = INVESTOR_BY_ID[m.id];
   const [more, setMore] = useState(false);
   return (
     <Section title={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">{meta?.ko ?? m.id}
         {meta?.person && <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{meta.person}</span>}
         <StyleChip s={meta?.style} /></span>}
-      sub={<>{meta?.en} · <b style={{ color: "var(--text-secondary)" }}>{quarterLabel(m.period)}</b> 말 기준 · {md(m.filed_on)} 신고 · 보유 {m.positions}종목 · {usd(m.value_total)}</>}
+      sub={<>{meta?.en} · 보유 {m.positions}종목 · {usd(m.value_total)}</>}
       right={m.compared && <span style={{ color: "var(--text-muted)" }}>신규 {m.counts.new} · 추가 {m.counts.added} · 일부 매도 {m.counts.reduced} · 전량 매도 {m.counts.sold}</span>}>
+      <div className="mb-2"><ReportDate period={m.period} filed={m.filed_on} stale={!!latestPeriod && m.period < latestPeriod} /></div>
       <HoldingsBar items={m.top_holdings} total={m.positions} />
       {!m.compared ? (
         <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>직전 분기 신고가 없어 비교하지 않습니다.</p>
@@ -179,6 +199,7 @@ export default function InvestorsPage() {
 
   const latestFiled = useMemo(() => (d?.managers ?? []).reduce((m, x) => (x.filed_on > m ? x.filed_on : m), ""), [d]);
   const latestPeriod = useMemo(() => (d?.managers ?? []).reduce((m, x) => (x.period > m ? x.period : m), ""), [d]);
+  const staleCount = (d?.managers ?? []).filter((m) => latestPeriod && m.period < latestPeriod).length;
   const newTotal = (d?.managers ?? []).reduce((n, m) => n + m.counts.new, 0);
   const byStyle = (s: InvestorStyle) => (d?.managers ?? []).filter((m) => INVESTOR_BY_ID[m.id]?.style === s)
     .sort((a, b) => Object.keys(INVESTOR_BY_ID).indexOf(a.id) - Object.keys(INVESTOR_BY_ID).indexOf(b.id));
@@ -186,7 +207,7 @@ export default function InvestorsPage() {
   return (
     <div className="space-y-3">
       <PageHeader title="유명 투자자 13F" intro="investors"
-        asOf={latestFiled && <span className="text-[12px]" style={{ color: "var(--text-faint)" }}>최근 신고 {latestFiled} · 분기마다 갱신</span>}
+        asOf={latestFiled && <span className="text-[12.5px] font-semibold" style={{ color: "var(--text-secondary)" }}>📄 최근 신고 {ymd(latestFiled)}{daysAgo(latestFiled) != null ? ` (${daysAgo(latestFiled)}일 전)` : ""} · 분기마다 갱신</span>}
         desc="직접 고른 운용사 15곳이 분기 말 무엇을 새로 사고 다 팔았는지(SEC 13F). 45일 늦은 매수 보유 사실 - 매수 신호가 아닙니다." />
 
       {err ? <EmptyState title="불러오지 못했습니다" /> : !d ? (
@@ -197,7 +218,9 @@ export default function InvestorsPage() {
         <>
           <StatGrid cols={4}>
             <StatTile label="추적 운용사" value={d.managers.length} sub="투자 스타일 5가지로 묶음" href="#styles" />
-            <StatTile label="최근 분기" value={quarterLabel(latestPeriod)} sub={`분기 말 기준 · ${md(latestFiled)} 신고까지`} />
+            <StatTile label="최근 보고서" value={quarterLabel(latestPeriod)}
+              sub={`${md(latestPeriod)} 보유 기준 · ${ymd(latestFiled)} 신고${staleCount ? ` · 이전 분기 ${staleCount}곳` : ""}`}
+              hint="13F는 분기 말 보유를 45일 안에 신고합니다. 운용사마다 신고일이 달라, 새 분기 신고 전인 곳은 '이전 분기'로 표시합니다." />
             <StatTile label="2곳 이상이 함께 산 종목" value={d.shared.length} emphasis={d.shared.length ? "accent" : undefined} sub="신규·추가 매수" href="#shared" />
             <StatTile label="확신 매수" value={(d.conviction ?? []).length} href="#conviction"
               sub={`신규 매수 중 비중 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상`} hint={`신규 매수 전체(운용사별 합) ${newTotal}`} />
@@ -261,7 +284,7 @@ export default function InvestorsPage() {
           </div>
           {STYLE_ORDER.map((s) => (
             <StyleGroup key={s} s={s} count={byStyle(s).length}>
-              {byStyle(s).map((m) => <ManagerCard key={m.id} m={m} screening={d.screening} />)}
+              {byStyle(s).map((m) => <ManagerCard key={m.id} m={m} screening={d.screening} latestPeriod={latestPeriod} />)}
             </StyleGroup>
           ))}
 
