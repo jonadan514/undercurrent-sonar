@@ -897,7 +897,8 @@ def split_headings(text: str) -> str:
 
 
 def comment_facts(b: dict) -> dict:
-    """GPT에 넘길 사실 묶음 - 이름·종류·말로 바꾼 크기만(숫자 없음). 빈 칸은 빼서 쓸 거리가 없는 문단을 만들지 않게."""
+    """GPT에 넘길 사실 묶음 - 이름·종류·말로 바꾼 크기만(숫자 없음). 빈 칸은 빼서 쓸 거리가 없는 문단을 만들지 않게.
+    목록은 대표만 몇 개 - 다 넘기면 GPT가 문장 대신 목록을 그대로 옮겨 적는다(전체 목록은 화면 각 칸에 있다)."""
     mc = b.get("macro") or {}
     names = load_theme_names()
     macro_ko = {"us10y": "미 10년물 금리", "real10y": "미 실질금리", "hy_spread": "하이일드 스프레드", "kr3y": "국고채 3년",
@@ -930,8 +931,8 @@ def comment_facts(b: dict) -> dict:
         "내 관심 종목에 생긴 일": [f"{nm(x)}: " + ", ".join(e["kind"] for e in x["events"]) for x in (my.get("items") or [])[:8]],
         "워치리스트 새로 들어온 종목": [nm(a) for a in (wl.get("added") or [])[:10]] if wl.get("has_prev") else [],
         "워치리스트에서 빠진 종목": [nm(a) for a in (wl.get("removed") or [])[:10]] if wl.get("has_prev") else [],
-        "실적 반전(3년 정체·역성장인데 최근 성장) 새로 들어온 종목": [nm(a) for a in (ta.get("added") or [])[:8]],
-        "관심도 상승 종목": [f"{nm(h)} ({h['path']})" for h in (b.get("sentiment_heating") or [])[:8]],
+        "실적 반전(3년 정체·역성장인데 최근 성장) 새로 들어온 종목": [nm(a) for a in (ta.get("added") or [])[:5]],
+        "관심도 상승 종목": [f"{nm(h)} ({h['path']})" for h in (b.get("sentiment_heating") or [])[:5]],
         "새로 붙은 테마 라벨": [lab(t) for t in (tl.get("new_labels") or [])[:8]],
         "사라진 테마 라벨": [lab(t) for t in (tl.get("dropped_labels") or [])[:8]],
         "한국 공시 - 계약 해지": [nm(x) for x in ((kd.get("termination") or {}).get("items") or [])[:5]],
@@ -940,10 +941,10 @@ def comment_facts(b: dict) -> dict:
                                 if x.get("operating_income_yoy_turn")][:8],
         "내부자 매수 - 여러 명이 함께 산 종목": [nm(g) for g in (ins.get("items") or []) + (ins.get("discovery") or [])
                                    if g.get("buyers", 0) > 1 and not g.get("all_plan")][:8],
-        "미국 8-K 주의 공시": [f"{x['symbol']} " + ", ".join(i["label"] for i in x["items"] if i.get("warn")) for x in (u8.get("items") or []) if x.get("warn")][:6],
+        "미국 8-K 주의 공시": [f"{x['symbol']} " + ", ".join(i["label"] for i in x["items"] if i.get("warn")) for x in (u8.get("items") or []) if x.get("warn")][:4],
         "13F 이번 주 신고 운용사와 신규 매수 상위": [f"{it['name']}: " + ", ".join((p.get("ticker") or p.get("issuer") or "?") for p in it["new"][:3])
                                        for it in (inst.get("items") or [])[:6]],
-        "이번 주 실적 발표(관심 종목)": [f"{nm(x)}" for x in (ew.get("items") or []) if x.get("tags")][:10],
+        "이번 주 실적 발표(관심 종목)": [f"{nm(x)}" for x in (ew.get("items") or []) if x.get("tags")][:6],
     }
     facts = {k: (_clean_names(v) if isinstance(v, list) else v) for k, v in facts.items()}
     return {k: v for k, v in facts.items() if v}
