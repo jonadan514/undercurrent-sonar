@@ -92,3 +92,13 @@ def test_assemble_comment_titles_fallback_and_cleanup():
                    "■ 한미사이언스 · 신호가 엇갈림\n한미사이언스는 관심이 올랐지만 영업이익은 크게 줄었습니다.\n"
                    "→ 이어서 볼 것: 다음 분기 영업이익이 관심도를 따라가는지\n\n"
                    "■ 천연가스·LNG 테마\n미국: '기대 과열' 라벨이 새로 붙음.")   # 본문이 모자라면 사실을 그대로 잇는다
+
+
+def test_label_meaning_attached_and_markets_differ():
+    # 11/2 미리 보기: 미국 동반 상승·한국 숨은 강세를 GPT가 "두 시장 모두 주가가 올랐다"로 섞었다 - 뜻을 시장별 문장에 붙이고 차이를 적는다
+    b = _b(theme_labels={"new_labels": [{"theme_id": "petro", "label": "Full Alignment", "market": "US"},
+                                        {"theme_id": "petro", "label": "Quiet Strength", "market": "KR"}]})
+    p = bp.find_points(b, {"petro": "석유화학"}, {}, set())[0]
+    assert p["facts"][:3] == ["미국: '동반 상승' 라벨이 새로 붙음 - 뉴스·실적·주가가 모두 오름",
+                              "한국: '숨은 강세' 라벨이 새로 붙음 - 실적은 크게 좋아졌는데 뉴스는 조용하고 주가도 아직 그대로",
+                              "같은 테마인데 미국과 한국의 라벨이 다름 - 두 시장을 따로 봐야 함"]

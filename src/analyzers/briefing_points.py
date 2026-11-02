@@ -21,6 +21,14 @@ MACRO_THEME = {"lng_gas": ("natgas", "천연가스 가격"), "copper_metals": ("
 
 LABEL_KO = {"Early Buzz": "뉴스 선행", "Full Alignment": "동반 상승", "Quiet Strength": "숨은 강세",
             "Overheated Buzz": "기대 과열", "Full Decline": "동반 하락", "Quiet Recovery": "숨은 회복"}
+# 라벨 뜻(theme_labels._RULES의 뉴스·실적·주가 조합) - 사실 문장에 바로 붙인다. 따로 넘기면 GPT가 두 시장 라벨을 섞어 풀었다
+# (11/2 미리 보기: 미국 '동반 상승'·한국 '숨은 강세'를 "두 시장 모두 실적과 주가가 함께 올랐다"로)
+LABEL_MEANING = {"Early Buzz": "뉴스와 주가는 올랐는데 실적은 아직 그대로",
+                 "Full Alignment": "뉴스·실적·주가가 모두 오름",
+                 "Quiet Strength": "실적은 크게 좋아졌는데 뉴스는 조용하고 주가도 아직 그대로",
+                 "Overheated Buzz": "뉴스와 주가는 크게 올랐는데 실적은 나빠짐",
+                 "Full Decline": "뉴스·실적·주가가 모두 내림",
+                 "Quiet Recovery": "뉴스와 주가는 내렸는데 실적은 좋아짐"}
 MARKET_KO = {"US": "미국", "KR": "한국"}
 EXPECT_KO = {"news_up": "뉴스가 늘 것", "news_down": "뉴스가 줄 것", "earn_up": "실적이 좋아질 것", "earn_down": "실적이 나빠질 것",
              "price_up": "주가가 오를 것", "price_down": "주가가 내릴 것", "earn_hold": "실적 개선이 이어질 것"}
@@ -143,9 +151,12 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
         return e
 
     for t in tl.get("new_labels") or []:
-        entry(t["theme_id"], t.get("market"))["labels"].append(f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 새로 붙음")
+        mean = LABEL_MEANING.get(t["label"])
+        entry(t["theme_id"], t.get("market"))["labels"].append(
+            f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 새로 붙음" + (f" - {mean}" if mean else ""))
     for t in tl.get("dropped_labels") or []:
-        entry(t["theme_id"], t.get("market"))["labels"].append(f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 떨어짐")
+        entry(t["theme_id"], t.get("market"))["labels"].append(
+            f"{MARKET_KO.get(t.get('market'), '')}: '{LABEL_KO.get(t['label'], t['label'])}' 라벨이 떨어짐(그 조합이 더는 아님)")
     for rv in b.get("observation_reviews") or []:
         if rv.get("kind") != "theme" or not rv.get("theme_id"):
             continue
@@ -168,6 +179,8 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
                 if s and s["signals"]:
                     e["members"].append(f"{s['name']}: " + ", ".join(t for _, _, t in s["signals"]))
         name = theme_names.get(tid, tid)
+        if len({l.split(":")[0] for l in e["labels"] if "새로 붙음" in l}) > 1:
+            e["labels"].append("같은 테마인데 미국과 한국의 라벨이 다름 - 두 시장을 따로 봐야 함")
         facts = e["labels"] + e["reviews"] + ([e["macro"]] if e["macro"] else []) + \
             ([f"소속 종목 중 이번 주 신호: " + " / ".join(e["members"][:3])] if e["members"] else [])
         linked = bool(e["labels"] or e["macro"])
