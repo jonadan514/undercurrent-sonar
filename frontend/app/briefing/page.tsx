@@ -13,6 +13,7 @@ import EmptyState from "@/src/components/EmptyState";
 import { ObservationForm } from "@/src/components/Observation";
 import { GroupTitle, Section } from "@/src/components/Section";
 import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
+import { STYLE_META, type InvestorStyle } from "@/src/lib/institutions";
 
 interface StockRef {
   market: string;
@@ -610,8 +611,12 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     <div key={`${it.manager_id}-${it.period}`}>
                       <p className="text-[13px] mb-1">
                         <span className="font-bold text-white">{it.name}</span>
+                        {it.style && STYLE_META[it.style as InvestorStyle] && (
+                          <span className="ml-1.5 text-[12px] font-semibold" style={{ color: STYLE_META[it.style as InvestorStyle].color }}>
+                            {STYLE_META[it.style as InvestorStyle].emoji} {it.style}</span>
+                        )}
                         <span className="ml-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
-                          {it.style ? `${it.style} · ` : ""}{qLabel(it.period)} 말 · {it.filed.slice(5).replace("-", "/")} 신고
+                          {qLabel(it.period)} 말 · {it.filed.slice(5).replace("-", "/")} 신고
                           {it.compared && ` · 신규 ${it.counts.new} · 추가 ${it.counts.added} · 일부 매도 ${it.counts.reduced} · 전량 매도 ${it.counts.sold}`}
                         </span>
                       </p>

@@ -14,7 +14,7 @@ import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import { StatGrid, StatTile } from "@/src/components/Section";
-import { INVESTOR_BY_ID, quarterLabel as q13f, usd } from "@/src/lib/institutions";
+import { INVESTOR_BY_ID, STYLE_META, investorFull, quarterLabel as q13f, usd } from "@/src/lib/institutions";
 
 interface Candidate {
   market: string;
@@ -662,8 +662,8 @@ function InstitutionSection({ c }: { c: Candidate }) {
           const col = h.status === "new" || h.status === "added" ? GOOD : h.status === "sold" || h.status === "reduced" ? BAD : TEXT_SECONDARY;
           return (
             <p key={h.manager_id} className="text-[12px] flex flex-wrap gap-x-2" style={{ fontVariantNumeric: "tabular-nums" }}>
-              <span className="text-white">{meta?.ko ?? h.manager_id}</span>
-              <span style={{ color: TEXT_MUTED }}>{meta?.style}</span>
+              <span className="text-white">{investorFull(meta) || h.manager_id}</span>
+              {meta && <span style={{ color: STYLE_META[meta.style].color }}>{STYLE_META[meta.style].emoji} {meta.style}</span>}
               <span style={{ color: col }}>{h.status ? STATUS_KO[h.status] ?? h.status : "비교 없음"}
                 {(h.status === "added" || h.status === "reduced") && h.share_chg != null ? ` ${h.share_chg >= 0 ? "+" : ""}${(h.share_chg * 100).toFixed(0)}%` : ""}</span>
               <span>{h.status === "sold" ? `직전 ${usd(h.prev_value)}` : usd(h.value)}</span>

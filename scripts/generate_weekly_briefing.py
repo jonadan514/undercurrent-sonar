@@ -620,7 +620,8 @@ def inst_13f_week_items(filings: list[dict], rows: list[dict], meta: dict[str, d
         new = sorted((row(r) for r in mine if r["status"] == "new"), key=lambda x: -(x["value"] or 0))
         sold = sorted((row(r) for r in mine if r["status"] == "sold"), key=lambda x: -(x["prev_value"] or 0))
         counts = {k: sum(1 for r in mine if r["status"] == k) for k in ("new", "added", "reduced", "sold")}
-        items.append({"manager_id": f["manager_id"], "name": m.get("ko", f["manager_id"]), "style": m.get("style"),
+        full = f"{m['ko']} · {m['person']}" if m.get("ko") and m.get("person") else m.get("ko", f["manager_id"])   # 운용사 · 대표 인물(2026-11-02)
+        items.append({"manager_id": f["manager_id"], "name": full, "style": m.get("style"),
                       "period": f["period"], "filed": f["filed"], "counts": counts, "compared": any(r["status"] for r in mine),
                       "new": new[:INST_WEB_MAX], "sold": sold[:INST_WEB_MAX]})
         for r in mine:

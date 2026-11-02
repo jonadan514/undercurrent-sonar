@@ -5,8 +5,8 @@ import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import Note from "@/src/components/Note";
 import StockLink from "@/src/components/StockLink";
-import { GroupTitle, Section, StatGrid, StatTile } from "@/src/components/Section";
-import { INVESTOR_BY_ID, STYLE_NOTE, STYLE_ORDER, quarterLabel, usd, type InvestorStyle } from "@/src/lib/institutions";
+import { Section, StatGrid, StatTile } from "@/src/components/Section";
+import { INVESTOR_BY_ID, STYLE_META, STYLE_NOTE, STYLE_ORDER, investorFull, quarterLabel, usd, type InvestorStyle } from "@/src/lib/institutions";
 
 // 유명 투자자 13F(2026-10-25) - 사용자가 고른 운용사 15곳의 분기 말 보유와 직전 분기 비교(새로·늘림·줄임·다 팖).
 // 45일 늦은 매수 보유 사실일 뿐 신호·점수가 아니다(원칙 1). 재무 판정은 재무 필터 3분류 그대로(원칙 4).
@@ -102,11 +102,43 @@ function HoldingsBar({ items, total }: { items: Pos[]; total: number }) {
   );
 }
 
+// 투자 스타일 배지(2026-11-02, 사용자 요청: 분류가 눈에 잘 안 띈다) - 색은 구분용, 좋고 나쁨이 아니다
+function StyleChip({ s, size = "sm" }: { s?: InvestorStyle; size?: "sm" | "md" }) {
+  if (!s) return null;
+  const { emoji, color } = STYLE_META[s];
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full font-semibold ${size === "md" ? "px-2.5 py-0.5 text-[12.5px]" : "px-2 text-[11px]"}`}
+      style={{ background: color + "1a", border: `1px solid ${color}55`, color }}>
+      <span aria-hidden>{emoji}</span>{s}
+    </span>
+  );
+}
+
+// 스타일 묶음 머리 - 예전엔 회색 작은 글씨 한 줄(GroupTitle)이라 묶음이 바뀌는 게 안 보였다
+function StyleGroup({ s, count, children }: { s: InvestorStyle; count: number; children: React.ReactNode }) {
+  if (count === 0) return null;
+  const { emoji, color } = STYLE_META[s];
+  return (
+    <div id={`style-${STYLE_ORDER.indexOf(s)}`} className="space-y-2 scroll-mt-4">
+      <div className="mt-4 rounded-lg px-3 py-2.5" style={{ background: color + "10", borderLeft: `4px solid ${color}` }}>
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-[16px] font-extrabold" style={{ color }}>{emoji} {s}</span>
+          <span className="text-[13px] font-bold" style={{ color: "var(--text-secondary)" }}>{count}곳</span>
+        </p>
+        <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{STYLE_NOTE[s]}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function ManagerCard({ m, screening }: { m: Manager; screening: Screen }) {
   const meta = INVESTOR_BY_ID[m.id];
   const [more, setMore] = useState(false);
   return (
-    <Section title={meta?.ko ?? m.id}
+    <Section title={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">{meta?.ko ?? m.id}
+        {meta?.person && <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{meta.person}</span>}
+        <StyleChip s={meta?.style} /></span>}
       sub={<>{meta?.en} · <b style={{ color: "var(--text-secondary)" }}>{quarterLabel(m.period)}</b> 말 기준 · {md(m.filed_on)} 신고 · 보유 {m.positions}종목 · {usd(m.value_total)}</>}
       right={m.compared && <span style={{ color: "var(--text-muted)" }}>신규 {m.counts.new} · 추가 {m.counts.added} · 일부 매도 {m.counts.reduced} · 전량 매도 {m.counts.sold}</span>}>
       <HoldingsBar items={m.top_holdings} total={m.positions} />
@@ -164,7 +196,7 @@ export default function InvestorsPage() {
       ) : (
         <>
           <StatGrid cols={4}>
-            <StatTile label="추적 운용사" value={d.managers.length} sub="스타일별 아래 묶음" />
+            <StatTile label="추적 운용사" value={d.managers.length} sub="투자 스타일 5가지로 묶음" href="#styles" />
             <StatTile label="최근 분기" value={quarterLabel(latestPeriod)} sub={`분기 말 기준 · ${md(latestFiled)} 신고까지`} />
             <StatTile label="2곳 이상이 함께 산 종목" value={d.shared.length} emphasis={d.shared.length ? "accent" : undefined} sub="신규·추가 매수" href="#shared" />
             <StatTile label="확신 매수" value={(d.conviction ?? []).length} href="#conviction"
@@ -185,7 +217,7 @@ export default function InvestorsPage() {
                       <span key={b.manager_id} className="px-1.5 rounded whitespace-nowrap"
                         style={{ background: b.status === "new" ? "#4ade8014" : "transparent", border: `1px solid ${b.status === "new" ? "#4ade8044" : "var(--border)"}`,
                           color: b.status === "new" ? "#4ade80" : "var(--text-secondary)" }}>
-                        {INVESTOR_BY_ID[b.manager_id]?.ko.split(" (")[0] ?? b.manager_id} {b.status === "new" ? "신규" : "추가"}
+                        {INVESTOR_BY_ID[b.manager_id]?.ko ?? b.manager_id} {b.status === "new" ? "신규" : "추가"}
                       </span>
                     ))}
                     <Finance s={d.screening[t.ticker]} />
@@ -208,8 +240,9 @@ export default function InvestorsPage() {
                     {x.ticker && <span className="truncate max-w-[10rem]" style={{ color: "var(--text-muted)" }}>{x.issuer}</span>}
                     <span className="font-bold" style={{ color: "#ffb020" }}>비중 {pct(x.weight)}</span>
                     <span className="text-white">{usd(x.value)}</span>
-                    <span style={{ color: "var(--text-secondary)" }}>{INVESTOR_BY_ID[x.manager_id]?.ko.split(" (")[0] ?? x.manager_id}
-                      <span style={{ color: "var(--text-faint)" }}> · {INVESTOR_BY_ID[x.manager_id]?.style} · {quarterLabel(x.period)}</span></span>
+                    <span style={{ color: "var(--text-secondary)" }}>{investorFull(INVESTOR_BY_ID[x.manager_id]) || x.manager_id}
+                      <span style={{ color: "var(--text-faint)" }}> · {quarterLabel(x.period)}</span></span>
+                    <StyleChip s={INVESTOR_BY_ID[x.manager_id]?.style} />
                     {x.ticker && <Finance s={d.screening[x.ticker]} />}
                   </div>
                 ))}
@@ -217,10 +250,19 @@ export default function InvestorsPage() {
             )}
           </Section>
 
+          {/* 스타일 바로 가기 - 누르면 그 묶음으로 */}
+          <div id="styles" className="flex flex-wrap items-center gap-1.5 pt-2 scroll-mt-4">
+            <span className="text-[12px] mr-1" style={{ color: "var(--text-muted)" }}>투자 스타일</span>
+            {STYLE_ORDER.filter((s) => byStyle(s).length > 0).map((s) => (
+              <a key={s} href={`#style-${STYLE_ORDER.indexOf(s)}`} className="hover:brightness-125" title={STYLE_NOTE[s]}>
+                <StyleChip s={s} size="md" /> <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{byStyle(s).length}</span>
+              </a>
+            ))}
+          </div>
           {STYLE_ORDER.map((s) => (
-            <GroupTitle key={s} title={`${s} — ${STYLE_NOTE[s]}`}>
+            <StyleGroup key={s} s={s} count={byStyle(s).length}>
               {byStyle(s).map((m) => <ManagerCard key={m.id} m={m} screening={d.screening} />)}
-            </GroupTitle>
+            </StyleGroup>
           ))}
 
           <Note label="읽는 법·한계">
