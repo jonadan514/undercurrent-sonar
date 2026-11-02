@@ -367,6 +367,7 @@ def test_strip_speculation_keeps_facts():
     txt = ("■ 시장\nKOSPI가 큰 폭 상승했습니다. 기관은 큰 폭으로 순매수하여 지수에 긍정적인 영향을 미쳤을 것으로 보입니다. "
            "금리는 내렸지만 환율은 올라 엇갈린 분위기로 보입니다.")
     assert g.strip_speculation(txt) == "■ 시장\nKOSPI가 큰 폭 상승했습니다. 금리는 내렸지만 환율은 올라 엇갈린 분위기로 보입니다."
+    assert g.strip_speculation("■ 시장\n기관은 큰 폭 순매수하며 지수를 끌어올렸습니다. 환율은 올랐습니다.") == "■ 시장\n환율은 올랐습니다."
 
 
 def test_comment_8k_listing_wording_and_polish():
