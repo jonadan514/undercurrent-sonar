@@ -27,6 +27,7 @@ jobs:
         env:
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
           TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
           PYTHONUNBUFFERED: "1"
           MANAGERS: ${{ inputs.managers }}
         run: python scripts/report_13f.py ${MANAGERS:+--managers $MANAGERS}

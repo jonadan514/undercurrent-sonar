@@ -47,9 +47,35 @@ def latest_quarter_status(conn, managers: list[str] | None) -> None:
               f"새로 {len(news):3d} (비중 3%+ {sum(1 for w in news if w >= 0.03)})")
     if tot_held:
         print(f"  합계: 보유 {tot_held} · 티커 없음 {tot_unm} ({tot_unm / tot_held * 100:.1f}%, 평가액 {tot_unm_val / tot_val * 100 if tot_val else 0:.1f}%)")
+    unmapped_top(conn)
     if new_w:
         print("  새로 산 종목 비중 분포: " + ", ".join(f"{t * 100:g}%+ {sum(1 for w in new_w if w >= t)}" for t in (0.005, 0.01, 0.02, 0.03, 0.05, 0.1))
               + f" (전체 {len(new_w)})")
+
+
+def unmapped_top(conn, n: int = 20) -> None:
+    """가장 최근 분기에 보유 중인데 티커가 없는 종목(평가액 순) - OpenFIGI 응답·SEC 회사명 맞추기가 왜 안 됐는지 보려고(2026-11-02).
+    SEC 목록은 SEC_USER_AGENT가 있을 때만 본다."""
+    import os
+    from src.collectors.sec_13f import is_debt, norm_issuer
+    rows = conn.execute(
+        "SELECT p.manager_id, p.issuer, p.cusip, p.title, p.value, c.name, c.exch, c.source FROM inst_13f_positions p "
+        "JOIN (SELECT manager_id, MAX(period) AS period FROM inst_13f_positions GROUP BY manager_id) m "
+        "ON m.manager_id = p.manager_id AND m.period = p.period "
+        "LEFT JOIN cusip_map c ON c.cusip = p.cusip "
+        "WHERE p.put_call = '' AND p.ticker IS NULL AND COALESCE(p.status, '') != 'sold' ORDER BY p.value DESC").fetchall()
+    titles: dict[str, set] = {}
+    if os.environ.get("SEC_USER_AGENT"):
+        from src.collectors.sec_client import SEC_TICKERS_URL, get, session
+        for v in (get(session(), SEC_TICKERS_URL) or {}).values():
+            titles.setdefault(norm_issuer(v.get("title")), set()).add(str(v["ticker"]).upper())
+        print(f"  (SEC 회사 목록 {sum(len(t) for t in titles.values())}개)")
+    print(f"  티커 없는 보유 상위 {min(n, len(rows))} / {len(rows)}:")
+    for mid, issuer, cusip, title, value, fname, fexch, src in rows[:n]:
+        key = norm_issuer(issuer)
+        sec = sorted(titles.get(key, set())) if titles else "?"
+        print(f"    {mid:10s} {issuer} [{title}] {cusip}{' (채권 모양)' if is_debt(cusip) else ''} ${float(value or 0) / 1e6:,.0f}M · "
+              f"OpenFIGI {fname or '-'} {fexch or ''} ({src or '안 물어봄'}) · 정규화 '{key}' → SEC {sec}")
 
 
 def main() -> int:
