@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from src.collectors.sec_13f import (combine_period, diff_positions, fetch_filing, is_debt, list_13f_filings, map_cusips,  # noqa: E402
+from src.collectors.sec_13f import (combine_period, common_like, sec_title_index, diff_positions, fetch_filing, is_debt, list_13f_filings, map_cusips,  # noqa: E402
                                     merge_renamed, name_match, norm_issuer, normalize_rows, quarter_label, submissions,
                                     valid_ticker, value_scale, with_weights)
 from src.collectors.sec_client import SEC_TICKERS_URL, get, session  # noqa: E402
@@ -178,7 +178,15 @@ def main() -> int:
         if bad:
             conn.execute("UPDATE inst_13f_positions SET ticker = NULL WHERE cusip IN (" + ",".join("?" * len(bad)) + ")", tuple(bad))
             _log(f"모양이 이상한 티커 {len(bad)}개 지우고 다시 찾기")
-    cur = {r[0]: r[1] for r in conn.execute("SELECT DISTINCT cusip, issuer FROM inst_13f_positions WHERE put_call != 'DEBT'").fetchall()}
+    # CUSIP마다 회사명·주식 종류 하나 - 빈 값으로 덮이지 않게 처음 나온 비어 있지 않은 값(2026-11-02)
+    cur: dict[str, str] = {}
+    titles_of: dict[str, str] = {}
+    for c, n, t in conn.execute("SELECT DISTINCT cusip, issuer, title FROM inst_13f_positions WHERE put_call != 'DEBT'").fetchall():
+        if n and not cur.get(c):
+            cur[c] = n
+        if t and not titles_of.get(c):
+            titles_of[c] = t
+        cur.setdefault(c, n or "")
     need = sorted(c for c in cur if c not in known or (args.remap and known[c] is None))
     if need:
         _log(f"CUSIP {len(need)}개 티커 찾기(OpenFIGI)")
@@ -190,13 +198,13 @@ def main() -> int:
         _log(f"찾음 {sum(1 for d in res.values() if d and d['ticker'])} / 없음 {sum(1 for d in res.values() if not d or not d['ticker'])} / "
              f"다음에 다시 {len(need) - len(res)}")
     mapped = {r[0] for r in conn.execute("SELECT cusip FROM cusip_map WHERE ticker IS NOT NULL").fetchall()}
-    missing = {c: n for c, n in cur.items() if not is_debt(c) and c not in mapped}
+    missing = {c: n for c, n in cur.items() if not is_debt(c) and c not in mapped and common_like(titles_of.get(c))}
     if missing:
-        titles: dict[str, set] = {}
-        for v in (get(s, SEC_TICKERS_URL) or {}).values():
-            titles.setdefault(norm_issuer(v.get("title")), set()).add(str(v["ticker"]).upper().replace("-", "."))
-        unique = {k: next(iter(t)) for k, t in titles.items() if k and len(t) == 1}   # 이름이 겹치는 회사(종류주 등)는 맞추지 않는다
+        sec_list = get(s, SEC_TICKERS_URL) or {}
+        unique = sec_title_index(sec_list)   # 이름이 겹치는 회사(종류주 등)는 맞추지 않는다
         hits = name_match(missing, unique)
+        miss_ex = [f"{n}→'{norm_issuer(n)}'" for c, n in list(missing.items()) if c not in hits][:5]
+        _log(f"SEC 회사 목록 {len(sec_list)}개(한 회사로 정해지는 이름 {len(unique)}) · 못 맞춘 예: {miss_ex}")
         for c, t in hits.items():
             conn.execute("INSERT OR REPLACE INTO cusip_map (cusip, ticker, name, exch, security_type, source, mapped_at) VALUES (?, ?, ?, NULL, NULL, ?, ?)",
                          (c, t, missing[c], "sec_name", now))

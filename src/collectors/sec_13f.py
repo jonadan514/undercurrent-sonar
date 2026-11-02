@@ -122,7 +122,9 @@ def normalize_rows(rows: dict[tuple[str, str], dict]) -> dict[tuple[str, str], d
     return out
 
 
-_SUFFIX = re.compile(r"\b(INC|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|PLC|LLC|LP|NV|N V|SA|AG|HOLDINGS?|HLDGS?|GROUP|GRP|CL [A-C]|CLASS [A-C]|NEW|DEL|THE)\b")
+# HLDNGS·PL(13F 회사명 칸이 잘린 것: 'SEAGATE TECHNOLOGY HLDNGS PL')·ADR/ADS('Ferrari ADR')는 2026-11-02 추가
+_SUFFIX = re.compile(r"\b(INC|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|PLC|PL|LLC|LP|NV|N V|SA|AG|HOLDINGS?|HLDGS?|HLDNGS|HLDG|GROUP|GRP|"
+                     r"CL [A-C]|CLASS [A-C]|NEW|DEL|THE|ADR|ADS|SPONSORED|SPON)\b")
 
 
 def norm_issuer(name: str | None) -> str:
@@ -267,6 +269,12 @@ def _figi_call(body: list[dict], headers: dict, log) -> list | None:
     return None
 
 
+def id_type(cusip: str) -> str:
+    """OpenFIGI 식별자 종류. 첫 글자가 영문이면 CINS(미국 밖에 본사가 있는 회사 - 처브 H1467J104·ASML N07059210·시게이트 G7997R103)라
+    ID_CUSIP으로 물으면 '없음'이 온다(2026-11-02 실측: 가장 최근 분기 티커 없는 보유의 대부분, 버크셔 처브 $11.7B 포함)."""
+    return "ID_CINS" if cusip[:1].isalpha() else "ID_CUSIP"
+
+
 def map_cusips(cusips: list[str], api_key: str | None = None, log=print) -> dict[str, dict | None]:
     """-> {cusip: {ticker, name, exch, security_type} | None(OpenFIGI가 '없음'이라고 답함)}.
     한 줄씩 오는 오류(요청 한도 등)·응답 실패는 결과에서 빼서 다음 실행에 다시 묻는다(첫 실행에서 25%가 한도 오류로 빠졌다).
@@ -279,7 +287,7 @@ def map_cusips(cusips: list[str], api_key: str | None = None, log=print) -> dict
         todo = [c for c in cusips if c not in out] if exch == "US" else [c for c, v in out.items() if v is None]
         for i in range(0, len(todo), batch):
             chunk = todo[i:i + batch]
-            body = [{"idType": "ID_CUSIP", "idValue": c, **({"exchCode": exch} if exch else {})} for c in chunk]
+            body = [{"idType": id_type(c), "idValue": c, **({"exchCode": exch} if exch else {})} for c in chunk]
             res = _figi_call(body, headers, log)
             if res is None:
                 time.sleep(pause)
@@ -305,6 +313,32 @@ def name_match(issuers: dict[str, str], sec_titles: dict[str, str]) -> dict[str,
     """OpenFIGI가 못 찾은 주식 CUSIP -> SEC 회사 목록(company_tickers.json)과 회사명이 정확히 같으면 그 티커.
     issuers: {cusip: 회사명}, sec_titles: {정규화 회사명: 티커}. 이름이 겹치는 회사는 SEC 목록에서 먼저 뺀다(호출하는 쪽)."""
     return {c: sec_titles[norm_issuer(n)] for c, n in issuers.items() if norm_issuer(n) in sec_titles}
+
+
+_NOT_COMMON = re.compile(r"PFD|PREF|DEP|UNIT|WT|WARRANT|RIGHT|NOTE|DEBT|BOND|%|\d{1,2}/\d{1,2}/\d{2,4}")
+
+
+def common_like(title: str | None) -> bool:
+    """주식 종류 칸이 보통주·ADR처럼 보이나 - 우선주·예탁 우선주·유닛·워런트는 회사명이 같아도 보통주 티커가 아니다
+    ('SUPER MICRO COMPUTER INC [7 DEP CM SR A WI]'를 SMCI로 맞추면 틀린다)."""
+    return not _NOT_COMMON.search((title or "").upper())
+
+
+def sec_title_index(company_tickers: dict) -> dict[str, str]:
+    """SEC company_tickers.json -> {정규화 회사명: 티커}, 한 회사로 정해지는 이름만.
+    같은 이름에 티커가 여럿이면 다른 티커 + W/U/R(워런트·유닛·권리)·F/Y(해외 장외) 꼴은 빼고 하나만 남을 때만(ASML/ASMLF -> ASML,
+    GRAB/GRABW -> GRAB). 종류주(LBTYA·LBTYB·LBTYK)처럼 여전히 여럿이면 맞추지 않는다."""
+    titles: dict[str, set] = {}
+    for v in (company_tickers or {}).values():
+        key = norm_issuer(v.get("title"))
+        if key:
+            titles.setdefault(key, set()).add(str(v["ticker"]).upper().replace("-", "."))
+    out = {}
+    for key, ts in titles.items():
+        base = {t for t in ts if not (len(t) > 1 and t[-1] in "WURFY" and t[:-1] in ts)}
+        if len(base) == 1:
+            out[key] = next(iter(base))
+    return out
 
 
 def quarter_label(period: str) -> str:

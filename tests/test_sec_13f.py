@@ -125,3 +125,20 @@ def test_merge_renamed_requires_same_share_class():
     ]
     out = merge_renamed(rows)
     assert {r["status"] for r in out} == {"new", "sold"}   # 종류가 달라 합치지 않는다
+
+
+def test_cins_id_type_and_name_index():
+    # 2026-11-02: 본사가 미국 밖인 회사의 CUSIP(CINS, 첫 글자 영문)은 ID_CINS로 물어야 한다 - 처브·ASML·시게이트가 티커 없이 보였다
+    from src.collectors.sec_13f import common_like, id_type, name_match, norm_issuer, sec_title_index
+    assert id_type("H1467J104") == "ID_CINS" and id_type("037833100") == "ID_CUSIP"
+    assert norm_issuer("SEAGATE TECHNOLOGY HLDNGS PL") == norm_issuer("Seagate Technology Holdings plc") == "SEAGATE TECHNOLOGY"
+    assert norm_issuer("Ferrari ADR") == norm_issuer("Ferrari N.V.")
+    idx = sec_title_index({"0": {"title": "ASML HOLDING NV", "ticker": "ASML"}, "1": {"title": "ASML Holding N.V.", "ticker": "ASMLF"},
+                           "2": {"title": "Grab Holdings Ltd", "ticker": "GRAB"}, "3": {"title": "Grab Holdings Ltd", "ticker": "GRABW"},
+                           "4": {"title": "Liberty Global Ltd.", "ticker": "LBTYA"}, "5": {"title": "Liberty Global Ltd.", "ticker": "LBTYK"},
+                           "6": {"title": "Heineken Holding N.V.", "ticker": "HKHHF"}, "7": {"title": "Heineken Holding N.V.", "ticker": "HKHHY"},
+                           "8": {"title": "Chubb Ltd", "ticker": "CB"}})
+    assert idx == {"ASML": "ASML", "GRAB": "GRAB", "CHUBB": "CB"}       # 종류주·해외 장외 둘뿐인 이름은 맞추지 않음
+    assert name_match({"H1467J104": "CHUBB LIMITED", "N07059210": "ASML HLDG NV"}, idx) == {"H1467J104": "CB", "N07059210": "ASML"}
+    assert common_like("COM") and common_like("ORD SHS") and common_like("N Y REGISTRY SHS") and common_like("ADR")
+    assert not common_like("7 DEP CM SR A WI") and not common_like("UNIT 02/15/2029") and not common_like("PFD SER A")
