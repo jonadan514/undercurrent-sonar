@@ -3546,3 +3546,7 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
   Overheated Buzz → **Overhyped · 기대 과열**, Full Alignment → **Broad Rally · 동반 상승**, Full Decline → **Broad Decline · 동반 하락**.
   발견 단계 Quiet·Buzz·Full → **Hidden(실적이 먼저)·Hype(뉴스가 먼저)·Broad(세 축 동반)**, 흐름 이력 약자 HS·HR·EH·OH·BR·BD, 범례 "배지 강도 =" → "라벨 색 —".
   용어 사전·사용 설명서·투자 가이드·화면 안내 문구 함께.
+- 같은 날 이어서(사용자 결정 - 레이더와 맞춘 영어+한글): 분기 리서치 4칸 분류 표시 이름. 저장 값(quarterly_theme_classification.classification)은 그대로,
+  화면에서만(`src/lib/quarterlyNames.ts` `classLabel`·`classKo`): 조용한 변화 → **Hidden · 숨은 개선**, 확인된 변화 → **Confirmed · 확인된 개선**,
+  기대 선행 → **Hype · 뉴스 선행**, 관심 밖 → **Quiet · 변화 없음**. 축 이름 "재무 켜짐/꺼짐" → "재무 개선/그대로", "변화 기업·변화 신호" → "개선 기업·개선 신호".
+  분류 배지·2×2 칸·섹션 제목·"지난 분기 → 이번 분기"(한글만), 워치리스트 테마 칩 설명(레이더 라벨도 새 이름), 사용 설명서·투자 가이드·용어 사전·화면 안내.

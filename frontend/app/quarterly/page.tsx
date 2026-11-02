@@ -1,6 +1,7 @@
 "use client";
 
 import { tierLabel } from "@/src/lib/valuation";
+import { classKo, classLabel } from "@/src/lib/quarterlyNames";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
@@ -106,9 +107,9 @@ function newsDisplay(t: ThemeQuarterly): string {
 function prevDisplay(t: ThemeQuarterly): string {
   if (t.previous_classification == null) return "지난 분기 기록 없음";
   if (t.classification && t.previous_classification !== t.classification) {
-    return `${t.previous_classification} → ${t.classification}`;
+    return `${classKo(t.previous_classification)} → ${classKo(t.classification)}`;
   }
-  return `지난 분기 ${t.previous_classification}`;
+  return `지난 분기 ${classKo(t.previous_classification)}`;
 }
 
 // SPEC 2-4 - 데이터 부족 "왜 못 들어갔는지".
@@ -187,7 +188,7 @@ function ChangedBadge({ value }: { value: boolean | null }) {
   }
   return value ? (
     <span className="whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: GOOD_SOFT, color: GOOD }}>
-      변화 기업
+      개선 기업
     </span>
   ) : (
     <span className="whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: MUTED_SOFT, color: MUTED }}>
@@ -258,7 +259,7 @@ function GridCell({ label, count, active, emphasis, onClick }: {
         opacity: emphasis || active ? 1 : 0.85,
       }}
     >
-      <span className="text-[13px] font-bold" style={{ color: active || emphasis ? ACCENT : "var(--text-primary)" }}>{label}</span>
+      <span className="text-[13px] font-bold" style={{ color: active || emphasis ? ACCENT : "var(--text-primary)" }}>{classLabel(label)}</span>
       <span className="text-[19px] font-extrabold" style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{count}</span>
     </button>
   );
@@ -268,16 +269,16 @@ function ClassificationGrid({ counts, filter, onToggle }: {
   counts: Record<Classification, number>; filter: Classification | null; onToggle: (c: Classification) => void;
 }) {
   return (
-    <div className="mt-4 grid max-w-2xl gap-2" style={{ gridTemplateColumns: "64px 1fr 1fr" }}>
+    <div className="mt-4 grid max-w-2xl gap-2" style={{ gridTemplateColumns: "76px 1fr 1fr" }}>
       <div />
       <div className="pb-1 text-center text-[12px]" style={{ color: MUTED }}>뉴스 적음</div>
       <div className="pb-1 text-center text-[12px]" style={{ color: MUTED }}>뉴스 많음</div>
 
-      <div className="flex items-center justify-end pr-2 text-[12px]" style={{ color: MUTED }}>재무 켜짐</div>
+      <div className="flex items-center justify-end pr-2 text-[12px]" style={{ color: MUTED }}>재무 개선</div>
       <GridCell label="조용한 변화" count={counts["조용한 변화"]} active={filter === "조용한 변화"} emphasis onClick={() => onToggle("조용한 변화")} />
       <GridCell label="확인된 변화" count={counts["확인된 변화"]} active={filter === "확인된 변화"} onClick={() => onToggle("확인된 변화")} />
 
-      <div className="flex items-center justify-end pr-2 text-[12px]" style={{ color: MUTED }}>재무 꺼짐</div>
+      <div className="flex items-center justify-end whitespace-nowrap pr-2 text-[12px]" style={{ color: MUTED }}>재무 그대로</div>
       <GridCell label="관심 밖" count={counts["관심 밖"]} active={filter === "관심 밖"} onClick={() => onToggle("관심 밖")} />
       <GridCell label="기대 선행" count={counts["기대 선행"]} active={filter === "기대 선행"} onClick={() => onToggle("기대 선행")} />
     </div>
@@ -314,7 +315,7 @@ function MembersTable({ members, loading, market }: { members: CompanySignal[]; 
   return (
     <div>
       <div className="mb-2 flex flex-wrap gap-1.5">
-        {toggleBtn(changedOnly, "변화 기업만", () => setChangedOnly((v) => !v))}
+        {toggleBtn(changedOnly, "개선 기업만", () => setChangedOnly((v) => !v))}
         {toggleBtn(passOnly, "재무 통과만", () => setPassOnly((v) => !v))}
         {toggleBtn(cheapOnly, "밸류 LOW만", () => setCheapOnly((v) => !v))}
       </div>
@@ -322,7 +323,7 @@ function MembersTable({ members, loading, market }: { members: CompanySignal[]; 
         <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: "var(--bg-inset)" }}>
-              {[market === "KR" ? "종목" : "티커", "변화 신호", "변화 기업", "매출(1년전→최근)", "밸류", "재무"].map((h) => (
+              {[market === "KR" ? "종목" : "티커", "개선 신호", "개선 기업", "매출(1년전→최근)", "밸류", "재무"].map((h) => (
                 <th key={h} className="whitespace-nowrap px-3 py-2 text-left text-[12px] font-bold" style={{ color: MUTED, borderBottom: "1px solid var(--border)" }}>
                   {h}
                 </th>
@@ -416,7 +417,7 @@ function ThemeRow({ theme, market, isNa }: { theme: ThemeQuarterly; market: stri
           return (
             <span className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-bold"
                   style={{ background: info?.bg ?? ACCENT_SOFT, color: info?.color ?? ACCENT }}>
-              {theme.classification}
+              {classLabel(theme.classification)}
             </span>
           );
         })()}
@@ -427,7 +428,7 @@ function ThemeRow({ theme, market, isNa }: { theme: ThemeQuarterly; market: stri
         )}
 
         <span className="text-[12px]" style={{ color: MUTED }}>
-          변화 기업 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{changedDisplay(theme)}</b>
+          개선 기업 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{changedDisplay(theme)}</b>
         </span>
         <span className="text-[12px]" style={{ color: MUTED }}>
           뉴스 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{newsDisplay(theme)}</b>
@@ -532,7 +533,7 @@ export default function QuarterlyPage() {
           {visibleClassifications.map((c) => (
             <div key={c} className="mt-7">
               <div className="mb-1 flex flex-wrap items-baseline gap-2.5">
-                <h2 className="text-[16px] font-extrabold" style={{ color: CLASSIFICATION_INFO[c].color }}>{c}</h2>
+                <h2 className="text-[16px] font-extrabold" style={{ color: CLASSIFICATION_INFO[c].color }}>{classLabel(c)}</h2>
                 <span className="text-[11.5px]" style={{ color: FAINT, fontFamily: MONO }}>{counts[c]}개</span>
               </div>
               <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>{CLASSIFICATION_INFO[c].desc}</p>

@@ -44,7 +44,7 @@ export const PAGE_INTROS = {
   quarterly: {
     what: "분기 실적이 나오면 테마를 재무 신호와 뉴스 비율로 4칸에 나눕니다.",
     when: "실적 시즌(분기에 한 번, 실적 발표 4-6주 뒤).",
-    todo: "'조용한 변화'(재무는 바뀌었는데 뉴스는 조용한 테마)부터 봅니다.",
+    todo: "'Hidden · 숨은 개선'(재무는 좋아졌는데 뉴스는 조용한 테마)부터 봅니다.",
     terms: ["quarterly_class", "theme"],
   },
   watchlist: {

@@ -73,7 +73,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   quarterly_class: {
     term: "분기 4칸 분류", group: "테마 레이더",
     short: "분기 실적(재무 신호)과 뉴스 비율 두 가지로 테마를 4칸에 나눕니다.",
-    use: "'조용한 변화'(재무는 바뀌었는데 뉴스는 조용함)가 레이더의 Hidden(실적이 먼저)과 같은 생각입니다.",
+    use: "'Hidden · 숨은 개선'(재무는 좋아졌는데 뉴스는 조용함)이 레이더의 Hidden(실적이 먼저)과 같은 생각입니다.",
   },
 
   // ── 재무 ──
