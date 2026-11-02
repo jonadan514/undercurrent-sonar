@@ -15,6 +15,43 @@ sys.path.insert(0, str(ROOT))
 from src.db.data_store import get_db  # noqa: E402
 
 
+def latest_quarter_status(conn, managers: list[str] | None) -> None:
+    """운용사마다 가장 최근 분기(화면이 보는 분기): 보유 주식 수, 티커를 못 찾은 보유(수·평가액 비중), 새로 산 종목의 비중 분포.
+    11/14 3분기 신고 전후로 '못 찾은 티커 비율'과 확신 매수 기준(3%)을 보려고(2026-11-02)."""
+    print("\n== 가장 최근 분기 (화면 기준) ==")
+    rows = conn.execute(
+        "SELECT p.manager_id, p.period, p.ticker, p.value, p.weight, p.status FROM inst_13f_positions p "
+        "JOIN (SELECT manager_id, MAX(period) AS period FROM inst_13f_positions GROUP BY manager_id) m "
+        "ON m.manager_id = p.manager_id AND m.period = p.period WHERE p.put_call = ''").fetchall()
+    by: dict[str, list] = {}
+    for r in rows:
+        if managers and r[0] not in managers:
+            continue
+        by.setdefault(r[0], []).append(r)
+    tot_held = tot_unm = 0
+    tot_val = tot_unm_val = 0.0
+    new_w: list[float] = []
+    for mid in sorted(by):
+        rs = by[mid]
+        held = [r for r in rs if r[5] != "sold"]
+        unm = [r for r in held if not r[2]]
+        val = sum(float(r[3] or 0) for r in held)
+        unm_val = sum(float(r[3] or 0) for r in unm)
+        news = [float(r[4] or 0) for r in rs if r[5] == "new"]
+        new_w += news
+        tot_held += len(held)
+        tot_unm += len(unm)
+        tot_val += val
+        tot_unm_val += unm_val
+        print(f"  {mid:11s} {rs[0][1]} 보유 {len(held):4d} · 티커 없음 {len(unm):3d} (평가액 {unm_val / val * 100 if val else 0:4.1f}%) · "
+              f"새로 {len(news):3d} (비중 3%+ {sum(1 for w in news if w >= 0.03)})")
+    if tot_held:
+        print(f"  합계: 보유 {tot_held} · 티커 없음 {tot_unm} ({tot_unm / tot_held * 100:.1f}%, 평가액 {tot_unm_val / tot_val * 100 if tot_val else 0:.1f}%)")
+    if new_w:
+        print("  새로 산 종목 비중 분포: " + ", ".join(f"{t * 100:g}%+ {sum(1 for w in new_w if w >= t)}" for t in (0.005, 0.01, 0.02, 0.03, 0.05, 0.1))
+              + f" (전체 {len(new_w)})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--managers", nargs="*", default=None)
@@ -38,6 +75,7 @@ def main() -> int:
         nulls = sum(1 for r in rows if r[4] is None or float(r[4] or 0) == 0)
         if nulls:
             print(f"   가치 0·없음 {nulls}줄")
+    latest_quarter_status(conn, args.managers)
     unm = conn.execute("SELECT COUNT(*) FROM cusip_map WHERE ticker IS NULL").fetchone()[0]
     print(f"\nCUSIP 못 찾음 {unm} - 예: {[r for r in conn.execute('SELECT c.cusip, (SELECT issuer FROM inst_13f_rows r WHERE r.cusip = c.cusip LIMIT 1) FROM cusip_map c WHERE c.ticker IS NULL LIMIT 15').fetchall()]}")
     return 0
