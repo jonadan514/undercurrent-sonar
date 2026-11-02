@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Children, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import FlagIcon from "@/src/components/FlagIcon";
 import StockLink from "@/src/components/StockLink";
 import { themeName } from "@/src/lib/themeNames";
@@ -11,7 +11,7 @@ import PageHeader from "@/src/components/PageHeader";
 import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
 import { ObservationForm } from "@/src/components/Observation";
-import { GroupTitle, Section } from "@/src/components/Section";
+import { Section } from "@/src/components/Section";
 import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
 import { STYLE_META, type InvestorStyle } from "@/src/lib/institutions";
 
@@ -352,6 +352,30 @@ const byMarket = (m: Record<string, number>, unit = "") =>
 
 type TocItem = { id: string; label: string; count?: string; group: string };
 
+// 브리핑 묶음 머리(2026-11-02, 사용자 요청: 종목 변화·테마를 먼저, 묶음이 구분되게) - 회색 작은 제목 대신 색 띠.
+// 색은 묶음 구분용일 뿐 좋고 나쁨이 아니다. 안에 보여 줄 칸이 없으면 머리도 숨긴다(GroupTitle과 같은 규칙).
+const GROUP_META: Record<string, { emoji: string; color: string; desc: string }> = {
+  "종목 변화": { emoji: "🔖", color: "#ffb020", desc: "워치리스트에 들어오고 나간 종목, 실적 반전, 관심도" },
+  "테마": { emoji: "📡", color: "#6fb3b8", desc: "테마 레이더 라벨이 새로 붙거나 사라진 테마" },
+  "시장": { emoji: "🌐", color: "#a78bfa", desc: "지수·수급·금리·환율 등 지난주 시장 배경" },
+  "이번 주 일정": { emoji: "📅", color: "#60a5fa", desc: "이번 주 실적 발표와 다가오는 촉매" },
+  "공시 · 내부자": { emoji: "📄", color: "#fb923c", desc: "지난 7일 공시·내부자 매수·13F - 중요한 줄만 먼저" },
+};
+function BriefGroup({ title, children }: { title: string; children: ReactNode }) {
+  const kids = Children.toArray(children);
+  if (kids.length === 0) return null;
+  const m = GROUP_META[title];
+  return (
+    <div className="space-y-2">
+      <div className="mt-3 rounded-lg px-3 py-2" style={{ background: (m?.color ?? "#888") + "10", borderLeft: `4px solid ${m?.color ?? "var(--border-ctrl)"}` }}>
+        <p className="text-[15px] font-extrabold" style={{ color: m?.color ?? "var(--text-primary)" }}>{m?.emoji} {title}</p>
+        {m?.desc && <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{m.desc}</p>}
+      </div>
+      {kids}
+    </div>
+  );
+}
+
 function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: ReactNode; past: boolean; macroHist: Record<string, Point[]> }) {
   const wl = b.watchlist ?? { total: 0, added: [], removed: [], top: [], has_prev: false };
   const [active, setActive] = useState("");
@@ -375,6 +399,12 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   const toc: TocItem[] = [
     ...(has.mine ? [{ id: "mine", label: "⭐ 관심 종목", count: `${b.my_stocks_week!.count}`, group: "" }] : []),
     ...(has.comment ? [{ id: "comment", label: "총평", group: "" }] : []),
+    { id: "watchlist", label: "워치리스트",
+      count: wl.has_prev ? `+${wl.added_count ?? wl.added.length} −${wl.removed_count ?? wl.removed.length}` : undefined, group: "종목 변화" },
+    ...(has.turnaround ? [{ id: "turnaround", label: "실적 반전", count: b.turnaround!.has_prev ? `+${b.turnaround!.added_count}` : undefined, group: "종목 변화" }] : []),
+    ...(has.sentiment ? [{ id: "sentiment", label: "관심도", count: `${b.sentiment_heating.length}`, group: "종목 변화" }] : []),
+    ...(has.labels ? [{ id: "labels", label: "테마 라벨",
+      count: `${b.theme_labels!.new_labels.length + b.theme_labels!.dropped_labels.length}`, group: "테마" }] : []),
     { id: "market", label: "지난주 시장", group: "시장" },
     ...(has.earnings ? [{ id: "earnings", label: "실적 발표", count: `${b.earnings_week!.total}`, group: "이번 주 일정" }] : []),
     ...(has.catalysts ? [{ id: "catalysts", label: "촉매", count: `${b.catalysts.length}`, group: "이번 주 일정" }] : []),
@@ -382,12 +412,6 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
     ...(has.us8k ? [{ id: "us8k", label: "미국 8-K", count: `${b.us_8k_week!.total}`, group: "공시 · 내부자" }] : []),
     ...(has.insider ? [{ id: "insider", label: "내부자 매수", count: `${b.insider_week!.total}`, group: "공시 · 내부자" }] : []),
     ...(has.inst13f ? [{ id: "inst13f", label: "13F", count: `${b.inst_13f_week!.filers}곳`, group: "공시 · 내부자" }] : []),
-    { id: "watchlist", label: "워치리스트",
-      count: wl.has_prev ? `+${wl.added_count ?? wl.added.length} −${wl.removed_count ?? wl.removed.length}` : undefined, group: "종목 변화" },
-    ...(has.turnaround ? [{ id: "turnaround", label: "실적 반전", count: b.turnaround!.has_prev ? `+${b.turnaround!.added_count}` : undefined, group: "종목 변화" }] : []),
-    ...(has.sentiment ? [{ id: "sentiment", label: "관심도", count: `${b.sentiment_heating.length}`, group: "종목 변화" }] : []),
-    ...(has.labels ? [{ id: "labels", label: "테마 라벨",
-      count: `${b.theme_labels!.new_labels.length + b.theme_labels!.dropped_labels.length}`, group: "테마" }] : []),
   ];
   const tocKey = toc.map((t) => t.id).join();
 
@@ -477,7 +501,112 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             </Section>
           )}
 
-          <GroupTitle title="시장">
+          <BriefGroup title="종목 변화">
+            <Section className={SCROLL_M} id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
+              {!wl.has_prev ? (
+                <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>첫 기록 주입니다 — 다음 주부터 신규·탈락을 비교합니다.</p>
+              ) : wl.added.length === 0 && wl.removed.length === 0 ? (
+                <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>변동 없음</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #ffb02022" }}>
+                    <p className="text-[12px] font-bold mb-1.5" style={{ color: "#ffb020" }}>+ 신규 진입 ({wl.added_count ?? wl.added.length})</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
+                      {wl.added.map((s) => (
+                        <span key={`${s.market}:${s.symbol}`}>
+                          <StockLabel s={s} />
+                          {s.fit_score != null && <span className="ml-1" style={{ color: "var(--text-muted)" }}>적합 {s.fit_score}</span>}
+                        </span>
+                      ))}
+                    </div>
+                    {wl.added.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>없음</p>}
+                    {(wl.added_count ?? 0) > wl.added.length && <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>외 {(wl.added_count ?? 0) - wl.added.length}개 - 워치리스트 &quot;이번 회차 신규만&quot;에서 전체 보기</p>}
+                  </div>
+                  <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #f8717122" }}>
+                    <p className="text-[12px] font-bold mb-1.5" style={{ color: "#f87171" }}>− 탈락 ({wl.removed_count ?? wl.removed.length})</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
+                      {wl.removed.map((s) => <span key={`${s.market}:${s.symbol}`}><StockLabel s={s} /></span>)}
+                    </div>
+                    {wl.removed.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>없음</p>}
+                    {(wl.removed_count ?? 0) > wl.removed.length && <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>외 {(wl.removed_count ?? 0) - wl.removed.length}개</p>}
+                  </div>
+                </div>
+              )}
+            </Section>
+
+            {has.turnaround && (
+              <Section className={SCROLL_M} id="turnaround" title="실적 반전"
+                sub={`${byMarket(b.turnaround!.by_market) || "0"}${b.turnaround!.has_prev ? ` · 신규 ${b.turnaround!.added_count} · 빠짐 ${b.turnaround!.removed_count}` : ""}`}>
+                {b.turnaround!.added.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {b.turnaround!.added.map((s) => (
+                      <span key={`${s.market}:${s.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
+                        style={{ background: "#4ade8012", border: "1px solid #4ade8033" }}>
+                        <StockLabel s={s} />
+                        {s.yoy != null && <span style={{ color: "#4ade80" }}> {s.basis} {s.yoy >= 0 ? "+" : ""}{(s.yoy * 100).toFixed(0)}%</span>}
+                      </span>
+                    ))}
+                    {b.turnaround!.added_count > b.turnaround!.added.length && (
+                      <span className="text-[12px] self-center" style={{ color: "var(--text-muted)" }}>외 {b.turnaround!.added_count - b.turnaround!.added.length}개</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                    {b.turnaround!.has_prev ? "이번 주 새로 들어온 종목 없음" : "새로 들어온 종목 비교는 다음 주부터"}
+                  </p>
+                )}
+                <Note label="조건">매출 3년은 정체·역성장인데 최근 1년(4개 분기 합, 없으면 최근 분기)은 성장 — 워치리스트 &quot;실적 반전&quot; 버튼과 같은 조건</Note>
+              </Section>
+            )}
+
+            {has.sentiment && (
+              <Section className={SCROLL_M} id="sentiment" title="관심도 상승" count={b.sentiment_heating.length}>
+                <div className="flex flex-wrap gap-1.5">
+                  {b.sentiment_heating.map((s) => (
+                    <span key={`${s.market}:${s.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
+                      style={{ background: "#f8717112", border: "1px solid #f8717133" }}>
+                      <StockLabel s={s} /> <span style={{ color: "#f87171" }}>{s.path}</span>
+                    </span>
+                  ))}
+                </div>
+              </Section>
+            )}
+          </BriefGroup>
+
+          {/* 테마 레이더 라벨 변동 — 라벨 계산은 별도 워크플로우라 이 브리핑보다 늦게
+              끝날 수 있어서, "이번 주"라 단정하지 않고 실제 기준 주를 그대로 보여준다. */}
+          <BriefGroup title="테마">
+            {has.labels && (
+              <Section className={SCROLL_M} id="labels" title="📡 테마 레이더 라벨 변동" sub={`${b.theme_labels!.week_start} 기준`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {b.theme_labels!.new_labels.length > 0 && (
+                    <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #ffb02022" }}>
+                      <p className="text-[12px] font-bold mb-1" style={{ color: "#ffb020" }}>+ 신규 라벨 ({b.theme_labels!.new_labels.length})</p>
+                      {b.theme_labels!.new_labels.map((t) => (
+                        <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5">
+                          <span className="mr-1">{t.market === "KR" ? "🇰🇷" : "🇺🇸"}</span>
+                          <span className="font-bold text-white">{themeName(t.theme_id).ko}</span>
+                          <span className="ml-1.5" style={{ color: "var(--text-muted)" }}>{labelWithKo(t.label)}</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {b.theme_labels!.dropped_labels.length > 0 && (
+                    <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                      <p className="text-[12px] font-bold mb-1" style={{ color: "var(--text-faint)" }}>− 소멸 라벨 ({b.theme_labels!.dropped_labels.length})</p>
+                      {b.theme_labels!.dropped_labels.map((t) => (
+                        <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5" style={{ color: "var(--text-faint)" }}>
+                          {t.market === "KR" ? "🇰🇷" : "🇺🇸"} {themeName(t.theme_id).ko} <span>({labelWithKo(t.label)})</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Section>
+            )}
+          </BriefGroup>
+
+          <BriefGroup title="시장">
             <Section className={SCROLL_M} id="market" title="지난주 시장">
               <div className="grid grid-cols-2 gap-1.5">
                 <IndexTile label="🇺🇸 S&P 500 주간" m={b.us} />
@@ -491,9 +620,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
               )}
               {b.macro && <MacroWeek macro={b.macro} hist={macroHist} week={b.week} />}
             </Section>
-          </GroupTitle>
+          </BriefGroup>
 
-          <GroupTitle title="이번 주 일정">
+          <BriefGroup title="이번 주 일정">
             {has.earnings && (
               <Section className={SCROLL_M} id="earnings" title="실적 발표" count={b.earnings_week!.total} sub={byMarket(b.earnings_week!.by_market)}>
                 <div className="space-y-1.5">
@@ -532,9 +661,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                 )} />
               </Section>
             )}
-          </GroupTitle>
+          </BriefGroup>
 
-          <GroupTitle title="공시 · 내부자">
+          <BriefGroup title="공시 · 내부자">
             {has.disclosures && (() => {
               const k = b.kr_disclosures!;
               const fix = [...(k.termination?.items ?? []), ...(k.amend?.items ?? [])];
@@ -669,112 +798,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                   평가액은 분기 말 기준, 비중은 그 운용사 주식 보유 중 · 목록은 평가액 순 10개까지 · 노란색은 관심 표시 종목 · 재무 판정은 재무 필터 기준</Note>
               </Section>
             )}
-          </GroupTitle>
-
-          <GroupTitle title="종목 변화">
-            <Section className={SCROLL_M} id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
-              {!wl.has_prev ? (
-                <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>첫 기록 주입니다 — 다음 주부터 신규·탈락을 비교합니다.</p>
-              ) : wl.added.length === 0 && wl.removed.length === 0 ? (
-                <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>변동 없음</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #ffb02022" }}>
-                    <p className="text-[12px] font-bold mb-1.5" style={{ color: "#ffb020" }}>+ 신규 진입 ({wl.added_count ?? wl.added.length})</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
-                      {wl.added.map((s) => (
-                        <span key={`${s.market}:${s.symbol}`}>
-                          <StockLabel s={s} />
-                          {s.fit_score != null && <span className="ml-1" style={{ color: "var(--text-muted)" }}>적합 {s.fit_score}</span>}
-                        </span>
-                      ))}
-                    </div>
-                    {wl.added.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>없음</p>}
-                    {(wl.added_count ?? 0) > wl.added.length && <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>외 {(wl.added_count ?? 0) - wl.added.length}개 - 워치리스트 &quot;이번 회차 신규만&quot;에서 전체 보기</p>}
-                  </div>
-                  <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #f8717122" }}>
-                    <p className="text-[12px] font-bold mb-1.5" style={{ color: "#f87171" }}>− 탈락 ({wl.removed_count ?? wl.removed.length})</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
-                      {wl.removed.map((s) => <span key={`${s.market}:${s.symbol}`}><StockLabel s={s} /></span>)}
-                    </div>
-                    {wl.removed.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>없음</p>}
-                    {(wl.removed_count ?? 0) > wl.removed.length && <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>외 {(wl.removed_count ?? 0) - wl.removed.length}개</p>}
-                  </div>
-                </div>
-              )}
-            </Section>
-
-            {has.turnaround && (
-              <Section className={SCROLL_M} id="turnaround" title="실적 반전"
-                sub={`${byMarket(b.turnaround!.by_market) || "0"}${b.turnaround!.has_prev ? ` · 신규 ${b.turnaround!.added_count} · 빠짐 ${b.turnaround!.removed_count}` : ""}`}>
-                {b.turnaround!.added.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {b.turnaround!.added.map((s) => (
-                      <span key={`${s.market}:${s.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
-                        style={{ background: "#4ade8012", border: "1px solid #4ade8033" }}>
-                        <StockLabel s={s} />
-                        {s.yoy != null && <span style={{ color: "#4ade80" }}> {s.basis} {s.yoy >= 0 ? "+" : ""}{(s.yoy * 100).toFixed(0)}%</span>}
-                      </span>
-                    ))}
-                    {b.turnaround!.added_count > b.turnaround!.added.length && (
-                      <span className="text-[12px] self-center" style={{ color: "var(--text-muted)" }}>외 {b.turnaround!.added_count - b.turnaround!.added.length}개</span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                    {b.turnaround!.has_prev ? "이번 주 새로 들어온 종목 없음" : "새로 들어온 종목 비교는 다음 주부터"}
-                  </p>
-                )}
-                <Note label="조건">매출 3년은 정체·역성장인데 최근 1년(4개 분기 합, 없으면 최근 분기)은 성장 — 워치리스트 &quot;실적 반전&quot; 버튼과 같은 조건</Note>
-              </Section>
-            )}
-
-            {has.sentiment && (
-              <Section className={SCROLL_M} id="sentiment" title="관심도 상승" count={b.sentiment_heating.length}>
-                <div className="flex flex-wrap gap-1.5">
-                  {b.sentiment_heating.map((s) => (
-                    <span key={`${s.market}:${s.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
-                      style={{ background: "#f8717112", border: "1px solid #f8717133" }}>
-                      <StockLabel s={s} /> <span style={{ color: "#f87171" }}>{s.path}</span>
-                    </span>
-                  ))}
-                </div>
-              </Section>
-            )}
-          </GroupTitle>
-
-          {/* 테마 레이더 라벨 변동 — 라벨 계산은 별도 워크플로우라 이 브리핑보다 늦게
-              끝날 수 있어서, "이번 주"라 단정하지 않고 실제 기준 주를 그대로 보여준다. */}
-          <GroupTitle title="테마">
-            {has.labels && (
-              <Section className={SCROLL_M} id="labels" title="📡 테마 레이더 라벨 변동" sub={`${b.theme_labels!.week_start} 기준`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {b.theme_labels!.new_labels.length > 0 && (
-                    <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid #ffb02022" }}>
-                      <p className="text-[12px] font-bold mb-1" style={{ color: "#ffb020" }}>+ 신규 라벨 ({b.theme_labels!.new_labels.length})</p>
-                      {b.theme_labels!.new_labels.map((t) => (
-                        <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5">
-                          <span className="mr-1">{t.market === "KR" ? "🇰🇷" : "🇺🇸"}</span>
-                          <span className="font-bold text-white">{themeName(t.theme_id).ko}</span>
-                          <span className="ml-1.5" style={{ color: "var(--text-muted)" }}>{labelWithKo(t.label)}</span>
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {b.theme_labels!.dropped_labels.length > 0 && (
-                    <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                      <p className="text-[12px] font-bold mb-1" style={{ color: "var(--text-faint)" }}>− 소멸 라벨 ({b.theme_labels!.dropped_labels.length})</p>
-                      {b.theme_labels!.dropped_labels.map((t) => (
-                        <p key={`${t.market ?? "US"}:${t.theme_id}`} className="text-[12px] py-0.5" style={{ color: "var(--text-faint)" }}>
-                          {t.market === "KR" ? "🇰🇷" : "🇺🇸"} {themeName(t.theme_id).ko} <span>({labelWithKo(t.label)})</span>
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Section>
-            )}
-          </GroupTitle>
+          </BriefGroup>
         </div>
 
         {/* 넓은 화면 목차 - 묶음별, 지금 읽는 칸 표시 */}
@@ -782,7 +806,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
           <nav className="sticky top-12 space-y-3" aria-label="브리핑 목차">
             {groups.map((g) => (
               <div key={g || "top"}>
-                {g && <p className="stat-label mb-1">{g}</p>}
+                {g && <p className="stat-label mb-1" style={GROUP_META[g] ? { color: GROUP_META[g].color } : undefined}>{GROUP_META[g]?.emoji} {g}</p>}
                 <div className="space-y-0.5">
                   {toc.filter((t) => t.group === g).map((t) => {
                     const on = t.id === active;
