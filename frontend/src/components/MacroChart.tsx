@@ -70,8 +70,12 @@ export function RangeBar({ points, fmt }: { points: Point[]; fmt: (v: number) =>
 
 const PERIODS = [{ label: "1개월", n: 22 }, { label: "3개월", n: 63 }, { label: "1년", n: 260 }];
 
-export function BigChart({ points, fmt, title }: { points: Point[]; fmt: (v: number) => string; title: string }) {
-  const [n, setN] = useState(63);
+export function BigChart({ points, fmt, title, mark, initial = 63 }: {
+  points: Point[]; fmt: (v: number) => string; title: string;
+  mark?: string;      // 이 날짜부터 끝까지 음영(주간 브리핑: 그 주) - 2026-11-02
+  initial?: number;
+}) {
+  const [n, setN] = useState(initial);
   const [hover, setHover] = useState<number | null>(null);
   const pts = useMemo(() => lastN(points, n), [points, n]);
   if (pts.length < 2) return <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>그래프 데이터가 아직 없습니다.</p>;
@@ -109,6 +113,10 @@ export function BigChart({ points, fmt, title }: { points: Point[]; fmt: (v: num
       <div className="flex gap-2">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full block cursor-crosshair" style={{ height: H }}
           onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHover(null)} role="img" aria-label={`${title} ${pts[0][0]}부터 ${pts[pts.length - 1][0]}까지`}>
+          {mark && (() => {
+            const i = pts.findIndex((p) => p[0] >= mark);
+            return i >= 0 ? <rect x={x(Math.max(0, i - 1))} y={0} width={W - x(Math.max(0, i - 1))} height={H} fill="var(--border)" opacity={0.35} /> : null;
+          })()}
           {[0, 0.5, 1].map((t) => (
             <line key={t} x1={0} x2={W} y1={padY + t * (H - padY * 2)} y2={padY + t * (H - padY * 2)}
               stroke="var(--border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
@@ -127,5 +135,43 @@ export function BigChart({ points, fmt, title }: { points: Point[]; fmt: (v: num
         </div>
       </div>
     </div>
+  );
+}
+
+// 주간 브리핑 매크로 칸의 한 주 흐름(2026-11-02, 사용자 요청) - 그 주(월~일) 구간만 진하게, 앞 3주는 흐리게(맥락).
+// 주간 선은 직전 거래일 종가에서 시작한다 - 칸의 '주간 +x'(5거래일 전 대비)와 같은 출발점. 판정·색 등급 없음(원칙 1).
+function shiftDay(d: string, days: number): string {
+  const t = new Date(`${d}T00:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + days);
+  return t.toISOString().slice(0, 10);
+}
+
+export function weekWindow(week: string): { start: string; end: string } {
+  return { start: shiftDay(week, -7), end: shiftDay(week, -1) };   // 브리핑 주차(월요일) = 지난 7일을 돌아본다
+}
+
+export function upTo(points: Point[], end: string): Point[] {
+  return points.filter((p) => p[0] <= end);
+}
+
+export function WeekSpark({ points, week, height = 30 }: { points: Point[]; week: string; height?: number }) {
+  const { start, end } = weekWindow(week);
+  const ctx = points.filter((p) => p[0] >= shiftDay(start, -21) && p[0] <= end);
+  const firstIn = ctx.findIndex((p) => p[0] >= start);
+  if (ctx.length < 2 || firstIn < 0) return null;
+  const from = Math.max(0, firstIn - 1);            // 직전 거래일 종가부터
+  const vals = ctx.map((p) => p[1]);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1, pad = 3, W = 100;
+  const x = (i: number) => (i / (ctx.length - 1)) * W;
+  const y = (v: number) => pad + (1 - (v - min) / span) * (height - pad * 2);
+  const d = (a: number, b: number) => ctx.slice(a, b + 1).map((p, i) => `${i ? "L" : "M"}${x(a + i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+  const last = ctx.length - 1;
+  return (
+    <svg viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none" className="w-full block" style={{ height }} aria-hidden>
+      <rect x={x(from)} y={0} width={W - x(from)} height={height} fill="var(--border)" opacity={0.35} />
+      {from > 0 && <path d={d(0, from)} fill="none" stroke={LINE} strokeOpacity={0.35} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />}
+      <path d={d(from, last)} fill="none" stroke={LINE} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }

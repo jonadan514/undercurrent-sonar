@@ -12,6 +12,7 @@ import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
 import { ObservationForm } from "@/src/components/Observation";
 import { GroupTitle, Section } from "@/src/components/Section";
+import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
 
 interface StockRef {
   market: string;
@@ -169,15 +170,59 @@ interface TurnaroundItem { market: string; symbol: string; name?: string | null;
 interface MacroItem { value: number | null; chg_1w: number | null }
 
 // 매크로는 줄마다 한 칸씩이면 9줄이 넘어 브리핑이 길어진다 - 작은 칸으로 묶는다(2026-10-20)
-function MacroRow({ label, m, fmt, chgFmt }: { label: string; m?: MacroItem | null; fmt: (v: number) => string; chgFmt: (v: number) => string }) {
-  if (!m || m.value == null) return null;
+type MacroKey = "us10y" | "real10y" | "hy_spread" | "kr3y" | "usdkrw" | "dxy" | "wti" | "copper" | "natgas";
+const pp = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`;
+const MACRO_ROWS: { key: MacroKey; label: string; fmt: (v: number) => string; chg?: (v: number) => string }[] = [
+  { key: "us10y", label: "미 10년물", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
+  { key: "real10y", label: "미 실질금리", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
+  { key: "hy_spread", label: "하이일드 스프레드", fmt: (v) => `${v.toFixed(2)}%p`, chg: pp },
+  { key: "kr3y", label: "국고채 3년", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
+  { key: "usdkrw", label: "원/달러", fmt: (v) => `${Math.round(v).toLocaleString()}원`, chg: (v) => `${v >= 0 ? "+" : ""}${Math.round(v).toLocaleString()}원` },
+  { key: "dxy", label: "달러인덱스", fmt: (v) => v.toFixed(1), chg: (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}` },
+  { key: "wti", label: "WTI 유가", fmt: (v) => `$${v.toFixed(1)}` },          // 유가·원자재는 변화율(usdChg)
+  { key: "copper", label: "구리", fmt: (v) => `$${v.toFixed(2)}/lb` },
+  { key: "natgas", label: "천연가스", fmt: (v) => `$${v.toFixed(2)}` },
+];
+
+// 매크로 칸(2026-11-02, 사용자 요청: 한 주 흐름을 그래프로) - 칸마다 그 주 선(앞 3주는 흐리게), 누르면 큰 그래프(그 주 음영, 그 주 끝까지).
+// 값·주간 변화는 브리핑에 저장된 그대로, 선은 매일 쌓는 macro_history(개요 매크로 칸과 같은 출처). 지난 브리핑도 그 주까지만 그린다.
+function MacroWeek({ macro, hist, week }: { macro: NonNullable<Briefing["macro"]>; hist: Record<string, Point[]>; week: string }) {
+  const [open, setOpen] = useState<MacroKey | null>(null);
+  const { start, end } = weekWindow(week);
+  const rows = MACRO_ROWS.filter((r) => macro[r.key]?.value != null);
+  const cur = rows.find((r) => r.key === open);
+  const hasLines = rows.some((r) => (hist[r.key] ?? []).length > 1);
   return (
-    <div className="rounded-lg px-2.5 py-1.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-      <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="flex flex-wrap items-baseline gap-x-1.5" style={{ fontVariantNumeric: "tabular-nums" }}>
-        <span className="text-[13px] font-bold text-white">{fmt(m.value)}</span>
-        {m.chg_1w != null && <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>주간 {chgFmt(m.chg_1w)}</span>}
-      </p>
+    <div className="mt-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+        {rows.map((r) => {
+          const m = macro[r.key]!;
+          const chg = r.chg ?? usdChg(m);
+          const on = open === r.key;
+          return (
+            <button key={r.key} type="button" onClick={() => setOpen(on ? null : r.key)} aria-expanded={on}
+              className="rounded-lg px-2.5 py-1.5 text-left"
+              style={{ background: "var(--bg-inset)", border: `1px solid ${on ? "var(--border-ctrl)" : "var(--border)"}` }}>
+              <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{r.label}</p>
+              <p className="flex flex-wrap items-baseline gap-x-1.5" style={{ fontVariantNumeric: "tabular-nums" }}>
+                <span className="text-[13px] font-bold text-white">{r.fmt(m.value!)}</span>
+                {m.chg_1w != null && <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>주간 {chg(m.chg_1w)}</span>}
+              </p>
+              <div className="mt-1"><WeekSpark points={hist[r.key] ?? []} week={week} /></div>
+            </button>
+          );
+        })}
+      </div>
+      {cur && (
+        <div className="mt-1.5 rounded-lg p-3" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+          <BigChart key={`${cur.key}-${week}`} points={upTo(hist[cur.key] ?? [], end)} title={cur.label} fmt={cur.fmt} mark={start} initial={22} />
+        </div>
+      )}
+      {hasLines && (
+        <p className="text-[11.5px] mt-1" style={{ color: "var(--text-faint)" }}>
+          음영이 지난주(직전 거래일 종가부터), 흐린 선은 그 앞 3주 · 칸을 누르면 큰 그래프 · 판정 아님
+        </p>
+      )}
     </div>
   );
 }
@@ -252,7 +297,7 @@ const byMarket = (m: Record<string, number>, unit = "") =>
 
 type TocItem = { id: string; label: string; count?: string; group: string };
 
-function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; past: boolean }) {
+function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: ReactNode; past: boolean; macroHist: Record<string, Point[]> }) {
   const wl = b.watchlist ?? { total: 0, added: [], removed: [], top: [], has_prev: false };
   const [active, setActive] = useState("");
   const [commentOpen, setCommentOpen] = useState(false);
@@ -389,25 +434,7 @@ function BriefingView({ b, picker, past }: { b: Briefing; picker: ReactNode; pas
                   <FlowRow label="코스닥 수급" f={b.kr_flows.KOSDAQ} />
                 </div>
               )}
-              {b.macro && (
-                <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  <MacroRow label="미 10년물" m={b.macro.us10y}
-                    fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
-                  <MacroRow label="미 실질금리" m={b.macro.real10y}
-                    fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
-                  <MacroRow label="하이일드 스프레드" m={b.macro.hy_spread}
-                    fmt={(v) => `${v.toFixed(2)}%p`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
-                  <MacroRow label="국고채 3년" m={b.macro.kr3y}
-                    fmt={(v) => `${v.toFixed(2)}%`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`} />
-                  <MacroRow label="원/달러" m={b.macro.usdkrw}
-                    fmt={(v) => `${Math.round(v).toLocaleString()}원`} chgFmt={(v) => `${v >= 0 ? "+" : ""}${Math.round(v).toLocaleString()}원`} />
-                  <MacroRow label="달러인덱스" m={b.macro.dxy}
-                    fmt={(v) => v.toFixed(1)} chgFmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}`} />
-                  <MacroRow label="WTI 유가" m={b.macro.wti} fmt={(v) => `$${v.toFixed(1)}`} chgFmt={usdChg(b.macro.wti)} />
-                  <MacroRow label="구리" m={b.macro.copper} fmt={(v) => `$${v.toFixed(2)}/lb`} chgFmt={usdChg(b.macro.copper)} />
-                  <MacroRow label="천연가스" m={b.macro.natgas} fmt={(v) => `$${v.toFixed(2)}`} chgFmt={usdChg(b.macro.natgas)} />
-                </div>
-              )}
+              {b.macro && <MacroWeek macro={b.macro} hist={macroHist} week={b.week} />}
             </Section>
           </GroupTitle>
 
@@ -776,8 +803,13 @@ export default function BriefingPage() {
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [loading, setLoading] = useState(true);
   const [idx, setIdx] = useState(0);
+  const [macroHist, setMacroHist] = useState<Record<string, Point[]>>({});   // 매크로 칸 주간 선(2026-11-02)
 
   useEffect(() => {
+    fetch("/api/data/macro/history")
+      .then((r) => r.json())
+      .then((d) => setMacroHist(d && typeof d === "object" && !Array.isArray(d) ? d : {}))
+      .catch(() => setMacroHist({}));
     fetch("/api/briefing")
       .then((r) => r.json())
       .then((d) => {
@@ -818,7 +850,7 @@ export default function BriefingPage() {
         <EmptyState title="아직 브리핑이 없어요"
           hint="매주 일요일 밤 워치리스트 스크리닝 뒤 자동으로 만들어집니다. 지금 만들려면 GitHub → Actions → Weekly Watchlist Screen → Run workflow" />
       ) : (
-        <BriefingView key={b.week} b={b} past={idx > 0}
+        <BriefingView key={b.week} b={b} past={idx > 0} macroHist={macroHist}
           picker={<WeekPicker weeks={briefings.map((x) => x.week)} idx={idx} onPick={pick} generatedAt={b.generated_at} />} />
       )}
     </div>
