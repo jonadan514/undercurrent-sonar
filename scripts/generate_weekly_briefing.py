@@ -24,6 +24,7 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -807,6 +808,107 @@ def get_upcoming_catalysts() -> list[dict]:
 
 # ── GPT 총평 ─────────────────────────────────────────────────────────────────
 
+# ── 주간 총평 (GPT) ─────────────────────────────────────────────────────────
+# 2026-11-02 사용자 요청: 총평이 너무 평이하다 - 더 구체적으로. 예전엔 지수 2개·워치리스트 이름·관심도만 넘겨서 일반론밖에 못 썼다.
+# 이제 브리핑에 이미 있는 내용(매크로·수급·종목 변화·테마 라벨·공시·내부자·13F·이번 주 실적 발표·내 관심 종목)을 넘기되,
+# 숫자는 코드가 먼저 말로 바꾼다(qual_*) - LLM은 숫자를 받지도 쓰지도 않는다(원칙 2). 그래도 숫자가 섞이면 그 문장을 뺀다(strip_numeric_sentences).
+
+def qual_pct(v: float | None, big: float = 3.0, mid: float = 1.0, small: float = 0.3) -> str | None:
+    """등락률(%) -> '큰 폭 상승' / '상승' / '소폭 상승' / '보합' ... 판정이 아니라 크기를 말로."""
+    if v is None:
+        return None
+    a, up = abs(v), v > 0
+    if a < small:
+        return "보합"
+    word = "큰 폭 " if a >= big else "" if a >= mid else "소폭 "
+    return word + ("상승" if up else "하락")
+
+
+def qual_macro(key: str, item: dict | None) -> str | None:
+    """매크로 1주 변화 -> 말. 금리·스프레드는 %p, 환율은 원, 달러인덱스는 포인트, 원자재는 변화율로 크기를 나눈다."""
+    if not item or item.get("value") is None or item.get("chg_1w") is None:
+        return None
+    v, c = float(item["value"]), float(item["chg_1w"])
+    if key in ("us10y", "kr3y", "real10y", "hy_spread"):
+        return qual_pct(c * 10, big=1.5, mid=0.5, small=0.2)      # 0.15%p 이상 큰 폭, 0.05%p 이상, 0.02%p 미만 보합
+    if key == "usdkrw":
+        return qual_pct(c / 10, big=2.0, mid=0.5, small=0.2)      # 20원 큰 폭, 5원, 2원 미만 보합
+    if key == "dxy":
+        return qual_pct(c, big=1.5, mid=0.5, small=0.2)
+    base = v - c
+    return qual_pct(c / base * 100 if base else None)              # 유가·구리·천연가스: 변화율
+
+
+def qual_flow(v: float | None) -> str | None:
+    if v is None:
+        return None
+    a = abs(v)
+    size = "큰 폭 " if a >= 1e12 else "" if a >= 2e11 else "소폭 "
+    return size + ("순매수" if v > 0 else "순매도")
+
+
+_NUM_RE = re.compile(r"\d[\d,]*(\.\d+)?\s*(%|%p|억|조|원|달러|bp|배|포인트)|\$\s?\d")
+
+
+def strip_numeric_sentences(text: str) -> str:
+    """수치(%·억·원·$ 등)가 들어간 문장을 뺀다 - 숫자는 화면에 따로 있고 LLM이 만든 숫자는 쓰지 않는다(원칙 2).
+    '13F'·'8-K'처럼 숫자가 든 이름은 단위가 없어 남는다."""
+    out = []
+    for line in text.split("\n"):
+        parts = re.split(r"(?<=[.!?。다요])\s+", line)
+        kept = [p for p in parts if not _NUM_RE.search(p)]
+        out.append(" ".join(kept).strip() if not line.startswith("■") else line)
+    return "\n".join(out).strip()
+
+
+def comment_facts(b: dict) -> dict:
+    """GPT에 넘길 사실 묶음 - 이름·종류·말로 바꾼 크기만(숫자 없음). 빈 칸은 빼서 쓸 거리가 없는 문단을 만들지 않게."""
+    mc = b.get("macro") or {}
+    names = load_theme_names()
+    macro_ko = {"us10y": "미 10년물 금리", "real10y": "미 실질금리", "hy_spread": "하이일드 스프레드", "kr3y": "국고채 3년",
+                "usdkrw": "원/달러 환율", "dxy": "달러인덱스", "wti": "WTI 유가", "copper": "구리", "natgas": "천연가스"}
+    flows = b.get("kr_flows") or {}
+    market = {
+        "미국 지수(S&P 500) 1주": qual_pct(b["us"].get("index_chg_1w")),
+        "한국 지수(KOSPI) 1주": qual_pct(b["kr"].get("index_chg_1w")),
+        **{f"{ko} 1주": qual_macro(k, mc.get(k)) for k, ko in macro_ko.items()},
+        **{f"{m} {who} 5거래일": qual_flow((flows.get(m) or {}).get(key)) for m in ("KOSPI", "KOSDAQ")
+           for key, who in (("foreign", "외국인"), ("institution", "기관"))},
+    }
+    nm = lambda x: x.get("name") or x.get("symbol")  # noqa: E731
+    wl = b.get("watchlist") or {}
+    ta = b.get("turnaround") or {}
+    tl = b.get("theme_labels") or {}
+    kd = b.get("kr_disclosures") or {}
+    ins = b.get("insider_week") or {}
+    u8 = b.get("us_8k_week") or {}
+    inst = b.get("inst_13f_week") or {}
+    ew = b.get("earnings_week") or {}
+    my = b.get("my_stocks_week") or {}
+    facts = {
+        "시장": {k: v for k, v in market.items() if v},
+        "내 관심 종목에 생긴 일": [f"{nm(x)}: " + ", ".join(e["kind"] for e in x["events"]) for x in (my.get("items") or [])[:8]],
+        "워치리스트 새로 들어온 종목": [nm(a) for a in (wl.get("added") or [])[:10]] if wl.get("has_prev") else [],
+        "워치리스트에서 빠진 종목": [nm(a) for a in (wl.get("removed") or [])[:10]] if wl.get("has_prev") else [],
+        "실적 반전(3년 정체·역성장인데 최근 성장) 새로 들어온 종목": [nm(a) for a in (ta.get("added") or [])[:8]],
+        "관심도 상승 종목": [f"{nm(h)} ({h['path']})" for h in (b.get("sentiment_heating") or [])[:8]],
+        "새로 붙은 테마 라벨": [f"{names.get(t['theme_id'], t['theme_id'])} - {label_display(t['label'])}"
+                          for t in (tl.get("new_labels") or [])[:8]],
+        "사라진 테마 라벨": [f"{names.get(t['theme_id'], t['theme_id'])} - {label_display(t['label'])}" for t in (tl.get("dropped_labels") or [])[:8]],
+        "한국 공시 - 계약 해지": [nm(x) for x in ((kd.get("termination") or {}).get("items") or [])[:5]],
+        "한국 공시 - 매출 대비 큰 공급계약(10% 이상)": [nm(x) for x in ((kd.get("contract") or {}).get("items") or []) if (x.get("pct") or 0) >= 10][:8],
+        "한국 잠정실적 - 흑자·적자 전환": [f"{nm(x)} 영업이익 {x.get('operating_income_yoy_turn')}" for x in ((kd.get("prelim") or {}).get("items") or [])
+                                if x.get("operating_income_yoy_turn")][:8],
+        "내부자 매수 - 여러 명이 함께 산 종목": [nm(g) for g in (ins.get("items") or []) + (ins.get("discovery") or [])
+                                   if g.get("buyers", 0) > 1 and not g.get("all_plan")][:8],
+        "미국 8-K 주의 공시": [f"{x['symbol']} " + ", ".join(i["label"] for i in x["items"] if i.get("warn")) for x in (u8.get("items") or []) if x.get("warn")][:6],
+        "13F 이번 주 신고 운용사와 신규 매수 상위": [f"{it['name']}: " + ", ".join((p.get("ticker") or p.get("issuer") or "?") for p in it["new"][:3])
+                                       for it in (inst.get("items") or [])[:6]],
+        "이번 주 실적 발표(관심 종목)": [f"{nm(x)}" for x in (ew.get("items") or []) if x.get("tags")][:10],
+    }
+    return {k: v for k, v in facts.items() if v}
+
+
 def gpt_comment(briefing: dict) -> str:
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
@@ -814,24 +916,22 @@ def gpt_comment(briefing: dict) -> str:
 
     import requests
 
-    compact = {
-        "us_index_chg_1w": briefing["us"]["index_chg_1w"],
-        "kr_index_chg_1w": briefing["kr"]["index_chg_1w"],
-        "watchlist_added": [f"{a.get('name') or a['symbol']}" for a in briefing["watchlist"]["added"][:5]],
-        "watchlist_removed": [f"{a.get('name') or a['symbol']}" for a in briefing["watchlist"]["removed"][:5]],
-        "sentiment_heating": [f"{h.get('name') or h['symbol']} {h['path']}" for h in briefing["sentiment_heating"]],
-    }
-    prompt = f"""다음은 개인 투자 대시보드의 지난주 데이터 요약입니다:
+    facts = comment_facts(briefing)
+    prompt = f"""다음은 개인 투자 리서치 도구의 지난주 브리핑 데이터입니다. 크기는 이미 말로 바꿔 두었습니다(큰 폭/소폭/보합).
 
-{json.dumps(compact, ensure_ascii=False, indent=1)}
+{json.dumps(facts, ensure_ascii=False, indent=1)}
 
-이 데이터만 근거로 다음 3개 문단의 주간 총평을 한국어로 작성하세요 (문단당 2~3문장, 마크다운 없이 평문):
-1. 지난주 시장 요약 — 미국·한국 지수 움직임
-2. 워치리스트·관심도 변화의 의미 — 어떤 종류의 종목이 들어오고 나갔는지, 시장이 어디로 관심을 옮기는지
-3. 다음 주 관전 포인트 — 주의할 것과 지켜볼 것
-
-데이터에 없는 사실(구체적 뉴스·수치)을 지어내지 마세요.
-숫자(등락률·건수 등)는 쓰지 마세요 - 숫자는 화면에 따로 표시됩니다. "올랐다/내렸다/소폭" 같은 말로만 표현하세요."""
+이 데이터만 근거로 주간 총평을 한국어로 쓰세요. 형식:
+- 아래 순서의 소제목을 "■ 소제목" 한 줄로 쓰고, 그 아래 2~4문장. 데이터가 없는 소제목은 통째로 빼세요.
+  ■ 시장 - 지수·금리·환율·유가·수급이 어떻게 움직였고, 그 조합이 어떤 분위기였는지(예: 금리와 달러가 함께 내려 위험자산에 우호적 등). 단정하지 말고 "~로 보입니다" 정도로.
+  ■ 내 관심 종목 - 관심 종목에 생긴 일을 종목 이름과 함께 구체적으로.
+  ■ 종목 변화 - 새로 들어오고 빠진 종목·실적 반전·관심도 상승 종목의 이름을 들어, 어떤 업종·성격의 회사들인지 공통점을 짚기.
+  ■ 테마 - 새로 붙거나 사라진 테마 라벨이 무슨 뜻인지(숨은 강세=실적이 먼저, 뉴스 선행=뉴스가 먼저 등) 테마 이름과 함께.
+  ■ 공시·내부자 - 계약 해지, 큰 공급계약, 흑자·적자 전환, 여러 명의 내부자 매수, 13F 신규 매수 중 눈에 띄는 것을 이름과 함께.
+  ■ 이번 주 관전 포인트 - 실적 발표가 있는 관심 종목, 이어서 확인할 것 2~3가지를 구체적으로.
+- 마크다운(**, # 등) 없이 평문. 종목·테마 이름은 데이터에 있는 그대로.
+- 숫자(등락률·금액·건수·%)는 절대 쓰지 마세요 - 숫자는 화면에 따로 표시됩니다.
+- 데이터에 없는 사실(뉴스·원인·전망 수치)을 지어내지 마세요. 매수·매도 권유는 하지 마세요."""
 
     try:
         resp = requests.post(
@@ -840,16 +940,16 @@ def gpt_comment(briefing: dict) -> str:
             json={
                 "model": "gpt-4o-mini",
                 "messages": [
-                    {"role": "system", "content": "당신은 간결하고 정직한 투자 브리핑 작가입니다."},
+                    {"role": "system", "content": "당신은 구체적이고 정직한 투자 리서치 브리핑 작가입니다. 주어진 데이터의 이름과 사실만 씁니다."},
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.4,
-                "max_tokens": 800,
+                "max_tokens": 1500,
             },
-            timeout=60,
+            timeout=90,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
+        return strip_numeric_sentences(resp.json()["choices"][0]["message"]["content"].strip())
     except Exception as e:
         logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
         return ""
@@ -922,7 +1022,7 @@ def build_telegram_summary(b: dict) -> str:
 
     lines = [f"<b>📋 Undercurrent Sonar 주간 브리핑</b> · {_md(b['week'])}", ""]
 
-    # 묶음 머리 - 웹 브리핑과 같은 순서·이름(2026-11-02, 사용자 결정: 종목 변화·테마를 먼저)
+    # 묶음 머리 - 웹 브리핑과 같은 순서·이름(2026-11-02, 사용자 결정: 시장 → 종목 변화 → 테마 → 일정 → 공시)
     def group(title: str) -> None:
         lines.extend(["", f"━━ {title} ━━"])
 
@@ -936,6 +1036,46 @@ def build_telegram_summary(b: dict) -> str:
         if my["count"] > MY_TG_MAX:
             lines.append(f"  외 {my['count'] - MY_TG_MAX}종목")
         lines.append("")
+
+    group("🌐 시장")
+    idx = []
+    if b["us"].get("index_chg_1w") is not None:
+        idx.append(f"🇺🇸 SPY {b['us']['index_chg_1w']:+.1f}%")
+    if b["kr"].get("index_chg_1w") is not None:
+        kospi = f"🇰🇷 KOSPI {b['kr']['index_chg_1w']:+.1f}%"
+        # 외국인 순매수(5거래일 합) - 지표 줄을 늘리지 않고 지수 옆에 붙인다(2026-10-17)
+        fk = ((b.get("kr_flows") or {}).get("KOSPI") or {}).get("foreign")
+        if fk is not None:
+            kospi += f" (외국인 {fmt_krw_flow(fk)})"
+        idx.append(kospi)
+    if idx:
+        lines.append("지난 1주 " + " · ".join(idx))
+
+    # 금리·환율 - 지수 옆에 같이 본다. 값·변화 모두 macro_snapshot에서 온 숫자 그대로.
+    mc = b.get("macro") or {}
+    rates = []
+    r = mc.get("us10y") or {}
+    if r.get("value") is not None:
+        chg = f" ({r['chg_1w']:+.2f}%p)" if r.get("chg_1w") is not None else ""
+        rates.append(f"미 10년물 {r['value']:.2f}%{chg}")
+    kr = mc.get("kr3y") or {}
+    if kr.get("value") is not None:
+        chg = f" ({kr['chg_1w']:+.2f}%p)" if kr.get("chg_1w") is not None else ""
+        rates.append(f"국고채 3년 {kr['value']:.2f}%{chg}")
+    fx = mc.get("usdkrw") or {}
+    if fx.get("value") is not None:
+        chg = f" ({fx['chg_1w']:+,.0f}원)" if fx.get("chg_1w") is not None else ""
+        rates.append(f"원/달러 {fx['value']:,.0f}원{chg}")
+    dx = mc.get("dxy") or {}
+    if dx.get("value") is not None:
+        chg = f" ({dx['chg_1w']:+.1f})" if dx.get("chg_1w") is not None else ""
+        rates.append(f"달러인덱스 {dx['value']:.1f}{chg}")
+    oil = mc.get("wti") or {}
+    if oil.get("value") is not None:
+        rates.append(f"WTI ${oil['value']:.1f}{_pct_chg(oil)}")
+    if rates:
+        label = "금리·환율·유가" if oil.get("value") is not None else "금리·환율"
+        lines.append(f"{label} " + " · ".join(rates))
 
     group("🔖 종목 변화")
     wl = b["watchlist"]
@@ -989,46 +1129,6 @@ def build_telegram_summary(b: dict) -> str:
                          f"{html.escape(names.get(t['theme_id'], t['theme_id']))} — {label_display(t['label'])}")
         if len(tl.get("new_labels", [])) > 5:
             lines.append(f"  외 {len(tl['new_labels']) - 5}개")
-
-    group("🌐 시장")
-    idx = []
-    if b["us"].get("index_chg_1w") is not None:
-        idx.append(f"🇺🇸 SPY {b['us']['index_chg_1w']:+.1f}%")
-    if b["kr"].get("index_chg_1w") is not None:
-        kospi = f"🇰🇷 KOSPI {b['kr']['index_chg_1w']:+.1f}%"
-        # 외국인 순매수(5거래일 합) - 지표 줄을 늘리지 않고 지수 옆에 붙인다(2026-10-17)
-        fk = ((b.get("kr_flows") or {}).get("KOSPI") or {}).get("foreign")
-        if fk is not None:
-            kospi += f" (외국인 {fmt_krw_flow(fk)})"
-        idx.append(kospi)
-    if idx:
-        lines.append("지난 1주 " + " · ".join(idx))
-
-    # 금리·환율 - 지수 옆에 같이 본다. 값·변화 모두 macro_snapshot에서 온 숫자 그대로.
-    mc = b.get("macro") or {}
-    rates = []
-    r = mc.get("us10y") or {}
-    if r.get("value") is not None:
-        chg = f" ({r['chg_1w']:+.2f}%p)" if r.get("chg_1w") is not None else ""
-        rates.append(f"미 10년물 {r['value']:.2f}%{chg}")
-    kr = mc.get("kr3y") or {}
-    if kr.get("value") is not None:
-        chg = f" ({kr['chg_1w']:+.2f}%p)" if kr.get("chg_1w") is not None else ""
-        rates.append(f"국고채 3년 {kr['value']:.2f}%{chg}")
-    fx = mc.get("usdkrw") or {}
-    if fx.get("value") is not None:
-        chg = f" ({fx['chg_1w']:+,.0f}원)" if fx.get("chg_1w") is not None else ""
-        rates.append(f"원/달러 {fx['value']:,.0f}원{chg}")
-    dx = mc.get("dxy") or {}
-    if dx.get("value") is not None:
-        chg = f" ({dx['chg_1w']:+.1f})" if dx.get("chg_1w") is not None else ""
-        rates.append(f"달러인덱스 {dx['value']:.1f}{chg}")
-    oil = mc.get("wti") or {}
-    if oil.get("value") is not None:
-        rates.append(f"WTI ${oil['value']:.1f}{_pct_chg(oil)}")
-    if rates:
-        label = "금리·환율·유가" if oil.get("value") is not None else "금리·환율"
-        lines.append(f"{label} " + " · ".join(rates))
 
     group("📅 이번 주 일정")
     ew = b.get("earnings_week")
@@ -1190,7 +1290,19 @@ def send_telegram_summary(b: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-telegram", action="store_true")
+    parser.add_argument("--preview-comment", action="store_true",
+                        help="저장된 최근 브리핑으로 총평만 만들어 출력(저장·발송 안 함, 2026-11-02)")
     args = parser.parse_args()
+
+    if args.preview_comment:
+        rows = _payload(turso_exec("SELECT week, payload FROM weekly_briefings ORDER BY week DESC LIMIT 1"))
+        if not rows:
+            logger.info("저장된 브리핑 없음")
+            return
+        b = rows[0]["_data"]
+        print("== 넘기는 사실 ==\n" + json.dumps(comment_facts(b), ensure_ascii=False, indent=1))
+        print(f"\n== 총평 ({b.get('week')}) ==\n" + (gpt_comment(b) or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
+        return
 
     now = datetime.now(timezone.utc)
     # 브리핑 주차 라벨 = 다가오는 월요일 (일요일 밤 실행 기준)
@@ -1218,8 +1330,8 @@ def main() -> None:
         "theme_labels": get_theme_label_changes(),
         "observation_reviews": get_observation_reviews(),
     }
-    briefing["gpt_comment"] = gpt_comment(briefing)
     briefing["my_stocks_week"] = get_my_stocks_week(briefing)
+    briefing["gpt_comment"] = gpt_comment(briefing)   # 관심 종목 칸까지 만든 뒤 - 총평이 그 내용도 쓴다(2026-11-02)
 
     turso_exec(
         "CREATE TABLE IF NOT EXISTS weekly_briefings ("

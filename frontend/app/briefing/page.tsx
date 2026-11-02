@@ -376,6 +376,30 @@ function BriefGroup({ title, children }: { title: string; children: ReactNode })
   );
 }
 
+// 주간 총평 본문(2026-11-02) - "■ 소제목" 줄은 제목으로, 나머지는 문단. 접힌 상태에선 앞 두 묶음만(예전 형식 - 소제목 없는 글은 4줄).
+function CommentBody({ text, collapsed }: { text: string; collapsed: boolean }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!lines.some((l) => l.startsWith("■"))) {
+    return <p className={`text-[13px] leading-relaxed whitespace-pre-line ${collapsed ? "line-clamp-4" : ""}`} style={{ color: "#bdb5a0" }}>{text}</p>;
+  }
+  const blocks: { head: string; body: string[] }[] = [];
+  for (const l of lines) {
+    if (l.startsWith("■")) blocks.push({ head: l.replace(/^■\s*/, ""), body: [] });
+    else if (blocks.length) blocks[blocks.length - 1].body.push(l);
+    else blocks.push({ head: "", body: [l] });
+  }
+  return (
+    <div className="space-y-2.5">
+      {(collapsed ? blocks.slice(0, 2) : blocks).map((blk, i) => (
+        <div key={i}>
+          {blk.head && <p className="text-[12.5px] font-bold mb-0.5" style={{ color: "#ffb020" }}>{blk.head}</p>}
+          {blk.body.map((t, k) => <p key={k} className="text-[13px] leading-relaxed" style={{ color: "#bdb5a0" }}>{t}</p>)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: ReactNode; past: boolean; macroHist: Record<string, Point[]> }) {
   const wl = b.watchlist ?? { total: 0, added: [], removed: [], top: [], has_prev: false };
   const [active, setActive] = useState("");
@@ -399,13 +423,13 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   const toc: TocItem[] = [
     ...(has.mine ? [{ id: "mine", label: "⭐ 관심 종목", count: `${b.my_stocks_week!.count}`, group: "" }] : []),
     ...(has.comment ? [{ id: "comment", label: "총평", group: "" }] : []),
+    { id: "market", label: "지난주 시장", group: "시장" },
     { id: "watchlist", label: "워치리스트",
       count: wl.has_prev ? `+${wl.added_count ?? wl.added.length} −${wl.removed_count ?? wl.removed.length}` : undefined, group: "종목 변화" },
     ...(has.turnaround ? [{ id: "turnaround", label: "실적 반전", count: b.turnaround!.has_prev ? `+${b.turnaround!.added_count}` : undefined, group: "종목 변화" }] : []),
     ...(has.sentiment ? [{ id: "sentiment", label: "관심도", count: `${b.sentiment_heating.length}`, group: "종목 변화" }] : []),
     ...(has.labels ? [{ id: "labels", label: "테마 라벨",
       count: `${b.theme_labels!.new_labels.length + b.theme_labels!.dropped_labels.length}`, group: "테마" }] : []),
-    { id: "market", label: "지난주 시장", group: "시장" },
     ...(has.earnings ? [{ id: "earnings", label: "실적 발표", count: `${b.earnings_week!.total}`, group: "이번 주 일정" }] : []),
     ...(has.catalysts ? [{ id: "catalysts", label: "촉매", count: `${b.catalysts.length}`, group: "이번 주 일정" }] : []),
     ...(has.disclosures ? [{ id: "disclosures", label: "한국 공시", count: `${discTotal(b)}`, group: "공시 · 내부자" }] : []),
@@ -490,9 +514,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
           {has.comment && (
             <Section className={SCROLL_M} id="comment" tone="warm" title="주간 총평">
-              <p className={`text-[13px] leading-relaxed whitespace-pre-line ${longComment && !commentOpen ? "line-clamp-4" : ""}`} style={{ color: "#bdb5a0" }}>
-                {b.gpt_comment}
-              </p>
+              <CommentBody text={b.gpt_comment} collapsed={longComment && !commentOpen} />
               {longComment && (
                 <button onClick={() => setCommentOpen(!commentOpen)} className="mt-1 text-[12px] hover:underline" style={{ color: "#ffb020" }}>
                   {commentOpen ? "접기" : "전체 보기"}
@@ -500,6 +522,22 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
               )}
             </Section>
           )}
+
+          <BriefGroup title="시장">
+            <Section className={SCROLL_M} id="market" title="지난주 시장">
+              <div className="grid grid-cols-2 gap-1.5">
+                <IndexTile label="🇺🇸 S&P 500 주간" m={b.us} />
+                <IndexTile label="🇰🇷 KOSPI 주간" m={b.kr} />
+              </div>
+              {b.kr_flows && (
+                <div className="mt-1.5 space-y-1.5">
+                  <FlowRow label="코스피 수급" f={b.kr_flows.KOSPI} />
+                  <FlowRow label="코스닥 수급" f={b.kr_flows.KOSDAQ} />
+                </div>
+              )}
+              {b.macro && <MacroWeek macro={b.macro} hist={macroHist} week={b.week} />}
+            </Section>
+          </BriefGroup>
 
           <BriefGroup title="종목 변화">
             <Section className={SCROLL_M} id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
@@ -604,22 +642,6 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                 </div>
               </Section>
             )}
-          </BriefGroup>
-
-          <BriefGroup title="시장">
-            <Section className={SCROLL_M} id="market" title="지난주 시장">
-              <div className="grid grid-cols-2 gap-1.5">
-                <IndexTile label="🇺🇸 S&P 500 주간" m={b.us} />
-                <IndexTile label="🇰🇷 KOSPI 주간" m={b.kr} />
-              </div>
-              {b.kr_flows && (
-                <div className="mt-1.5 space-y-1.5">
-                  <FlowRow label="코스피 수급" f={b.kr_flows.KOSPI} />
-                  <FlowRow label="코스닥 수급" f={b.kr_flows.KOSDAQ} />
-                </div>
-              )}
-              {b.macro && <MacroWeek macro={b.macro} hist={macroHist} week={b.week} />}
-            </Section>
           </BriefGroup>
 
           <BriefGroup title="이번 주 일정">

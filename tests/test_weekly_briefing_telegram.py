@@ -310,6 +310,26 @@ def test_telegram_group_order_and_empty_groups_dropped():
     # 2026-11-02: 웹 브리핑과 같은 순서(종목 변화 → 테마 → 시장 → 일정 → 공시·내부자), 빈 묶음은 머리째 뺀다
     text = g.build_telegram_summary(_briefing())
     heads = [l for l in text.split("\n") if l.startswith("━━")]
-    assert heads == ["━━ 🔖 종목 변화 ━━", "━━ 📡 테마 ━━", "━━ 🌐 시장 ━━"]   # 일정·공시가 없는 주는 머리 없음
+    assert heads == ["━━ 🌐 시장 ━━", "━━ 🔖 종목 변화 ━━", "━━ 📡 테마 ━━"]   # 일정·공시가 없는 주는 머리 없음
     i = text.index("━━ 🔖 종목 변화 ━━")
     assert text[i:].split("\n")[1].startswith("<b>🔖 워치리스트")                 # 머리 바로 다음 줄이 첫 칸(빈 줄 없음)
+
+
+def test_comment_qualitative_words_and_numeric_strip():
+    # 2026-11-02: 총평을 구체적으로 - 숫자는 코드가 말로 바꿔 넘기고, LLM 글에 수치가 섞이면 그 문장을 뺀다(원칙 2)
+    assert g.qual_pct(3.4) == "큰 폭 상승" and g.qual_pct(-1.2) == "하락" and g.qual_pct(0.5) == "소폭 상승" and g.qual_pct(0.1) == "보합"
+    assert g.qual_macro("us10y", {"value": 4.1, "chg_1w": -0.16}) == "큰 폭 하락"
+    assert g.qual_macro("usdkrw", {"value": 1330, "chg_1w": -11}) == "하락"
+    assert g.qual_macro("wti", {"value": 101.4, "chg_1w": 9.6}) == "큰 폭 상승"
+    assert g.qual_flow(1.23e12) == "큰 폭 순매수" and g.qual_flow(-9.3e10) == "소폭 순매도"
+    txt = "■ 시장\n지수가 소폭 올랐습니다. 유가는 9.6% 급등했습니다. 13F 신고가 이어졌습니다."
+    assert g.strip_numeric_sentences(txt) == "■ 시장\n지수가 소폭 올랐습니다. 13F 신고가 이어졌습니다."
+
+
+def test_comment_facts_have_no_raw_numbers():
+    import json, re
+    b = _briefing(macro={"us10y": {"value": 4.1, "chg_1w": -0.15}, "usdkrw": {"value": 1330, "chg_1w": -11}},
+                  kr_flows={"KOSPI": {"foreign": 1.2e12, "institution": -6e11}})
+    facts = g.comment_facts(b)
+    assert facts["시장"]["미 10년물 금리 1주"] == "큰 폭 하락" and facts["시장"]["KOSPI 외국인 5거래일"] == "큰 폭 순매수"
+    assert not re.search(r"\d+(\.\d+)?\s*(%|억|조|원)", json.dumps(facts, ensure_ascii=False))

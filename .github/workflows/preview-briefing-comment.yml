@@ -1,0 +1,27 @@
+name: Preview Briefing Comment
+
+# 읽기 전용(2026-11-02) - 저장된 최근 주간 브리핑으로 GPT 총평만 만들어 로그에 출력. 저장·텔레그램 발송 없음.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install requests yfinance pyyaml
+      - name: Preview
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/generate_weekly_briefing.py --preview-comment
