@@ -922,6 +922,10 @@ def build_telegram_summary(b: dict) -> str:
 
     lines = [f"<b>📋 Undercurrent Sonar 주간 브리핑</b> · {_md(b['week'])}", ""]
 
+    # 묶음 머리 - 웹 브리핑과 같은 순서·이름(2026-11-02, 사용자 결정: 종목 변화·테마를 먼저)
+    def group(title: str) -> None:
+        lines.extend(["", f"━━ {title} ━━"])
+
     # 맨 위: 내 관심·노트 종목에 생긴 일(2026-10-21) - 아래 칸들에서 그 종목 줄만 모은 것
     my = b.get("my_stocks_week")
     if my and my.get("count"):
@@ -933,6 +937,60 @@ def build_telegram_summary(b: dict) -> str:
             lines.append(f"  외 {my['count'] - MY_TG_MAX}종목")
         lines.append("")
 
+    group("🔖 종목 변화")
+    wl = b["watchlist"]
+    lines.append("")
+    if wl["has_prev"]:
+        lines.append(f"<b>🔖 워치리스트</b> {wl['total']}종목 · 신규 {wl['added_count']} · 탈락 {wl['removed_count']}")
+        for a in wl["added"][:3]:
+            lines.append(f"  + {disp(a)}")
+        if wl["added_count"] > 3:
+            lines.append(f"  외 {wl['added_count'] - 3}개")
+    else:
+        lines.append(f"<b>🔖 워치리스트</b> {wl['total']}종목")
+
+    ta = b.get("turnaround")
+    if ta:
+        counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ta["by_market"].items(), reverse=True))
+        lines.append("")
+        head = f"<b>🔄 실적 반전</b> {counts or '0'}"
+        if ta["has_prev"]:
+            head += f" · 신규 {ta['added_count']} · 빠짐 {ta['removed_count']}"
+        lines.append(head)
+        for a in ta["added"][:3]:
+            yoy = f" {a['basis']} {a['yoy'] * 100:+.0f}%" if a.get("yoy") is not None else ""
+            lines.append(f"  + {disp(a)}{yoy}")
+        if ta["added_count"] > 3:
+            lines.append(f"  외 {ta['added_count'] - 3}개")
+        if not ta["has_prev"]:
+            lines.append("  (새로 들어온 종목 비교는 다음 주부터)")
+
+    if b["sentiment_heating"]:
+        lines.append("")
+        lines.append("<b>📈 관심도 상승</b>")
+        for h in b["sentiment_heating"][:3]:
+            lines.append(f"  {disp(h)} {h['path']}")
+
+    group("📡 테마")
+    # 테마 레이더 - 이 툴의 중심이라 라벨이 없어도 상태를 한 줄은 쓴다
+    tl = b.get("theme_labels") or {}
+    counts = tl.get("label_counts") or {}
+    lines.append("")
+    lines.append(f"<b>📡 테마 레이더</b> ({_md(tl.get('week_start'))} 주)")
+    if not counts:
+        lines.append("  테마 신호 데이터 없음")
+    elif not any(counts.values()):
+        lines.append("  아직 라벨 없음 - 뉴스 기준선(4주)이 쌓이면 붙습니다")
+    else:
+        lines.append("  라벨 " + " · ".join(f"{MARKET_FLAG[m]} {n}개" for m, n in counts.items()))
+        names = load_theme_names()
+        for t in tl.get("new_labels", [])[:5]:
+            lines.append(f"  + {MARKET_FLAG.get(t.get('market', 'US'), '')} "
+                         f"{html.escape(names.get(t['theme_id'], t['theme_id']))} — {label_display(t['label'])}")
+        if len(tl.get("new_labels", [])) > 5:
+            lines.append(f"  외 {len(tl['new_labels']) - 5}개")
+
+    group("🌐 시장")
     idx = []
     if b["us"].get("index_chg_1w") is not None:
         idx.append(f"🇺🇸 SPY {b['us']['index_chg_1w']:+.1f}%")
@@ -972,51 +1030,7 @@ def build_telegram_summary(b: dict) -> str:
         label = "금리·환율·유가" if oil.get("value") is not None else "금리·환율"
         lines.append(f"{label} " + " · ".join(rates))
 
-    # 테마 레이더 - 이 툴의 중심이라 라벨이 없어도 상태를 한 줄은 쓴다
-    tl = b.get("theme_labels") or {}
-    counts = tl.get("label_counts") or {}
-    lines.append("")
-    lines.append(f"<b>📡 테마 레이더</b> ({_md(tl.get('week_start'))} 주)")
-    if not counts:
-        lines.append("  테마 신호 데이터 없음")
-    elif not any(counts.values()):
-        lines.append("  아직 라벨 없음 - 뉴스 기준선(4주)이 쌓이면 붙습니다")
-    else:
-        lines.append("  라벨 " + " · ".join(f"{MARKET_FLAG[m]} {n}개" for m, n in counts.items()))
-        names = load_theme_names()
-        for t in tl.get("new_labels", [])[:5]:
-            lines.append(f"  + {MARKET_FLAG.get(t.get('market', 'US'), '')} "
-                         f"{html.escape(names.get(t['theme_id'], t['theme_id']))} — {label_display(t['label'])}")
-        if len(tl.get("new_labels", [])) > 5:
-            lines.append(f"  외 {len(tl['new_labels']) - 5}개")
-
-    wl = b["watchlist"]
-    lines.append("")
-    if wl["has_prev"]:
-        lines.append(f"<b>🔖 워치리스트</b> {wl['total']}종목 · 신규 {wl['added_count']} · 탈락 {wl['removed_count']}")
-        for a in wl["added"][:3]:
-            lines.append(f"  + {disp(a)}")
-        if wl["added_count"] > 3:
-            lines.append(f"  외 {wl['added_count'] - 3}개")
-    else:
-        lines.append(f"<b>🔖 워치리스트</b> {wl['total']}종목")
-
-    ta = b.get("turnaround")
-    if ta:
-        counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ta["by_market"].items(), reverse=True))
-        lines.append("")
-        head = f"<b>🔄 실적 반전</b> {counts or '0'}"
-        if ta["has_prev"]:
-            head += f" · 새로 {ta['added_count']} · 빠짐 {ta['removed_count']}"
-        lines.append(head)
-        for a in ta["added"][:3]:
-            yoy = f" {a['basis']} {a['yoy'] * 100:+.0f}%" if a.get("yoy") is not None else ""
-            lines.append(f"  + {disp(a)}{yoy}")
-        if ta["added_count"] > 3:
-            lines.append(f"  외 {ta['added_count'] - 3}개")
-        if not ta["has_prev"]:
-            lines.append("  (새로 들어온 종목 비교는 다음 주부터)")
-
+    group("📅 이번 주 일정")
     ew = b.get("earnings_week")
     if ew and ew.get("total"):
         counts = " · ".join(f"{MARKET_FLAG.get(m, m)} {n}" for m, n in sorted(ew["by_market"].items(), reverse=True))
@@ -1030,6 +1044,7 @@ def build_telegram_summary(b: dict) -> str:
         if ew["total"] > min(len(shown), EARNINGS_TG_MAX):
             lines.append(f"  외 {ew['total'] - min(len(shown), EARNINGS_TG_MAX)}개")
 
+    group("📄 공시 · 내부자")
     kd = b.get("kr_disclosures")
     kinds = ("contract", "prelim", "termination", "amend")
     if kd and any((kd.get(k) or {}).get("count") for k in kinds):
@@ -1108,15 +1123,20 @@ def build_telegram_summary(b: dict) -> str:
                          f"{rv.get('checkpoint')}주 전" + (f" · {facts}" if facts else ""))
         lines.append(f'  <a href="{SITE_URL}/notes">판단 남기기</a>')
 
-    if b["sentiment_heating"]:
-        lines.append("")
-        lines.append("<b>📈 관심도 상승</b>")
-        for h in b["sentiment_heating"][:3]:
-            lines.append(f"  {disp(h)} {h['path']}")
-
     lines += ["", f'<a href="{SITE_URL}/briefing">전체 브리핑 보기</a>']
+    # 묶음 머리 정리: 머리 바로 뒤 빈 줄은 빼고(머리와 첫 칸이 한 덩어리로 - 메시지를 나눌 때도 같이 간다),
+    # 안에 아무 줄도 없는 묶음(다음 줄이 또 머리이거나 끝)은 머리째 뺀다
+    out: list[str] = []
+    for i, l in enumerate(lines):
+        if l.startswith("━━"):
+            nxt = next((x for x in lines[i + 1:] if x), "")
+            if not nxt or nxt.startswith("━━") or nxt.startswith("<a href"):
+                continue
+        if not l and out and out[-1].startswith("━━"):
+            continue
+        out.append(l)
     # 지수·금리 줄이 다 비면 빈 줄이 겹친다 - 연속 빈 줄은 하나로
-    return "\n".join(l for i, l in enumerate(lines) if l or (i > 0 and lines[i - 1]))
+    return "\n".join(l for i, l in enumerate(out) if l or (i > 0 and out[i - 1]))
 
 
 TELEGRAM_MAX = 3900   # 텔레그램 한 메시지 4,096자 - 여유를 둔다

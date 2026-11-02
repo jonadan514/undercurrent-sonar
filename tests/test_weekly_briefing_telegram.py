@@ -97,7 +97,7 @@ def test_turnaround_diff_and_telegram_lines():
     assert d["added_count"] == 1 and d["added"][0]["symbol"] == "005930" and d["removed_count"] == 1
     d.pop("items")
     text = g.build_telegram_summary(_briefing(turnaround=d))
-    assert "🔄 실적 반전</b> 🇺🇸 1 · 🇰🇷 1 · 새로 1 · 빠짐 1" in text and "삼성전자 1년 +57%" in text
+    assert "🔄 실적 반전</b> 🇺🇸 1 · 🇰🇷 1 · 신규 1 · 빠짐 1" in text and "삼성전자 1년 +57%" in text
     first.pop("items")
     assert "다음 주부터" in g.build_telegram_summary(_briefing(turnaround=first))
     assert "실적 반전" not in g.build_telegram_summary(_briefing())
@@ -304,3 +304,12 @@ def test_inst_13f_week_items_and_my_stocks_and_telegram():
     assert my["items"][0]["events"][0]["kind"] == "13F" and "추가 매수" in my["items"][0]["events"][0]["text"]
     text = g.build_telegram_summary(_briefing(inst_13f_week=inst))
     assert "유명 투자자 13F" in text and "신규 AAPL" in text and "전량 매도 KO" in text and "2026 Q3" in text
+
+
+def test_telegram_group_order_and_empty_groups_dropped():
+    # 2026-11-02: 웹 브리핑과 같은 순서(종목 변화 → 테마 → 시장 → 일정 → 공시·내부자), 빈 묶음은 머리째 뺀다
+    text = g.build_telegram_summary(_briefing())
+    heads = [l for l in text.split("\n") if l.startswith("━━")]
+    assert heads == ["━━ 🔖 종목 변화 ━━", "━━ 📡 테마 ━━", "━━ 🌐 시장 ━━"]   # 일정·공시가 없는 주는 머리 없음
+    i = text.index("━━ 🔖 종목 변화 ━━")
+    assert text[i:].split("\n")[1].startswith("<b>🔖 워치리스트")                 # 머리 바로 다음 줄이 첫 칸(빈 줄 없음)
