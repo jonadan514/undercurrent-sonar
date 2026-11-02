@@ -872,11 +872,16 @@ LABEL_MEANING = {
 }
 
 
+_CORP_SUFFIX = re.compile(r",?\s+(Inc\.?|Incorporated|Corporation|Corp\.?|Company|Co\.|PLC|plc|Ltd\.?|N\.V\.|S\.A\.|AG|SE)$")
+
+
 def _clean_names(xs) -> list[str]:
     """이름 끝의 쉼표·공백을 지우고 같은 이름은 한 번만(같은 회사 공시 두 건 등)."""
     out: list[str] = []
     for x in xs:
-        x = (x or "").strip().rstrip(",").strip()
+        x = (x or "").replace("(The)", "").strip().rstrip(",").strip()
+        while (y := _CORP_SUFFIX.sub("", x)) != x:   # 'AMETEK, Inc.'·'Eaton Corporation, PLC' → 'AMETEK'·'Eaton' (글로 읽기 편하게)
+            x = y.strip().rstrip(",").strip()
         if x and x not in out:
             out.append(x)
     return out
@@ -971,6 +976,8 @@ def gpt_comment(briefing: dict) -> str:
 6. 이번 주 관전 포인트 - 실적 발표가 있는 관심 종목, 그리고 위 내용에서 이어서 확인할 것 두세 가지(예: 기대 과열 테마의 실적이 따라오는지, 계약 해지 종목의 후속 공시).
 
 규칙:
+- 목록을 그대로 옮겨 적지 말고 읽히는 문장으로 쓰세요. 한 문장에 이름은 서너 개까지 - 전체 목록은 화면에 따로 있으니 대표만 들고 "등"으로 줄이세요.
+- 테마 라벨은 한글 이름(예: 기대 과열)만 쓰고, 뜻은 자기 말로 풀어 쓰세요. 예) "미국 천연가스·LNG 테마는 뉴스와 주가가 크게 앞서 갔지만 실적은 오히려 나빠져 기대 과열 라벨이 새로 붙었습니다. 같은 주 천연가스 가격도 큰 폭으로 올랐습니다."
 - 문장마다 데이터의 구체적인 이름이나 사실이 하나 이상 들어가야 합니다. "향후 주가에 영향을 미칠 수 있습니다", "주의 깊게 살펴볼 필요가 있습니다", "주목됩니다"처럼 아무 데나 붙는 빈말 문장은 쓰지 마세요.
 - 원인이나 효과(예: "에너지 자산에 긍정적")를 짐작해 덧붙이지 마세요. 데이터끼리의 연결만 쓰세요.
 - 종목·테마 이름은 데이터에 적힌 글자 그대로 옮기세요.

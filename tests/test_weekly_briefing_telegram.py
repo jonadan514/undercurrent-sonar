@@ -342,7 +342,9 @@ def test_comment_facts_label_meaning_and_clean_names():
                   kr_disclosures={"contract": {"items": [{"name": "에이치브이엠", "pct": 20}, {"name": "에이치브이엠", "pct": 15}]}})
     facts = g.comment_facts(b)
     assert "(한국) - Hidden Strength · 숨은 강세: 실적은 크게 좋아졌는데" in facts["새로 붙은 테마 라벨"][0]
-    assert facts["워치리스트 새로 들어온 종목"] == ["MSC Industrial Direct Company"]
+    assert facts["워치리스트 새로 들어온 종목"] == ["MSC Industrial Direct"]
+    assert g._clean_names(["AMETEK, Inc.", "Eaton Corporation, PLC", "New York Times Company (The)", "삼성전자"]) == \
+        ["AMETEK", "Eaton", "New York Times", "삼성전자"]
     assert facts["한국 공시 - 매출 대비 큰 공급계약(10% 이상)"] == ["에이치브이엠"]
 
 
