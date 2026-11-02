@@ -1429,11 +1429,20 @@ def main() -> None:
             logger.info("저장된 브리핑 없음")
             return
         b = rows[0]["_data"]
+        if not b.get("my_stocks_week"):
+            b["my_stocks_week"] = get_my_stocks_week(b)
         print("== 넘기는 사실 ==\n" + json.dumps(comment_facts(b), ensure_ascii=False, indent=1))
         final = gpt_comment(b)
         if _LAST_RAW_COMMENT[0] and _LAST_RAW_COMMENT[0] != final:
             print("\n== GPT 원문(뒷손질 전) ==\n" + _LAST_RAW_COMMENT[0])
         print(f"\n== 총평 ({b.get('week')}) ==\n" + (final or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
+        if final:
+            b["gpt_comment"] = final
+        print("\n== 텔레그램(지금 코드의 순서) ==\n" + build_telegram_summary(b))
+        # 웹 화면 미리 보기용 - 새 총평을 넣은 브리핑 한 주치(사이트 /api/briefing이 주는 것과 같은 내용). 저장은 하지 않는다.
+        import base64
+        import gzip
+        print("\n== PAYLOAD_B64 ==\n" + base64.b64encode(gzip.compress(json.dumps(b, ensure_ascii=False).encode())).decode())
         return
 
     now = datetime.now(timezone.utc)
