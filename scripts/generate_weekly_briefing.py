@@ -862,6 +862,8 @@ def strip_numeric_sentences(text: str) -> str:
 
 
 # 라벨 뜻(theme_labels._RULES의 뉴스·실적·주가 조합) - GPT가 이름만 보고 뜻을 짐작하지 않게 같이 넘긴다
+LABEL_KO_SHORT = {"Early Buzz": "뉴스 선행", "Full Alignment": "동반 상승", "Quiet Strength": "숨은 강세",
+                  "Overheated Buzz": "기대 과열", "Full Decline": "동반 하락", "Quiet Recovery": "숨은 회복"}
 LABEL_MEANING = {
     "Early Buzz": "뉴스가 크게 늘고 주가도 올랐지만 실적은 아직 그대로 - 기대가 먼저 움직임",
     "Full Alignment": "뉴스·실적·주가가 모두 오름",
@@ -1020,45 +1022,78 @@ def comment_facts(b: dict) -> dict:
     return {k: v for k, v in facts.items() if v}
 
 
+
+
+
+def get_theme_members() -> dict[tuple[str, str], set[str]]:
+    """(시장, 테마) -> 소속 종목 - 테마마다 가장 최근 승인 run(interest_tags_names의 'theme'과 같은 기준). 실패하면 빈 표."""
+    out: dict[tuple[str, str], set[str]] = {}
+    try:
+        for r in turso_exec("SELECT m.market, m.theme_id, m.ticker FROM theme_members m WHERE m.approved = 1 "
+                            "AND m.run_id = (SELECT MAX(run_id) FROM theme_members t WHERE t.theme_id = m.theme_id "
+                            "AND t.market = m.market AND t.approved = 1)"):
+            out.setdefault((r["market"], r["theme_id"]), set()).add(r["ticker"])
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def comment_points(b: dict) -> list[dict]:
+    """총평의 '이번 주 짚을 점' - 칸과 칸 사이에서 겹치거나 엇갈리는 사실(src/analyzers/briefing_points.py)."""
+    from src.analyzers.briefing_points import find_points
+    tags, _ = interest_tags_names()
+    mine = {k for k, v in tags.items() if any(t in MY_TAGS for t in v)}
+    return find_points(b, load_theme_names(), get_theme_members(), mine, COMMENT_8K, qual_macro)
+
+
 _LAST_RAW_COMMENT = [""]
 
 
+def assemble_comment(market: str, bodies: list[str], points: list[dict]) -> str:
+    """소제목은 코드가 붙인다(GPT가 제목을 바꾸지 못하게). 본문이 비면(실패·전부 걸러짐) 사실을 그대로 잇는다."""
+    names = [p.get("title_name") or "" for p in points] + [f.split(":")[0] for p in points for f in p["facts"]]
+    clean = lambda t: strip_numeric_sentences(strip_speculation(fix_names(t or "", [n for n in names if n])))  # noqa: E731
+    out = []
+    if (m := clean(market)):
+        out += ["■ 시장 분위기", m, ""]
+    for i, p in enumerate(points):
+        body = clean(bodies[i] if i < len(bodies) else "") or (" · ".join(p["facts"]) + ".")
+        out += [f"■ {p['title']}", body, ""]
+    return "\n".join(out).strip()
+
+
 def gpt_comment(briefing: dict) -> str:
+    """주간 총평 = 시장 분위기 한두 문장 + 이번 주 짚을 점 3~5개(2026-11-02 사용자 결정 - 목록을 다시 읽어 주는 총평은 의미가 없다).
+    짚을 점은 코드가 고르고(겹침·엇갈림·관찰 노트·매크로↔테마), GPT는 그 사실을 이유 짐작 없이 문장으로만 잇는다."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         return ""
 
     import requests
 
-    facts = comment_facts(briefing)
-    prompt = f"""다음은 개인 투자 리서치 도구의 지난주 브리핑 데이터입니다. 크기는 이미 말로 바꿔 두었습니다(큰 폭/소폭/보합).
+    market = comment_facts(briefing).get("시장") or {}
+    points = comment_points(briefing)
+    briefing["_comment_points"] = points   # 미리 보기 출력용(저장 전에 지운다)
+    if not market and not points:
+        return ""
+    for_gpt = [{"제목": p["title"], "왜 골랐나": p["note"], "사실": p["facts"]} for p in points]
+    label_meaning = {LABEL_KO_SHORT[k]: v for k, v in LABEL_MEANING.items()}
+    prompt = f"""개인 투자 리서치 도구의 주간 브리핑입니다. 화면에는 목록이 이미 다 있으니, 목록을 다시 읽어 주지 말고 아래 '짚을 점'만 풀어 주세요.
 
-{json.dumps(facts, ensure_ascii=False, indent=1)}
+시장(지난 1주, 크기는 말로 바꿔 둠):
+{json.dumps(market, ensure_ascii=False)}
 
-이 데이터만 근거로 주간 총평을 한국어로 쓰세요.
+짚을 점(코드가 여러 칸에서 겹치거나 엇갈리는 사실을 골라 둠):
+{json.dumps(for_gpt, ensure_ascii=False, indent=1)}
 
-형식: 소제목은 "■ 소제목" 한 줄에 그것만 쓰고, 다음 줄부터 본문 2~4문장. 예)
-■ 시장
-(본문)
+테마 라벨 뜻: {json.dumps(label_meaning, ensure_ascii=False)}
 
-소제목과 쓸 내용(이 순서, 해당 데이터가 없으면 소제목째 뺌):
-1. 시장 - 미국·한국 지수, 금리·환율·달러, 원자재, 외국인·기관 수급을 묶어 어떤 분위기였는지(예: 금리가 내렸는데 환율은 올라 엇갈림, 지수가 크게 오른 주에 기관도 크게 순매수함 - 둘을 나란히 놓을 뿐 원인으로 잇지 않음). 단정하지 말고 "~로 보입니다" 정도로.
-2. 내 관심 종목 - "내 관심 종목에 생긴 일"이 있을 때만. 종목 이름과 생긴 일을 구체적으로. 실적 발표 일정은 여기 쓰지 말 것.
-3. 종목 변화 - 워치리스트에 들어오고 빠진 종목, 실적 반전에 새로 든 종목, 관심도가 오른 종목을 각각 구분해서 이름으로(워치리스트와 실적 반전을 섞지 말 것). 업종은 짐작해 붙이지 말 것.
-4. 테마 - 새로 붙거나 사라진 라벨마다 테마 이름·시장과 함께 ":" 뒤에 적힌 뜻을 풀어 쓰기(뜻을 새로 짓지 말 것). 시장 데이터와 이름이 겹치면 연결(예: 천연가스 가격과 천연가스 테마).
-5. 공시·내부자 - 계약 해지, 큰 공급계약, 흑자·적자 전환, 여러 명의 내부자 매수, 미국 8-K 주의 공시, 13F 신규 매수 중 있는 것을 종류별로 한 문장씩, 이름과 함께.
-6. 이번 주 관전 포인트 - 실적 발표가 있는 관심 종목, 그리고 위 내용에서 이어서 확인할 것 두세 가지(예: 기대 과열 테마의 실적이 따라오는지, 계약 해지 종목의 후속 공시).
-
-규칙:
-- 목록을 그대로 옮겨 적지 말고 읽히는 문장으로 쓰세요. 한 문장에 이름은 서너 개까지 - 전체 목록은 화면에 따로 있으니 대표만 들고 "등"으로 줄이세요.
-- 테마 라벨은 한글 이름(예: 기대 과열)만 쓰고, 뜻은 자기 말로 풀어 쓰세요. 예) "미국 천연가스·LNG 테마는 뉴스와 주가가 크게 앞서 갔지만 실적은 오히려 나빠져 기대 과열 라벨이 새로 붙었습니다. 같은 주 천연가스 가격도 큰 폭으로 올랐습니다."
-- 문장마다 데이터의 구체적인 이름이나 사실이 하나 이상 들어가야 합니다. "향후 주가에 영향을 미칠 수 있습니다", "주의 깊게 살펴볼 필요가 있습니다", "주목됩니다"처럼 아무 데나 붙는 빈말 문장은 쓰지 마세요.
-- 원인이나 효과(예: "에너지 자산에 긍정적", "기관 매수가 지수에 영향")를 짐작해 덧붙이지 마세요. "영향", "긍정적", "부정적", "때문", "덕분" 같은 말은 쓰지 마세요. 데이터끼리 나란히 놓는 것까지만.
-- 공시 설명은 데이터에 적힌 말 그대로 쓰세요(괄호 속 "어느 쪽인지 확인 필요"도 살려서).
-- 종목·테마 이름은 데이터에 적힌 글자 그대로 옮기세요.
-- 마크다운(**, # 등) 없이 평문. 종목·테마 이름은 데이터에 있는 그대로.
-- 숫자(등락률·금액·건수·%)는 절대 쓰지 마세요 - 숫자는 화면에 따로 표시됩니다.
-- 데이터에 없는 사실(뉴스·원인·전망 수치)을 지어내지 마세요. 매수·매도 권유는 하지 마세요."""
+JSON으로만 답하세요: {{"market": "...", "points": ["...", ...]}}
+- market: 시장 분위기 한두 문장. 지수·금리·환율·수급 중 서로 엇갈리거나 같은 방향인 것을 짚기. "~로 보입니다" 정도로.
+- points: 짚을 점과 같은 순서·같은 개수. 각각 두세 문장으로, 그 점의 사실들이 어떻게 맞물리는지(같은 방향인지, 엇갈리는지, 내 기대와 맞았는지) 쓰고,
+  마지막 문장은 이어서 확인할 것 하나(예: 다음 분기 실적이 관심을 따라가는지, 다음 주 라벨이 유지되는지).
+- 제목은 쓰지 마세요(코드가 붙입니다). 사실에 없는 원인·효과·전망은 쓰지 마세요("영향", "때문", "덕분", "긍정적", "부정적" 금지).
+- 숫자(%·금액·건수)는 쓰지 마세요. 이름은 적힌 글자 그대로. 매수·매도 권유 금지."""
 
     try:
         resp = requests.post(
@@ -1067,18 +1102,21 @@ def gpt_comment(briefing: dict) -> str:
             json={
                 "model": "gpt-4o-mini",
                 "messages": [
-                    {"role": "system", "content": "당신은 구체적이고 정직한 투자 리서치 브리핑 작가입니다. 주어진 데이터의 이름과 사실만 씁니다."},
+                    {"role": "system", "content": "당신은 구체적이고 정직한 투자 리서치 브리핑 작가입니다. 주어진 사실만 쓰고, 사실 사이의 관계를 짚습니다."},
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.4,
                 "max_tokens": 1500,
+                "response_format": {"type": "json_object"},
             },
             timeout=90,
         )
         resp.raise_for_status()
         raw = resp.json()["choices"][0]["message"]["content"].strip()
         _LAST_RAW_COMMENT[0] = raw   # 미리 보기에서 뒷손질 전후를 비교하려고
-        return polish_comment(raw, facts)
+        data = json.loads(raw)
+        bodies = data.get("points") or []
+        return assemble_comment(str(data.get("market") or ""), [str(x) for x in bodies], points)
     except Exception as e:
         logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
         return ""
@@ -1431,8 +1469,10 @@ def main() -> None:
         b = rows[0]["_data"]
         if not b.get("my_stocks_week"):
             b["my_stocks_week"] = get_my_stocks_week(b)
-        print("== 넘기는 사실 ==\n" + json.dumps(comment_facts(b), ensure_ascii=False, indent=1))
         final = gpt_comment(b)
+        print("== 짚을 점(코드가 고름) ==")
+        for pt in b.pop("_comment_points", None) or []:
+            print(f"[{pt['kind']}] {pt['title']}\n  - " + "\n  - ".join(pt["facts"]))
         if _LAST_RAW_COMMENT[0] and _LAST_RAW_COMMENT[0] != final:
             print("\n== GPT 원문(뒷손질 전) ==\n" + _LAST_RAW_COMMENT[0])
         print(f"\n== 총평 ({b.get('week')}) ==\n" + (final or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
@@ -1473,6 +1513,7 @@ def main() -> None:
     }
     briefing["my_stocks_week"] = get_my_stocks_week(briefing)
     briefing["gpt_comment"] = gpt_comment(briefing)   # 관심 종목 칸까지 만든 뒤 - 총평이 그 내용도 쓴다(2026-11-02)
+    briefing.pop("_comment_points", None)
 
     turso_exec(
         "CREATE TABLE IF NOT EXISTS weekly_briefings ("
