@@ -390,12 +390,28 @@ function CommentBody({ text, collapsed }: { text: string; collapsed: boolean }) 
   }
   return (
     <div className="space-y-2.5">
-      {(collapsed ? blocks.slice(0, 2) : blocks).map((blk, i) => (
-        <div key={i}>
-          {blk.head && <p className="text-[12.5px] font-bold mb-0.5" style={{ color: "#ffb020" }}>{blk.head}</p>}
-          {blk.body.map((t, k) => <p key={k} className="text-[13px] leading-relaxed" style={{ color: "#bdb5a0" }}>{t}</p>)}
-        </div>
-      ))}
+      {(collapsed ? blocks.slice(0, 2) : blocks).map((blk, i) => {
+        // 소제목 "이름 · 종류"(2026-11-02 짚을 점) - 종류는 작은 꼬리표로
+        const [name, ...tags] = blk.head.split(" · ");
+        return (
+          <div key={i}>
+            {blk.head && (
+              <p className="text-[12.5px] font-bold mb-0.5 flex flex-wrap items-center gap-1.5" style={{ color: "#ffb020" }}>
+                <span>{name}</span>
+                {tags.map((t) => (
+                  <span key={t} className="text-[10.5px] font-medium px-1.5 py-[1px] rounded border whitespace-nowrap"
+                        style={{ color: t.includes("엇갈림") || t.includes("주의") ? "#ff8a7a" : "#c9b98a", borderColor: "#3a3426" }}>{t}</span>
+                ))}
+              </p>
+            )}
+            {blk.body.map((t, k) => t.startsWith("→") ? (
+              <p key={k} className="text-[12px] leading-relaxed mt-0.5" style={{ color: "#7fb8a4" }}>
+                {t}
+              </p>
+            ) : <p key={k} className="text-[13px] leading-relaxed" style={{ color: "#bdb5a0" }}>{t}</p>)}
+          </div>
+        );
+      })}
     </div>
   );
 }
