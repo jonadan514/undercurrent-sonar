@@ -42,38 +42,38 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 
   // ── 테마 레이더 라벨 ── (조건은 src/analyzers/theme_labels.py _RULES 그대로 - 6개)
   quiet_strength: {
-    term: "Quiet Strength · 조용한 강세", group: "테마 레이더",
+    term: "Hidden Strength · 숨은 강세", group: "테마 레이더",
     short: "실적은 크게 좋아졌는데(↑↑) 뉴스는 조용하고 주가도 아직 제자리(→)인 테마입니다.",
     use: "시장이 아직 주목하기 전일 수 있어 이 도구가 가장 먼저 보라고 하는 조합입니다. 실적이 일시적인지는 직접 확인해야 합니다.",
   },
   quiet_recovery: {
-    term: "Quiet Recovery · 조용한 회복", group: "테마 레이더",
+    term: "Hidden Recovery · 숨은 회복", group: "테마 레이더",
     short: "뉴스도 줄고 주가도 내렸는데(↓) 실적은 좋아지기 시작한(↑) 테마입니다.",
     use: "바닥을 지나는 중일 수도, 잠깐 반등일 수도 있습니다. 다음 분기 실적으로 이어지는지 봅니다.",
   },
   early_buzz: {
-    term: "Early Buzz · 이른 관심", group: "테마 레이더",
+    term: "Early Hype · 뉴스 선행", group: "테마 레이더",
     short: "뉴스가 크게 늘고(↑↑) 주가도 올랐는데(↑) 실적은 아직 그대로(→)인 테마입니다.",
     use: "기대가 먼저 앞선 구간입니다. 실적이 따라오는지 지켜보는 대상입니다.",
   },
   full_alignment: {
-    term: "Full Alignment · 삼박자 상승", group: "테마 레이더",
+    term: "Broad Rally · 동반 상승", group: "테마 레이더",
     short: "뉴스·실적·주가가 모두 오른(↑) 테마입니다.",
     use: "이미 많이 알려진 상태라 '새로 찾은' 기회라기보다 확인 단계입니다.",
   },
   overheated_buzz: {
-    term: "Overheated Buzz · 과열된 관심", group: "테마 레이더",
+    term: "Overhyped · 기대 과열", group: "테마 레이더",
     short: "뉴스와 주가는 크게 올랐는데(↑↑) 실적은 오히려 나빠진(↓) 테마입니다.",
     use: "기대와 실제가 어긋난 상태라 조심해서 볼 신호입니다.",
   },
   full_decline: {
-    term: "Full Decline · 삼박자 하락", group: "테마 레이더",
+    term: "Broad Decline · 동반 하락", group: "테마 레이더",
     short: "뉴스·실적·주가가 모두 내린(↓) 테마입니다.",
   },
   quarterly_class: {
     term: "분기 4칸 분류", group: "테마 레이더",
     short: "분기 실적(재무 신호)과 뉴스 비율 두 가지로 테마를 4칸에 나눕니다.",
-    use: "'조용한 변화'(재무는 바뀌었는데 뉴스는 조용함)가 레이더의 Quiet와 같은 생각입니다.",
+    use: "'조용한 변화'(재무는 바뀌었는데 뉴스는 조용함)가 레이더의 Hidden(실적이 먼저)과 같은 생각입니다.",
   },
 
   // ── 재무 ──

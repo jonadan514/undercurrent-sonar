@@ -15,7 +15,7 @@ const STEPS: { title: string; body: React.ReactNode; href: string; cta: string }
   },
   {
     title: "움직이는 테마 찾기",
-    body: <>테마 레이더에서 <Term k="axis">뉴스·실적·주가</Term> 중 실적이 먼저 좋아진 테마(<Term k="quiet_strength">조용한 강세</Term>)를 찾습니다.</>,
+    body: <>테마 레이더에서 <Term k="axis">뉴스·실적·주가</Term> 중 실적이 먼저 좋아진 테마(<Term k="quiet_strength">숨은 강세</Term>)를 찾습니다.</>,
     href: "/radar", cta: "테마 레이더",
   },
   {

@@ -339,7 +339,7 @@ const SECTIONS: Section[] = [
             ["주가", "소속 기업 주가 수익률 중앙값 vs 시장 지수(미국 S&amp;P 500 / 한국 KOSPI)", "지수 초과(↑)·지수 미달(↓)"],
           ]}
         />
-        <H>발견 단계 3그룹 — Quiet · Buzz · Full</H>
+        <H>발견 단계 3그룹 — Hidden · Hype · Broad</H>
         <P>
           라벨 6개는 사실 <Highlight>얼마나 이른 신호인가</Highlight>의 3단계 스펙트럼입니다. 화면도
           그 구조 그대로 세 섹션으로 나뉘어 있고, 각 섹션 제목을 클릭하면 접었다 펼 수 있습니다
@@ -348,9 +348,9 @@ const SECTIONS: Section[] = [
         <Table
           headers={["단계", "포함 라벨", "뜻"]}
           rows={[
-            ["Quiet — 펀더멘털이 먼저", "Quiet Strength · Quiet Recovery", "실적은 동종보다 앞서는데 뉴스·주가는 조용함. 뉴스만 봐서는 절대 찾을 수 없어서, 이 도구가 존재하는 이유"],
-            ["Buzz — 뉴스가 먼저", "Early Buzz · Overheated Buzz", "뉴스가 급증했지만 실적은 아직 안 따라옴. 조기 신호일 수도, 기대만 앞선 것일 수도 있음"],
-            ["Full — 삼박자 동반", "Full Alignment · Full Decline", "세 축이 같은 방향으로 움직임. 확인은 됐지만 이미 남들도 아는 구간"],
+            ["Hidden — 실적이 먼저", "Hidden Strength(숨은 강세) · Hidden Recovery(숨은 회복)", "실적은 동종보다 앞서는데 뉴스·주가는 조용함. 뉴스만 봐서는 절대 찾을 수 없어서, 이 도구가 존재하는 이유"],
+            ["Hype — 뉴스가 먼저", "Early Hype(뉴스 선행) · Overhyped(기대 과열)", "뉴스가 급증했지만 실적은 아직 안 따라옴. 조기 신호일 수도, 기대만 앞선 것일 수도 있음"],
+            ["Broad — 세 축 동반", "Broad Rally(동반 상승) · Broad Decline(동반 하락)", "세 축이 같은 방향으로 움직임. 확인은 됐지만 이미 남들도 아는 구간"],
           ]}
         />
         <Note>
@@ -533,7 +533,7 @@ const SECTIONS: Section[] = [
             type: "warn",
           },
           {
-            q: "관심도 상승 배지나 테마 레이더의 'Early Buzz' 라벨을 보고 바로 추격 매수한다",
+            q: "관심도 상승 배지나 테마 레이더의 'Early Hype · 뉴스 선행' 라벨을 보고 바로 추격 매수한다",
             a: "둘 다 조기 신호일 뿐 매수 신호가 아닙니다. 내러티브 브리프의 촉매·리스크, 테마 카드의 소속 기업 근거를 직접 읽고 정성 체크리스트를 거친 후 본인이 판단하세요.",
             type: "warn",
           },

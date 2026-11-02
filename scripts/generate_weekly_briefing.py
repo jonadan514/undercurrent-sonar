@@ -36,6 +36,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.db.turso_http import get_credentials, query as _turso_query
 from src.analyzers.signal_check import sentiment_window
+from src.analyzers.theme_labels import label_display
 from src.collectors.kr_disclosures import prelim_has_values, quarter_label, summary as disclosure_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -984,7 +985,7 @@ def build_telegram_summary(b: dict) -> str:
         names = load_theme_names()
         for t in tl.get("new_labels", [])[:5]:
             lines.append(f"  + {MARKET_FLAG.get(t.get('market', 'US'), '')} "
-                         f"{html.escape(names.get(t['theme_id'], t['theme_id']))} — {t['label']}")
+                         f"{html.escape(names.get(t['theme_id'], t['theme_id']))} — {label_display(t['label'])}")
         if len(tl.get("new_labels", [])) > 5:
             lines.append(f"  외 {len(tl['new_labels']) - 5}개")
 

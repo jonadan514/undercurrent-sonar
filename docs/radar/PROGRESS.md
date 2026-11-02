@@ -3540,3 +3540,9 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
   화면에서만 바꾼다(`src/lib/valuation.ts` `tierLabel`) - 이력과 필터 비교가 깨지지 않게. 워치리스트 배지·필터("저밸류만")·조합("저밸류 성장"·"저밸류 역성장"),
   분기 리서치 배지·필터, 테마 흐름 기업 표, 관찰 노트 "밸류·성장", 사용 설명서·용어 사전·화면 안내 문구.
   → 사용자 결정으로 다시 **LOW / MID / HIGH**(moderate는 길어서 MID - 세 이름 길이가 비슷해 배지 폭이 고르다). 필터 "밸류 LOW만", 조합 "밸류 LOW·성장"·"밸류 LOW·역성장".
+- 같은 날 이어서(사용자 결정 - 영어+한글 짝): 테마 레이더 라벨 표시 이름 바꿈. 저장 값(theme_signals.label·신호 기록·노트)은 예전 영어 그대로,
+  화면(`src/lib/labelNames.ts` `labelEn`·`labelWithKo`)과 텔레그램(`theme_labels.label_display`)에서만:
+  Quiet Strength → **Hidden Strength · 숨은 강세**, Quiet Recovery → **Hidden Recovery · 숨은 회복**, Early Buzz → **Early Hype · 뉴스 선행**,
+  Overheated Buzz → **Overhyped · 기대 과열**, Full Alignment → **Broad Rally · 동반 상승**, Full Decline → **Broad Decline · 동반 하락**.
+  발견 단계 Quiet·Buzz·Full → **Hidden(실적이 먼저)·Hype(뉴스가 먼저)·Broad(세 축 동반)**, 흐름 이력 약자 HS·HR·EH·OH·BR·BD, 범례 "배지 강도 =" → "라벨 색 —".
+  용어 사전·사용 설명서·투자 가이드·화면 안내 문구 함께.

@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from src.db.data_store import get_db
 from src.db.theme_signals import signal_week_monday
+from src.analyzers.theme_labels import label_display
 
 THEMES_YAML = ROOT / "config" / "themes.yaml"
 RADAR_URL = "https://u-sonar.vercel.app/radar"
@@ -110,7 +111,7 @@ def main() -> None:
             items = by_label.get(label)
             if not items:
                 continue
-            lines.append(f"{LABEL_EMOJI.get(label, '•')} <b>{label}</b>")
+            lines.append(f"{LABEL_EMOJI.get(label, '•')} <b>{label_display(label)}</b>")
             for theme_id, news_a, earn_a, price_a, _label, earn_members, earn_improved, _mkt in items:
                 name = names.get(theme_id, theme_id)
                 detail = f"({earn_members}개사 중 {earn_improved}개 중앙값 초과)" if earn_members is not None else ""

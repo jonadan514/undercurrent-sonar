@@ -33,3 +33,19 @@ def compute_label(news_arrow: str | None, earn_arrow: str | None, price_arrow: s
         if news_arrow in news_set and earn_arrow in earn_set and price_arrow in price_set:
             return label
     return None
+
+
+# 화면·텔레그램 표시 이름(2026-11-02, 사용자 결정). 저장 값(theme_signals.label, 관찰 노트·신호 기록)은 위 영어 이름 그대로 두고
+# 보여 줄 때만 바꾼다 - 이력(원칙 5)과 비교 코드가 깨지지 않게. 프론트 src/lib/labelNames.ts와 같은 표.
+LABEL_DISPLAY = {
+    "Quiet Strength": "Hidden Strength · 숨은 강세",
+    "Quiet Recovery": "Hidden Recovery · 숨은 회복",
+    "Early Buzz": "Early Hype · 뉴스 선행",
+    "Overheated Buzz": "Overhyped · 기대 과열",
+    "Full Alignment": "Broad Rally · 동반 상승",
+    "Full Decline": "Broad Decline · 동반 하락",
+}
+
+
+def label_display(label: str | None) -> str:
+    return LABEL_DISPLAY.get(label or "", label or "")

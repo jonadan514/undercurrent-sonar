@@ -77,8 +77,8 @@ interface History {
 }
 
 const LABEL_SHORT: Record<string, string> = {
-  "Quiet Strength": "QS", "Quiet Recovery": "QR", "Early Buzz": "EB",
-  "Overheated Buzz": "OB", "Full Alignment": "FA", "Full Decline": "FD",
+  "Quiet Strength": "HS", "Quiet Recovery": "HR", "Early Buzz": "EH",
+  "Overheated Buzz": "OH", "Full Alignment": "BR", "Full Decline": "BD",
 };
 const LABEL_COLOR: Record<string, string> = {
   "Quiet Strength": ACCENT, "Quiet Recovery": ACCENT, "Early Buzz": INFO,
@@ -355,7 +355,7 @@ function ThemeHistory() {
             <p className="mt-3 text-[12px] leading-relaxed" style={{ color: FAINT }}>
               ↑↑ 크게 오름 · ↑ 오름 · → 보합 · ↓ 내림 · – 데이터 부족(탈락 아님) · · 그 주 계산 없음. 칸에 마우스를 올리면 숫자가 보입니다.
               {switchIdx >= 0 && <> 점선은 뉴스 수집원이 바뀐 주로, 그 앞뒤 뉴스 건수는 비교할 수 없습니다. 뉴스 축은 바뀐 뒤 4주가 쌓여야 다시 판정됩니다.</>}
-              {" "}라벨 약자: QS Quiet Strength · QR Quiet Recovery · EB Early Buzz · OB Overheated Buzz · FA Full Alignment · FD Full Decline.
+              {" "}라벨 약자: HS Hidden Strength(숨은 강세) · HR Hidden Recovery(숨은 회복) · EH Early Hype(뉴스 선행) · OH Overhyped(기대 과열) · BR Broad Rally(동반 상승) · BD Broad Decline(동반 하락).
             </p>
           </section>
 

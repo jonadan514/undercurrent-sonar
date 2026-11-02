@@ -8,7 +8,7 @@ import { krStockName } from "@/src/lib/krStockNames";
 import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
-import { LABEL_KO, labelWithKo } from "@/src/lib/labelNames";
+import { LABEL_KO, labelEn, labelWithKo } from "@/src/lib/labelNames";
 import { StatGrid, StatTile } from "@/src/components/Section";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
@@ -208,7 +208,7 @@ const INFO_SOFT = "rgba(111,179,184,0.15)";
 const STAGES = [
   {
     key: "quiet",
-    name: "Quiet — 펀더멘털이 먼저",
+    name: "Hidden — 실적이 먼저",
     when: "발견 단계 1/3 · 시장이 아직 안 움직임",
     color: "var(--accent)",
     labels: ["Quiet Strength", "Quiet Recovery"],
@@ -216,7 +216,7 @@ const STAGES = [
   },
   {
     key: "buzz",
-    name: "Buzz — 뉴스가 먼저",
+    name: "Hype — 뉴스가 먼저",
     when: "발견 단계 2/3 · 관심은 붙었고 실적은 미확인",
     color: INFO,
     labels: ["Early Buzz", "Overheated Buzz"],
@@ -224,7 +224,7 @@ const STAGES = [
   },
   {
     key: "full",
-    name: "Full — 삼박자 동반",
+    name: "Broad — 세 축 동반",
     when: "발견 단계 3/3 · 이미 알려진 상태",
     color: "var(--text-secondary)",
     labels: ["Full Alignment", "Full Decline"],
@@ -292,7 +292,7 @@ function LabelBadge({ label }: { label: string }) {
       style={BADGE_STYLE[label] ?? { background: ACCENT_SOFT, color: ACCENT }}
       title={LABEL_NOTE[label] ?? label}
     >
-      {label}{LABEL_KO[label] && <span className="ml-1 font-semibold opacity-80">· {LABEL_KO[label]}</span>}
+      {labelEn(label)}{LABEL_KO[label] && <span className="ml-1 font-semibold opacity-80">· {LABEL_KO[label]}</span>}
     </span>
   );
 }
@@ -753,12 +753,12 @@ export default function RadarPage() {
 
       <div className="mt-2 mb-6 flex flex-wrap items-center gap-2.5 rounded-xl px-4 py-3 text-[11.5px]"
            style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: FAINT }}>
-        <span>배지 강도 =</span>
+        <span>라벨 색 —</span>
         {["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment"].map((l) => (
           <span key={l} className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-extrabold"
                 style={BADGE_STYLE[l]} title={LABEL_NOTE[l]}>{labelWithKo(l)}</span>
         ))}
-        <span>← 이른 신호일수록 강하게. 카드 모양은 전부 동일합니다.</span>
+        <span>왼쪽일수록 이른 신호라 색이 진합니다(카드 모양은 모두 같음).</span>
       </div>
 
       {loading ? (

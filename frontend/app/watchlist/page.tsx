@@ -1752,7 +1752,7 @@ export default function WatchlistPage() {
                     ? "흐름 테마가 없어, 어느 테마에든 사업 소속(직접·부분)인 종목을 보여 줍니다."
                     : flowMode === "interim"
                       ? "라벨이 아직 없어(뉴스 기준선 쌓는 중) 실적 ↑인데 주가는 ↑ 아닌 테마에 사업 소속인 종목을 보여 줍니다."
-                      : "레이더 Quiet 단계(Quiet Strength·Recovery) 또는 분기 '조용한 변화' 테마에 사업 소속인 종목"}
+                      : "레이더 Hidden 단계(숨은 강세·숨은 회복) 또는 분기 '조용한 변화' 테마에 사업 소속인 종목"}
                   style={{
                     background: themeOnly ? ACCENT + "20" : "transparent",
                     color: themeOnly ? ACCENT : TEXT_MUTED,
