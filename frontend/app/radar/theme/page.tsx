@@ -4,6 +4,7 @@
 // 레이더는 "이번 주 한 칸"만 보여서 실적 -> 주가 -> 뉴스 순서가 실제로 일어나는지 볼 수 없었다.
 // 세 축은 합치지 않고 한 줄씩 둔다(원칙 1). 계산 불가(na)는 하락처럼 칠하지 않는다(원칙 4).
 
+import { tierLabel } from "@/src/lib/valuation";
 import PageIntro from "@/src/components/PageIntro";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import StockLink from "@/src/components/StockLink";
@@ -485,7 +486,7 @@ function ThemeHistory() {
                               </td>
                             )}
                             <td className="py-2 pl-4 text-[12px]" style={{ color: m.in_watchlist ? ACCENT : FAINT }}>
-                              {m.in_watchlist ? `후보${m.valuation_tier ? ` · ${m.valuation_tier}` : ""}${m.growth_tier ? ` · ${m.growth_tier}` : ""}` : "-"}
+                              {m.in_watchlist ? `후보${m.valuation_tier ? ` · ${tierLabel(m.valuation_tier)}` : ""}${m.growth_tier ? ` · ${m.growth_tier}` : ""}` : "-"}
                             </td>
                           </tr>
                         );

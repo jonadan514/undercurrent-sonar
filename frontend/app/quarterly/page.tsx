@@ -1,5 +1,6 @@
 "use client";
 
+import { tierLabel } from "@/src/lib/valuation";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
@@ -203,7 +204,7 @@ function ValuationTierBadge({ tier }: { tier: string | null }) {
     { background: MUTED_SOFT, color: MUTED };
   return (
     <span className="self-start whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold" style={style}>
-      {tier}
+      {tierLabel(tier)}
     </span>
   );
 }
@@ -315,7 +316,7 @@ function MembersTable({ members, loading, market }: { members: CompanySignal[]; 
       <div className="mb-2 flex flex-wrap gap-1.5">
         {toggleBtn(changedOnly, "변화 기업만", () => setChangedOnly((v) => !v))}
         {toggleBtn(passOnly, "재무 통과만", () => setPassOnly((v) => !v))}
-        {toggleBtn(cheapOnly, "밸류 싼 편만", () => setCheapOnly((v) => !v))}
+        {toggleBtn(cheapOnly, "저밸류만", () => setCheapOnly((v) => !v))}
       </div>
       <div className="overflow-x-auto rounded-lg" style={{ border: "1px solid var(--border)" }}>
         <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>

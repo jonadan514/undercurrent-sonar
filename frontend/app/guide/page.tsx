@@ -162,7 +162,7 @@ export default function GuidePage() {
         <SectionTitle>이 도구가 하는 것</SectionTitle>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {[
-            ["워치리스트",      "재무 건전성 필터(Piotroski·ROE·부채비율·이자보상배율·현금흐름)를 통과한 종목을 주 1회, 순위 없이 리스트업. 여기에 밸류(PSR/PER, 같은 시장 후보 중 싼 편/중간/비싼 편)와 성장(매출 3년 CAGR, 성장/정체/역성장) 축을 더해 보여줌. 티커·종목명 검색 지원"],
+            ["워치리스트",      "재무 건전성 필터(Piotroski·ROE·부채비율·이자보상배율·현금흐름)를 통과한 종목을 주 1회, 순위 없이 리스트업. 여기에 밸류(PSR/PER, 같은 시장 후보 중 저밸류/중간/고밸류)와 성장(매출 3년 CAGR, 성장/정체/역성장) 축을 더해 보여줌. 티커·종목명 검색 지원"],
             ["내러티브 브리프",  "후보 종목별 최근 뉴스를 GPT가 요약 — 장기 투자 스토리·촉매·리스크·시장 단기 관심도(HOT/WARM/COLD)"],
             ["섹터 분석",       "전환 중인 섹터 + 섹터별 지수 대비 상대강도. 한국은 코스피200 공식 섹터지수, 미국은 SPDR 11개 ETF 기준"],
             ["테마 레이더",     "미국·한국 산업 테마를 뉴스·실적·주가 세 축으로 주 1회 관찰, 정해진 조합에만 라벨 부여. Quiet(펀더멘털이 먼저)·Buzz(뉴스가 먼저)·Full(삼박자 동반) 3단계로 묶어서 표시"],
@@ -249,17 +249,17 @@ export default function GuidePage() {
           <div>
             <p className="text-[12px] font-bold text-white mb-1">워치리스트의 &quot;밸류&quot;와 &quot;성장&quot;은 기준이 다릅니다</p>
             <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              둘 다 3단계 등급이지만 나누는 방식이 다릅니다. <span className="text-white">밸류(싼 편/중간/비싼 편)</span>는
+              둘 다 3단계 등급이지만 나누는 방식이 다릅니다. <span className="text-white">밸류(저밸류/중간/고밸류)</span>는
               지금 화면에 뜬 후보들을 PSR 기준으로 순서대로 줄 세워 3등분한 <span className="text-white">상대 등급</span>입니다 —
-              절대적으로 싸다는 뜻이 아니라 &quot;이 후보들 중에서&quot; 싼 쪽이라는 뜻입니다.
+              절대적으로 싸다는 뜻이 아니라 &quot;이 후보들 중에서&quot; PSR이 낮은 쪽이라는 뜻입니다.
               <span className="text-white"> 성장(성장/정체/역성장)</span>은 반대로 매출 3년 성장률이 0%·10%를 넘는지 보는
               <span className="text-white"> 절대 기준</span>입니다 — 후보 대부분이 이미 성장 중이라 상대 등급으로 나누면
               실제로 성장 중인 기업에도 &quot;역성장&quot; 라벨이 붙어버리기 때문입니다.
             </p>
             <p className="text-[12px] mt-1.5" style={{ color: "#726b58" }}>
-              ※ 두 등급을 곱하거나 더해서 하나의 점수로 만들지 않습니다 — &quot;싼 편&quot;이면서 &quot;역성장&quot;인 종목은
+              ※ 두 등급을 곱하거나 더해서 하나의 점수로 만들지 않습니다 — &quot;저밸류&quot;이면서 &quot;역성장&quot;인 종목은
               재무는 건전한데 매출이 줄면서 시장이 싸게 평가해 둔 <span className="text-white">가치 함정</span>일 수 있다는
-              신호이지, 무시해도 되는 오류가 아닙니다. 반대로 &quot;성장&quot;이면서 &quot;비싼 편&quot;이면 이미 기대가 반영된
+              신호이지, 무시해도 되는 오류가 아닙니다. 반대로 &quot;성장&quot;이면서 &quot;고밸류&quot;면 이미 기대가 반영된
               값이라는 뜻입니다.
             </p>
           </div>
