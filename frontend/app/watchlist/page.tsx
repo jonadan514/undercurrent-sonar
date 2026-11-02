@@ -102,7 +102,7 @@ const isTurnaround = (c: Candidate) =>
   (c.growth_tier === "정체" || c.growth_tier === "역성장") &&
   (c.rev_ttm_tier != null ? c.rev_ttm_tier === "성장" : c.rev_q_tier === "성장");
 const PRESETS: { key: PresetKey; label: string; note: string; test: (c: Candidate) => boolean }[] = [
-  { key: "cheap_growth", label: "저밸류 성장", note: "저밸류 + 매출 3년 성장",
+  { key: "cheap_growth", label: "밸류 LOW·성장", note: "밸류 LOW + 매출 3년 성장",
     test: (c) => c.valuation_tier === "싼 편" && c.growth_tier === "성장" },
   { key: "new_growth", label: "이번 주 신규 + 성장", note: "이번 회차에 처음 통과 + 매출 3년 성장",
     test: (c) => c.is_new === true && c.growth_tier === "성장" },
@@ -110,7 +110,7 @@ const PRESETS: { key: PresetKey; label: string; note: string; test: (c: Candidat
     note: "매출 3년은 정체·역성장인데 최근 1년(4개 분기 합)은 성장 - 업황이 막 돌아선 종목 후보. "
         + "1년 판정이 없는 종목(지금 미국 전부)은 최근 분기 전년동기 성장으로 대신합니다(한 분기라 더 흔들림)",
     test: isTurnaround },
-  { key: "cheap_decline", label: "저밸류 역성장", note: "밸류가 낮은 이유가 있을 수 있는 종목 - 가치 함정 점검용",
+  { key: "cheap_decline", label: "밸류 LOW·역성장", note: "밸류가 낮은 이유가 있을 수 있는 종목 - 가치 함정 점검용",
     test: (c) => c.valuation_tier === "싼 편" && c.growth_tier === "역성장" },
 ];
 
@@ -213,12 +213,12 @@ const INDICATOR_INFO = {
     title: "밸류 위치 (PSR 기준)",
     desc: "PSR은 시가총액을 최근 4분기 매출 합으로 나눈 값, PER은 순이익 합으로 나눈 값입니다. "
         + "같은 시장 후보 전체를 PSR 낮은 순으로 줄 세워 셋으로 나눈 위치를 보여줍니다. "
-        + "저밸류는 절대적으로 싸다는 뜻이 아니라 '이 후보들 중에서' PSR이 낮은 쪽이라는 뜻이고, 순위나 점수는 아닙니다. "
+        + "LOW는 절대적으로 싸다는 뜻이 아니라 '이 후보들 중에서' PSR이 낮은 쪽이라는 뜻이고, 순위나 점수는 아닙니다. "
         + "4분기가 이어지지 않으면 '-', 적자 기업은 PER만 '-'로 둡니다.",
     levels: [
-      { range: "저밸류", color: GOOD, label: "후보 중 PSR 하위 1/3" },
-      { range: "중간", color: WARN, label: "가운데 1/3" },
-      { range: "고밸류", color: CAUTION, label: "후보 중 PSR 상위 1/3" },
+      { range: "LOW", color: GOOD, label: "후보 중 PSR 하위 1/3" },
+      { range: "MID", color: WARN, label: "가운데 1/3" },
+      { range: "HIGH", color: CAUTION, label: "후보 중 PSR 상위 1/3" },
       { range: "-", color: TEXT_FAINT, label: "분기 재무가 모자라 계산 불가" },
     ],
   },
@@ -1809,7 +1809,7 @@ export default function WatchlistPage() {
             )}
             {(tierKnown || growthKnown) && (
               <FilterGroup label="밸류·성장">
-                {tierKnown && <button onClick={() => setCheapOnly((v) => !v)} style={{ background: cheapOnly ? GOOD + "20" : "transparent", color: cheapOnly ? GOOD : TEXT_MUTED, border: `1px solid ${cheapOnly ? GOOD + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>저밸류만 ({cheapCount})</button>}
+                {tierKnown && <button onClick={() => setCheapOnly((v) => !v)} style={{ background: cheapOnly ? GOOD + "20" : "transparent", color: cheapOnly ? GOOD : TEXT_MUTED, border: `1px solid ${cheapOnly ? GOOD + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>밸류 LOW만 ({cheapCount})</button>}
                 {growthKnown && <button onClick={() => setGrowingOnly((v) => !v)} style={{ background: growingOnly ? GOOD + "20" : "transparent", color: growingOnly ? GOOD : TEXT_MUTED, border: `1px solid ${growingOnly ? GOOD + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>성장만 ({growingCount})</button>}
               </FilterGroup>
             )}

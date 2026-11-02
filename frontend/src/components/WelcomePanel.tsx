@@ -20,7 +20,7 @@ const STEPS: { title: string; body: React.ReactNode; href: string; cta: string }
   },
   {
     title: "튼튼한 회사 좁혀 보기",
-    body: <>워치리스트에서 그 테마의 <Term k="trap_filter">재무 필터 통과</Term> 종목을 저밸류·성장 기준으로 좁혀 보고, 마음에 들면 메모와 함께 담습니다.</>,
+    body: <>워치리스트에서 그 테마의 <Term k="trap_filter">재무 필터 통과</Term> 종목을 밸류 LOW·성장 기준으로 좁혀 보고, 마음에 들면 메모와 함께 담습니다.</>,
     href: "/watchlist", cta: "워치리스트",
   },
 ];
