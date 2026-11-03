@@ -111,3 +111,8 @@ def test_strip_interpretive_closing():
 
 def test_fix_passive():
     assert g.fix_passive("뉴스는 조용해 '숨은 강세'로 분류됐다.") == "뉴스는 조용해 '숨은 강세' 라벨이 붙었다."
+
+
+def test_fix_passive_more():
+    assert g.fix_passive("미국 시장은 하락세를 보인 반면 한국은 올랐다.") == "미국 시장은 하락한 반면 한국은 올랐다."
+    assert g.fix_passive("미국의 경우 뉴스가 늘었다. 한국의 경우, 조용했다.") == "미국은 뉴스가 늘었다. 한국은 조용했다."

@@ -52,3 +52,11 @@ def test_long_title_cut_and_watching_filtered():
 
 def test_time_to_buy_filtered():
     assert pick_headlines([_r("EQT and Range Resources Are Merging: Is It Time to Buy the New Titan?")]) == []
+
+
+def test_one_per_member_first():
+    rows = [_r("SK하이닉스 HBM 완판", "2026-11-01"), _r("SK하이닉스 미주총괄 출범", "2026-11-01"),
+            _r("삼성전기 MLCC 수주 확대", "2026-10-31"), _r("LG이노텍 카메라모듈 부진", "2026-10-30")]
+    out = pick_headlines(rows, ["SK하이닉스", "삼성전기", "LG이노텍"])
+    assert [o["title"] for o in out] == ["SK하이닉스 HBM 완판", "삼성전기 MLCC 수주 확대", "LG이노텍 카메라모듈 부진"]
+    assert len(pick_headlines(rows[:2], ["SK하이닉스"])) == 2      # 다른 이름이 없으면 같은 종목 둘째 기사도

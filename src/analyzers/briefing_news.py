@@ -71,12 +71,25 @@ def pick_headlines(rows: list[dict], first_names: list[str] | None = None, other
         cands.append({"title": t, "url": r["url"], "source": short_source(r.get("source") or ""), "published_at": r.get("published_at") or ""})
     cands.sort(key=lambda c: c["published_at"], reverse=True)
     cands.sort(key=lambda c: tier(c["title"]))   # 안정 정렬 - 같은 차례 안에서는 최신 순 유지
+    # 한 종목 기사만 몰리지 않게(11/3 미리 보기: AI 반도체 3개 중 2개가 SK하이닉스) - 첫 바퀴는 이름마다 하나씩, 남으면 둘째 바퀴
+    def who(t: str) -> str | None:
+        return next((nm for nm in first + other if nm in t), None)
+
     out: list[dict] = []
-    for c in cands:
-        nt = _norm(c["title"])
-        if any(SequenceMatcher(None, nt, _norm(o["title"])).ratio() >= SIMILAR for o in out):
-            continue
-        out.append(c)
-        if len(out) >= n:
-            break
+    used: set[str] = set()
+    for second in (False, True):
+        for c in cands:
+            if len(out) >= n:
+                return out
+            if c in out:
+                continue
+            nt = _norm(c["title"])
+            if any(SequenceMatcher(None, nt, _norm(o["title"])).ratio() >= SIMILAR for o in out):
+                continue
+            w = who(c["title"])
+            if not second and w and w in used:
+                continue
+            out.append(c)
+            if w:
+                used.add(w)
     return out

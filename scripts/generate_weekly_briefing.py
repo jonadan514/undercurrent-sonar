@@ -1112,9 +1112,20 @@ def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str
 _LAST_RAW_COMMENT = [""]
 
 
+_SE_BOINDA = {"였다": "했다", "인": "한", "이며": "하며", "이고": "하고", "여": "해"}
+
+
 def fix_passive(text: str) -> str:
-    """금지해도 가끔 나오는 "'숨은 강세'로 분류됐다" → "'숨은 강세' 라벨이 붙었다"."""
-    return re.sub(r"'([^']+)'(?:으)?로 분류(?:됐|되었)다", r"'\1' 라벨이 붙었다", text)
+    """금지해도 가끔 새는 번역투를 기사체로(11/2·11/3 미리 보기):
+    "'숨은 강세'로 분류됐다" → "'숨은 강세' 라벨이 붙었다", "하락세를 보인 반면" → "하락한 반면", "미국의 경우" → "미국은"."""
+    text = re.sub(r"'([^']+)'(?:으)?로 분류(?:됐|되었)다", r"'\1' 라벨이 붙었다", text)
+    text = re.sub(r"(상승|하락)세를 보(였다|인|이며|이고|여)", lambda m: m.group(1) + _SE_BOINDA[m.group(2)], text)
+
+    def keyeong(m: re.Match) -> str:
+        w = m.group(1)
+        b = _has_batchim(w[-1])
+        return w + ("은" if b else "는") if b is not None else m.group(0)
+    return re.sub(r"([가-힣A-Za-z0-9·]+)의 경우(?!에),?", keyeong, text)
 
 
 def assemble_comment(market: str, bodies: list, points: list[dict]) -> str:
