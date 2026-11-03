@@ -1039,11 +1039,56 @@ def get_theme_members() -> dict[tuple[str, str], set[str]]:
 
 
 def comment_points(b: dict) -> list[dict]:
-    """총평의 '이번 주 짚을 점' - 칸과 칸 사이에서 겹치거나 엇갈리는 사실(src/analyzers/briefing_points.py)."""
+    """총평의 '이번 주 짚을 점' - 칸과 칸 사이에서 겹치거나 엇갈리는 사실(src/analyzers/briefing_points.py) + 관련 기사."""
     from src.analyzers.briefing_points import find_points
-    tags, _ = interest_tags_names()
+    tags, names = interest_tags_names()
     mine = {k for k, v in tags.items() if any(t in MY_TAGS for t in v)}
-    return find_points(b, load_theme_names(), get_theme_members(), mine, COMMENT_8K, qual_macro)
+    members = get_theme_members()
+    points = find_points(b, load_theme_names(), members, mine, COMMENT_8K, qual_macro)
+    try:
+        attach_news(points, b, members, names)
+    except Exception as e:  # noqa: BLE001 - 기사는 덧붙이는 것이라 실패해도 총평은 만든다
+        logger.warning("짚을 점 관련 기사 실패: %s", type(e).__name__)
+    return points
+
+
+def _theme_news_rows(theme_id: str, markets: list[str], week: str) -> list[dict]:
+    if not markets or not week:
+        return []
+    marks = ",".join("?" for _ in markets)
+    return turso_exec(f"SELECT title, url, source, published_at FROM theme_news WHERE theme_id = ? AND market IN ({marks}) "
+                      f"AND week_start = ? ORDER BY published_at DESC LIMIT 400", [theme_id, *markets, week])
+
+
+def _stock_news_rows(market: str, name: str, after, before) -> list[dict]:
+    from src.collectors.theme_news_collector import naver_credentials, search_google_news_en, search_google_news_kr, search_naver_news_kr
+    if market == "KR":
+        if naver_credentials():
+            return list(search_naver_news_kr(name, after, before, limit=60))
+        return search_google_news_kr(f'"{name}"', after, before, limit=60)
+    return search_google_news_en(f'"{name}"', after, before, limit=60)
+
+
+def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str]) -> None:
+    """짚을 점마다 point["news"] = 관련 기사 최대 3개(src/analyzers/briefing_news.py). 테마는 theme_news(새 수집 없음),
+    종목은 이름으로 그 주 기사 검색. 하나가 실패해도 나머지는 붙인다."""
+    from src.analyzers.briefing_news import pick_headlines
+    tl_week = (b.get("theme_labels") or {}).get("week_start")
+    week = datetime.strptime(b["week"], "%Y-%m-%d").date()
+    after, before = week - timedelta(days=7), week + timedelta(days=1)
+    for p in points:
+        try:
+            if p.get("theme_id"):
+                mk = p.get("markets") or []
+                member_names = _clean_names(names.get(f"{m}:{sym}") or "" for m in mk for sym in members.get((m, p["theme_id"])) or [])
+                rows = _theme_news_rows(p["theme_id"], mk, tl_week)
+                p["news"] = pick_headlines(rows, _clean_names(p.get("signal_names") or []), member_names)
+            elif p.get("symbol"):
+                nm = (_clean_names([p.get("title_name") or ""]) or [p["symbol"]])[0]
+                rows = _stock_news_rows(p.get("market") or "US", nm, after, before)
+                p["news"] = pick_headlines(rows, [nm], must_contain=nm if p.get("market") == "KR" else None)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("관련 기사 실패(%s): %s", p.get("title"), type(e).__name__)
 
 
 _LAST_RAW_COMMENT = [""]
@@ -1080,9 +1125,12 @@ def gpt_comment(briefing: dict) -> str:
     market = comment_facts(briefing).get("시장") or {}
     points = comment_points(briefing)
     briefing["_comment_points"] = points   # 미리 보기 출력용(저장 전에 지운다)
+    # 화면용 관련 기사 - 소제목(■ 줄)과 같은 글자로 묶는다. GPT를 거치지 않은 원문 제목·링크
+    briefing["comment_news"] = {p["title"]: p["news"] for p in points if p.get("news")}
     if not market and not points:
         return ""
-    for_gpt = [{"제목": p["title"], "왜 골랐나": p["note"], "사실": p["facts"]} for p in points]
+    for_gpt = [{"제목": p["title"], "왜 골랐나": p["note"], "사실": p["facts"],
+                **({"같은 주 관련 기사 제목(참고)": [n["title"] for n in p["news"]]} if p.get("news") else {})} for p in points]
     label_meaning = {LABEL_KO_SHORT[k]: v for k, v in LABEL_MEANING.items()}
     prompt = f"""개인 투자 리서치 도구의 주간 브리핑입니다. 화면에는 목록이 이미 다 있으니, 목록을 다시 읽어 주지 말고 아래 '짚을 점'만 풀어 주세요.
 
@@ -1115,6 +1163,8 @@ JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next
   좋은 예: "관심과 실적이 거꾸로 갔다. 다라전자는 관심도가 '높음'까지 올랐지만 잠정 영업이익은 전년보다 크게 줄었다."
   next 예: "가나테마 주가가 실적을 따라 오를지", "다라전자 관심도가 다음 주에도 이어질지"
 
+- 관련 기사 제목은 참고만: 어떤 주제의 보도가 이어졌는지 한 구절로 덧붙일 수 있습니다(예: "수출 확대 관련 보도도 이어졌다").
+  기사 제목을 그대로 옮기지 말고, 제목 속 숫자·전망·원인 해석은 쓰지 마세요. 기사는 화면에 링크로 따로 붙습니다.
 - 제목은 쓰지 마세요(코드가 붙입니다). 늘고 줄어든 것은 사실에 적힌 크기(크게·소폭)를 그대로 살리고, 좋다·나쁘다로 바꾸지 마세요.
 - 사실에 없는 원인·효과·전망은 쓰지 마세요("영향", "때문", "덕분", "이로 인해", "긍정적", "부정적" 금지).
 - 숫자(%·금액·건수)는 쓰지 마세요. 이름은 적힌 글자 그대로. 매수·매도 권유 금지."""
@@ -1489,11 +1539,15 @@ def main() -> None:
         print("== 짚을 점(코드가 고름) ==")
         for pt in b.pop("_comment_points", None) or []:
             print(f"[{pt['kind']}] {pt['title']}\n  - " + "\n  - ".join(pt["facts"]))
+            for n in pt.get("news") or []:
+                print(f"    📰 {n['published_at']} {n['source']} | {n['title']}")
         if _LAST_RAW_COMMENT[0] and _LAST_RAW_COMMENT[0] != final:
             print("\n== GPT 원문(뒷손질 전) ==\n" + _LAST_RAW_COMMENT[0])
         print(f"\n== 총평 ({b.get('week')}) ==\n" + (final or "(생성 실패 또는 OPENAI_API_KEY 없음)"))
         if final:
             b["gpt_comment"] = final
+        if b.get("comment_news"):   # 웹 미리 보기용(짧다)
+            print("\n== COMMENT_NEWS ==\n" + json.dumps(b["comment_news"], ensure_ascii=False))
         if os.environ.get("PREVIEW_TELEGRAM"):
             print("\n== 텔레그램(지금 코드의 순서) ==\n" + build_telegram_summary(b))
         # 웹 화면 미리 보기용 - 새 총평을 넣은 브리핑 한 주치(사이트 /api/briefing이 주는 것과 같은 내용). 저장은 하지 않는다.

@@ -28,6 +28,8 @@ jobs:
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
           TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           MODEL_BRIEFING_COMMENT: ${{ inputs.model }}
           PYTHONUNBUFFERED: "1"
         run: python scripts/generate_weekly_briefing.py --preview-comment

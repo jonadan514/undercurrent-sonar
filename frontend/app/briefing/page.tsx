@@ -38,6 +38,8 @@ interface Briefing {
   sentiment_heating: StockRef[];
   catalysts: StockRef[];
   gpt_comment: string;
+  // 짚을 점 소제목 -> 관련 기사(2026-11-03). 코드가 고른 원문 제목·링크 - GPT를 거치지 않는다
+  comment_news?: Record<string, { title: string; url: string; source: string; published_at: string }[]>;
   theme_labels?: ThemeLabelChanges;
   // 금리·환율 1주 변화(2026-10-05부터, macro_snapshot 그대로). 예전 브리핑엔 없다.
   // dxy·wti는 2026-10-09부터
@@ -377,7 +379,27 @@ function BriefGroup({ title, children }: { title: string; children: ReactNode })
 }
 
 // 주간 총평 본문(2026-11-02) - "■ 소제목" 줄은 제목으로, 나머지는 문단. 접힌 상태에선 앞 두 묶음만(예전 형식 - 소제목 없는 글은 4줄).
-function CommentBody({ text, collapsed }: { text: string; collapsed: boolean }) {
+type NewsItem = { title: string; url: string; source: string; published_at: string };
+
+function NewsLinks({ items }: { items: NewsItem[] }) {
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {items.map((n) => (
+        <li key={n.url} className="text-[11.5px] leading-snug flex gap-1.5 min-w-0">
+          <span className="shrink-0" style={{ color: "#6f6857" }}>📰</span>
+          <a href={n.url} target="_blank" rel="noopener noreferrer" className="hover:underline min-w-0" style={{ color: "#a9a18c" }}>
+            {n.title}
+            <span className="ml-1.5 whitespace-nowrap" style={{ color: "#6f6857" }}>
+              {[n.source, n.published_at ? n.published_at.slice(5).replace("-", "/") : ""].filter(Boolean).join(" · ")}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CommentBody({ text, collapsed, news }: { text: string; collapsed: boolean; news?: Record<string, NewsItem[]> }) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   if (!lines.some((l) => l.startsWith("■"))) {
     return <p className={`text-[13px] leading-relaxed whitespace-pre-line ${collapsed ? "line-clamp-4" : ""}`} style={{ color: "#bdb5a0" }}>{text}</p>;
@@ -409,6 +431,7 @@ function CommentBody({ text, collapsed }: { text: string; collapsed: boolean }) 
                 {t}
               </p>
             ) : <p key={k} className="text-[13px] leading-relaxed" style={{ color: "#bdb5a0" }}>{t}</p>)}
+            {!collapsed && news?.[blk.head]?.length ? <NewsLinks items={news[blk.head]} /> : null}
           </div>
         );
       })}
@@ -530,7 +553,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
           {has.comment && (
             <Section className={SCROLL_M} id="comment" tone="warm" title="주간 총평">
-              <CommentBody text={b.gpt_comment} collapsed={longComment && !commentOpen} />
+              <CommentBody text={b.gpt_comment} collapsed={longComment && !commentOpen} news={b.comment_news} />
               {longComment && (
                 <button onClick={() => setCommentOpen(!commentOpen)} className="mt-1 text-[12px] hover:underline" style={{ color: "#ffb020" }}>
                   {commentOpen ? "접기" : "전체 보기"}

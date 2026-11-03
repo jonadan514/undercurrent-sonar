@@ -178,6 +178,7 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
                 s = signals.get((m, sym))
                 if s and s["signals"]:
                     e["members"].append(f"{s['name']}: " + ", ".join(t for _, _, t in s["signals"]))
+                    e.setdefault("signal_names", []).append(s["name"])
         name = theme_names.get(tid, tid)
         if len({l.split(":")[0] for l in e["labels"] if "새로 붙음" in l}) > 1:
             e["labels"].append("같은 테마인데 미국과 한국의 라벨이 다름 - 두 시장을 따로 봐야 함")
@@ -191,6 +192,7 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
         if kind == "theme" and not (e["macro"] or e["members"] or len(e["labels"]) > 1):
             continue   # 라벨 하나만 새로 붙고 이어지는 게 없으면 화면의 라벨 칸으로 충분
         out.append({"kind": kind, "title": title, "facts": facts, "n": len(facts), "theme_id": tid,
+                    "markets": sorted(e["markets"]), "signal_names": e.get("signal_names", []),
                     "note": "4주 전 내가 남긴 기대와 그 뒤" if e["reviews"] else "테마 라벨과 같은 주에 함께 나온 사실"})
     return out
 
