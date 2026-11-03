@@ -107,3 +107,7 @@ def test_label_meaning_attached_and_markets_differ():
 
 def test_strip_interpretive_closing():
     assert g.strip_speculation("■ 테마\n실적이 먼저 움직였다. 이는 시장의 관심이 부족함을 보여준다.") == "■ 테마\n실적이 먼저 움직였다."
+
+
+def test_fix_passive():
+    assert g.fix_passive("뉴스는 조용해 '숨은 강세'로 분류됐다.") == "뉴스는 조용해 '숨은 강세' 라벨이 붙었다."

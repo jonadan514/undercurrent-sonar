@@ -48,3 +48,7 @@ def test_long_title_cut_and_watching_filtered():
     long = "Live On CNBC, Chevron CEO Says " + "and more words " * 10
     out = pick_headlines([_r(long), _r("3 U.S. Natural Gas Stocks Worth Watching As LNG Demand Builds")])
     assert len(out) == 1 and out[0]["title"].endswith("…") and len(out[0]["title"]) <= 91
+
+
+def test_time_to_buy_filtered():
+    assert pick_headlines([_r("EQT and Range Resources Are Merging: Is It Time to Buy the New Titan?")]) == []

@@ -1112,11 +1112,16 @@ def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str
 _LAST_RAW_COMMENT = [""]
 
 
+def fix_passive(text: str) -> str:
+    """금지해도 가끔 나오는 "'숨은 강세'로 분류됐다" → "'숨은 강세' 라벨이 붙었다"."""
+    return re.sub(r"'([^']+)'(?:으)?로 분류(?:됐|되었)다", r"'\1' 라벨이 붙었다", text)
+
+
 def assemble_comment(market: str, bodies: list, points: list[dict]) -> str:
     """소제목은 코드가 붙인다(GPT가 제목을 바꾸지 못하게). 본문이 비면(실패·전부 걸러짐) 사실을 그대로 잇는다.
     bodies 항목은 글 또는 {"body", "next"} - next(이어서 볼 것)는 '→ 이어서 볼 것:' 줄로 붙인다."""
     names = [p.get("title_name") or "" for p in points] + [f.split(":")[0] for p in points for f in p["facts"]]
-    clean = lambda t: strip_numeric_sentences(strip_speculation(fix_names(t or "", [n for n in names if n])))  # noqa: E731
+    clean = lambda t: strip_numeric_sentences(strip_speculation(fix_names(fix_passive(t or ""), [n for n in names if n])))  # noqa: E731
     out = []
     if (m := clean(market)):
         out += ["■ 시장 분위기", m, ""]
