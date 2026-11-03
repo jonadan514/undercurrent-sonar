@@ -5,8 +5,9 @@
 
 - 테마: 테마 레이더가 이미 모은 그 주 기사(theme_news) - 새 수집 없음.
 - 종목: 종목 이름으로 그 주 기사를 따로 검색(한국 네이버·없으면 구글, 미국 구글). 짚을 점 종목은 주에 몇 개뿐이다.
-고르는 차례: 이번 주 신호가 나온 소속 종목 이름이 제목에 든 기사 → 다른 소속 종목 이름이 든 기사 → 나머지, 같은 차례면 최신.
-제목이 거의 같은 기사(여러 매체가 받아 쓴 것)는 하나만.
+고르는 차례: 이번 주 신호가 나온 소속 종목 이름이 제목에 든 기사 → 테마 키워드(themes.yaml)가 든 기사 → 다른 소속 종목
+이름이 든 기사 → 나머지, 같은 차례면 최신. 제목이 거의 같은 기사(여러 매체가 받아 쓴 것)는 하나만.
+투자 의견·종목 추천성 제목("Undervalued", "목표주가", "매수" 등)은 뺀다 - 사실 보도만(11/3 미리 보기에서 "42% 저평가" 같은 제목이 섞임).
 """
 from __future__ import annotations
 
@@ -14,6 +15,9 @@ import re
 from difflib import SequenceMatcher
 
 PER_POINT = 3
+
+_OPINION = re.compile(r"undervalued|overvalued|fully valued|is the stock|stock could|should you|buy now|top pick|price target|"
+                      r"stocks? to (buy|watch)|목표주가|매수 추천|추천주|사야 할|담아야|급등주|순매수한 '?1위|투자의견", re.I)
 SIMILAR = 0.75
 MIN_TITLE = 8
 
@@ -32,18 +36,25 @@ def _norm(t: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^0-9a-z가-힣]", " ", t.lower())).strip()
 
 
+def short_source(src: str) -> str:
+    return re.sub(r"^www\.", "", (src or "").strip())
+
+
 def pick_headlines(rows: list[dict], first_names: list[str] | None = None, other_names: list[str] | None = None,
-                   n: int = PER_POINT, must_contain: str | None = None) -> list[dict]:
-    """rows: title·url·source·published_at. 반환: 같은 필드(title은 정리된 것), 최대 n개."""
+                   n: int = PER_POINT, must_contain: str | None = None, keywords: list[str] | None = None) -> list[dict]:
+    """rows: title·url·source·published_at. 반환: 같은 필드(title은 정리된 것, source는 www. 뗀 것), 최대 n개."""
     first = [x for x in (first_names or []) if x]
     other = [x for x in (other_names or []) if x and x not in first]
+    kws = [k.lower() for k in (keywords or []) if k]
 
     def tier(t: str) -> int:
         if any(nm in t for nm in first):
             return 0
-        if any(nm in t for nm in other):
+        if any(k in t.lower() for k in kws):
             return 1
-        return 2
+        if any(nm in t for nm in other):
+            return 2
+        return 3
 
     cands = []
     for r in rows:
@@ -52,7 +63,9 @@ def pick_headlines(rows: list[dict], first_names: list[str] | None = None, other
             continue
         if must_contain and must_contain.lower() not in t.lower():
             continue
-        cands.append({"title": t, "url": r["url"], "source": r.get("source") or "", "published_at": r.get("published_at") or ""})
+        if _OPINION.search(t):
+            continue
+        cands.append({"title": t, "url": r["url"], "source": short_source(r.get("source") or ""), "published_at": r.get("published_at") or ""})
     cands.sort(key=lambda c: c["published_at"], reverse=True)
     cands.sort(key=lambda c: tier(c["title"]))   # 안정 정렬 - 같은 차례 안에서는 최신 순 유지
     out: list[dict] = []

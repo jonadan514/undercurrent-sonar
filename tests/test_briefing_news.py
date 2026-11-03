@@ -31,3 +31,14 @@ def test_priority_dedupe_and_limit():
 def test_must_contain_for_stock_search():
     rows = [_r("한미사이언스 임시주총 결과"), _r("제약주 전반 약세 흐름 정리")]
     assert [o["title"] for o in pick_headlines(rows, ["한미사이언스"], must_contain="한미사이언스")] == ["한미사이언스 임시주총 결과"]
+
+
+def test_keyword_tier_and_opinion_filter():
+    # 11/3 미리 보기: 천연가스 테마에 Chevron 부채·"42% Undervalued"가 뽑혔다 - 키워드 기사 우선, 투자 의견 제목은 뺀다
+    rows = [_r("Chevron Halved Its Net Debt in Six Months", "2026-11-01", "Yahoo"),
+            _r("Targa Resources (TRGP) Stock Could Be 42% Undervalued On Cash Flow", "2026-11-01", "Yahoo"),
+            _r("US LNG exports hit record as new terminal ramps up", "2026-10-29", "www.reuters.com"),
+            _r("삼성전자도 SK하이닉스도 아니다…기관이 한달간 순매수한 '1위 주식'", "2026-11-01")]
+    out = pick_headlines(rows, [], ["Chevron", "Targa Resources", "SK하이닉스"], keywords=["LNG", "natural gas"])
+    assert [o["title"] for o in out] == ["US LNG exports hit record as new terminal ramps up", "Chevron Halved Its Net Debt in Six Months"]
+    assert out[0]["source"] == "reuters.com"

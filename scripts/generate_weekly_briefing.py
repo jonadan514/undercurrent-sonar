@@ -1069,6 +1069,23 @@ def _stock_news_rows(market: str, name: str, after, before) -> list[dict]:
     return search_google_news_en(f'"{name}"', after, before, limit=60)
 
 
+def theme_keywords(theme_id: str, markets: list[str]) -> list[str]:
+    """themes.yaml의 검색 키워드(한국 keywords_ko, 미국 keywords_en) + 테마 이름."""
+    try:
+        cfg = yaml.safe_load((ROOT / "config" / "themes.yaml").read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001
+        return []
+    for t in cfg.get("themes") or []:
+        if t.get("id") == theme_id:
+            out = [t.get("name_ko") or ""]
+            if "KR" in markets:
+                out += t.get("keywords_ko") or []
+            if "US" in markets:
+                out += t.get("keywords_en") or []
+            return [k for k in out if k]
+    return []
+
+
 def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str]) -> None:
     """짚을 점마다 point["news"] = 관련 기사 최대 3개(src/analyzers/briefing_news.py). 테마는 theme_news(새 수집 없음),
     종목은 이름으로 그 주 기사 검색. 하나가 실패해도 나머지는 붙인다."""
@@ -1082,7 +1099,8 @@ def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str
                 mk = p.get("markets") or []
                 member_names = _clean_names(names.get(f"{m}:{sym}") or "" for m in mk for sym in members.get((m, p["theme_id"])) or [])
                 rows = _theme_news_rows(p["theme_id"], mk, tl_week)
-                p["news"] = pick_headlines(rows, _clean_names(p.get("signal_names") or []), member_names)
+                p["news"] = pick_headlines(rows, _clean_names(p.get("signal_names") or []), member_names,
+                                           keywords=theme_keywords(p["theme_id"], mk))
             elif p.get("symbol"):
                 nm = (_clean_names([p.get("title_name") or ""]) or [p["symbol"]])[0]
                 rows = _stock_news_rows(p.get("market") or "US", nm, after, before)
