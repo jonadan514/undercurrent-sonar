@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { GLOSSARY } from "@/src/lib/glossary";
 import { INTRO_STORAGE_PREFIX, PAGE_INTROS, type PageIntroKey } from "@/src/lib/pageIntros";
-import Term from "@/src/components/Term";
+import Term, { termLabel } from "@/src/components/Term";
 
 // "이 화면은?" 상자(2026-10-23). 처음엔 펼쳐져 있고, 접으면 이 화면에서는 다음에도 접힌 채로.
 // 저장은 브라우저(localStorage)에만 - 막힌 환경(사생활 모드 등)에서도 화면이 깨지지 않게 try/catch.
@@ -63,7 +63,7 @@ export default function PageIntro({ k }: { k: PageIntroKey }) {
         <p className="mt-2.5 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
           이 화면의 용어(눌러서 보기):{" "}
           {intro.terms.map((t, i) => (
-            <span key={t}>{i > 0 && " · "}<Term k={t}>{GLOSSARY[t].term.split(" · ")[0]}</Term></span>
+            <span key={t}>{i > 0 && " · "}<Term k={t}>{termLabel(GLOSSARY[t].term)}</Term></span>
           ))}
           {" · "}<a href="/guide#glossary" className="underline" style={{ color: "var(--text-muted)" }}>용어 사전 전체</a>
         </p>

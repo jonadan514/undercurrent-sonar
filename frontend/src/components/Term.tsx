@@ -5,6 +5,11 @@ import { GLOSSARY, type GlossaryKey } from "@/src/lib/glossary";
 
 // 어려운 용어에 점선 밑줄을 긋고, 누르면(휴대폰) 또는 마우스를 올리면 용어 사전 설명을 띄운다.
 // 설명은 src/lib/glossary.ts 한 곳에서만 - 화면마다 같은 말이 다르게 쓰이지 않게(2026-10-23).
+/** 짧은 표시 이름: "공시 (DART · 8-K)" -> "공시", "Quiet Strength · 조용한 강세" -> "Quiet Strength" */
+export function termLabel(term: string): string {
+  return term.replace(/\s*\(.*\)\s*$/, "").split(" · ")[0];
+}
+
 export default function Term({ k, children }: { k: GlossaryKey; children?: ReactNode }) {
   const entry = GLOSSARY[k];
   const [open, setOpen] = useState(false);
@@ -28,7 +33,7 @@ export default function Term({ k, children }: { k: GlossaryKey; children?: React
     <span ref={ref} className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
         type="button"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
         className="cursor-help underline decoration-dotted underline-offset-[3px] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#ffb020]"
         style={{ textDecorationColor: "var(--text-faint)", color: "inherit", font: "inherit" }}
         aria-expanded={open}
