@@ -42,3 +42,9 @@ def test_keyword_tier_and_opinion_filter():
     out = pick_headlines(rows, [], ["Chevron", "Targa Resources", "SK하이닉스"], keywords=["LNG", "natural gas"])
     assert [o["title"] for o in out] == ["US LNG exports hit record as new terminal ramps up", "Chevron Halved Its Net Debt in Six Months"]
     assert out[0]["source"] == "reuters.com"
+
+
+def test_long_title_cut_and_watching_filtered():
+    long = "Live On CNBC, Chevron CEO Says " + "and more words " * 10
+    out = pick_headlines([_r(long), _r("3 U.S. Natural Gas Stocks Worth Watching As LNG Demand Builds")])
+    assert len(out) == 1 and out[0]["title"].endswith("…") and len(out[0]["title"]) <= 91

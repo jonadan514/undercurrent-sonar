@@ -102,3 +102,8 @@ def test_label_meaning_attached_and_markets_differ():
     assert p["facts"][:3] == ["미국: '동반 상승' 라벨이 새로 붙음 - 뉴스·실적·주가가 모두 오름",
                               "한국: '숨은 강세' 라벨이 새로 붙음 - 실적은 크게 좋아졌는데 뉴스는 조용하고 주가도 아직 그대로",
                               "같은 테마인데 미국과 한국의 라벨이 다름 - 두 시장을 따로 봐야 함"]
+
+
+
+def test_strip_interpretive_closing():
+    assert g.strip_speculation("■ 테마\n실적이 먼저 움직였다. 이는 시장의 관심이 부족함을 보여준다.") == "■ 테마\n실적이 먼저 움직였다."

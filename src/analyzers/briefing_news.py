@@ -17,9 +17,10 @@ from difflib import SequenceMatcher
 PER_POINT = 3
 
 _OPINION = re.compile(r"undervalued|overvalued|fully valued|is the stock|stock could|should you|buy now|top pick|price target|"
-                      r"stocks? to (buy|watch)|목표주가|매수 추천|추천주|사야 할|담아야|급등주|순매수한 '?1위|투자의견", re.I)
+                      r"stocks? to (buy|watch)|worth (watching|buying)|목표주가|매수 추천|추천주|사야 할|담아야|급등주|순매수한 '?1위|투자의견", re.I)
 SIMILAR = 0.75
 MIN_TITLE = 8
+MAX_TITLE = 90   # 속보형 영어 제목(Benzinga)은 문단만큼 길다 - 화면에서 자른다
 
 
 def clean_title(title: str, source: str = "") -> str:
@@ -65,6 +66,8 @@ def pick_headlines(rows: list[dict], first_names: list[str] | None = None, other
             continue
         if _OPINION.search(t):
             continue
+        if len(t) > MAX_TITLE:
+            t = t[:MAX_TITLE].rstrip(" ,;:") + "…"
         cands.append({"title": t, "url": r["url"], "source": short_source(r.get("source") or ""), "published_at": r.get("published_at") or ""})
     cands.sort(key=lambda c: c["published_at"], reverse=True)
     cands.sort(key=lambda c: tier(c["title"]))   # 안정 정렬 - 같은 차례 안에서는 최신 순 유지
