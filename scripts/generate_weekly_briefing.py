@@ -1120,6 +1120,7 @@ def fix_passive(text: str) -> str:
     "'숨은 강세'로 분류됐다" → "'숨은 강세' 라벨이 붙었다", "하락세를 보인 반면" → "하락한 반면", "미국의 경우" → "미국은"."""
     text = re.sub(r"'([^']+)'(?:으)?로 분류(?:됐|되었)다", r"'\1' 라벨이 붙었다", text)
     text = re.sub(r"(상승|하락)세를 보(였다|인|이며|이고|여)", lambda m: m.group(1) + _SE_BOINDA[m.group(2)], text)
+    text = re.sub(r"보합세를 보(였다|인|이며|이고)", lambda m: "보합" + {"였다": "이었다", "인": "인", "이며": "이며", "이고": "이고"}[m.group(1)], text)
 
     def keyeong(m: re.Match) -> str:
         w = m.group(1)
