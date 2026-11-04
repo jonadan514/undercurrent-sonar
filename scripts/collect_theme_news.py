@@ -34,7 +34,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from src.db.data_store import get_db
 from src.db.theme_signals import (ensure_schema, signal_week_monday, insert_theme_news_bulk, get_prior_news_counts,
-                                  upsert_news_signal, news_history_since, get_approved_theme_members)
+                                  upsert_news_signal, news_history_since, get_approved_theme_members,
+                                  news_arrow_from_ratio, apply_market_relative_news, NEWS_MARKET_RELATIVE)
 from collectors.theme_news_collector import collect_theme_news, collect_member_news, finnhub_key
 
 THEMES_YAML = ROOT / "config" / "themes.yaml"
@@ -105,15 +106,7 @@ def compute_news_arrow(news_count: int, min_articles: int, prior_counts: list[in
     if news_count < min_articles or baseline == 0:
         return baseline, None, "na"
     ratio = news_count / baseline
-    if ratio >= thresholds.get("strong_up", 2.0):
-        arrow = "up2"
-    elif ratio >= thresholds.get("up", 1.3):
-        arrow = "up1"
-    elif ratio <= thresholds.get("down", 0.7):
-        arrow = "down"
-    else:
-        arrow = "flat"
-    return baseline, ratio, arrow
+    return baseline, ratio, news_arrow_from_ratio(ratio, thresholds)
 
 
 def load_active_themes(theme_ids: list[str] | None) -> tuple[list[dict], dict]:
@@ -126,6 +119,16 @@ def load_active_themes(theme_ids: list[str] | None) -> tuple[list[dict], dict]:
     return themes, data.get("config", {})
 
 
+def _report_market_relative(conn, market: str, week: str, thresholds: dict) -> None:
+    if market not in NEWS_MARKET_RELATIVE:
+        return
+    median, n = apply_market_relative_news(conn, market, week, thresholds)
+    if median is None:
+        _log(f"{market} {week}: 비율 있는 테마가 모자라 시장 대비 판정 안 함(자기 기준선 대비 그대로)")
+    else:
+        _log(f"{market} {week}: 뉴스 시장 대비 판정 - 테마 비율 중앙값 {median:.2f}배, {n}개 테마")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--weeks-back", type=int, default=1,
@@ -134,7 +137,19 @@ def main() -> None:
     parser.add_argument("--market", choices=["US", "KR"], default=None,
                          help="한 시장만 (비우면 둘 다). 한쪽만 다시 돌릴 때 쓴다 - 둘 다 돌리면 "
                               "Actions에서 70-90분이 걸린다")
+    parser.add_argument("--recalc-relative", metavar="WEEK", default=None,
+                         help="수집 없이 그 주(월요일 YYYY-MM-DD)의 뉴스 화살표만 시장 대비로 다시 판정한다")
     args = parser.parse_args()
+
+    if args.recalc_relative:
+        _, config = load_active_themes(None)
+        conn = get_db()
+        ensure_schema(conn)
+        for mk in sorted(NEWS_MARKET_RELATIVE):
+            _report_market_relative(conn, mk, args.recalc_relative,
+                                    config.get("news_thresholds", {"strong_up": 2.0, "up": 1.3, "down": 0.7}))
+        conn.close()
+        return
 
     themes, config = load_active_themes(args.theme_id)
     if not themes:
@@ -253,6 +268,8 @@ def main() -> None:
                     ratio, arrow, backfilled, datetime.utcnow().isoformat(),
                 )
             conn.commit()
+            # 미국은 위에서 낸 자기 기준선 대비 화살표를 시장 전체 대비로 다시 판정한다(실적 철 동반 상승 제거).
+            _report_market_relative(conn, market, week_start.isoformat(), thresholds)
 
     conn.close()
     if failed_runs:

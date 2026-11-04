@@ -4,6 +4,7 @@ SPEC: docs/radar/SPEC_phase_a_signals.md §1
 """
 from __future__ import annotations
 
+import statistics
 from datetime import date, timedelta
 
 
@@ -86,7 +87,10 @@ LATE_COLUMNS = [("price_volume_ratio", "REAL"),
                 ("earn_prelim_quarter", "TEXT"),
                 ("earn_prelim_n", "INTEGER"),
                 ("earn_prelim_beat", "INTEGER"),
-                ("earn_prelim_median", "REAL")]
+                ("earn_prelim_median", "REAL"),
+                # 미국 뉴스 시장 대비 판정(2026-11-04) - 그 주 테마 비율 중앙값과, 그걸로 나눈 비율
+                ("news_market_ratio", "REAL"),
+                ("news_rel_ratio", "REAL")]
 
 
 # 분기 재설계(docs/REDESIGN_SPEC.md 6장)용 주간 기사 수 이력.
@@ -332,6 +336,56 @@ def get_prior_news_counts(conn, theme_id: str, market: str, week_start: str, wee
         (theme_id, market, week_start, since or "0000-00-00", weeks),
     ).fetchall()
     return [int(r[0]) for r in rows]
+
+
+# 뉴스 화살표를 시장 전체 대비로 판정하는 시장. 미국 뉴스는 소속 기업 뉴스 건수(Finnhub)라 실적 발표 철에 테마와
+# 무관하게 다 같이 늘어난다 - 2026-10-26 주 32개 중 22개가 "증가", 테마 건수 중앙값이 약 2배(비율 중앙값 1.65).
+# 한국은 테마 키워드 기사 수라 이 문제가 다르다(수집 상한이 문제 - PROGRESS 2026-11-04).
+NEWS_MARKET_RELATIVE = frozenset({"US"})
+NEWS_RELATIVE_MIN_THEMES = 10   # 이보다 적으면 "시장 전체" 값을 믿을 수 없다 - 원래 방식으로 둔다
+
+
+def news_arrow_from_ratio(ratio: float, thresholds: dict) -> str:
+    """기준선 대비 비율 -> 화살표(SPEC 2.3 구간, config/themes.yaml news_thresholds)."""
+    if ratio >= thresholds.get("strong_up", 2.0):
+        return "up2"
+    if ratio >= thresholds.get("up", 1.3):
+        return "up1"
+    if ratio <= thresholds.get("down", 0.7):
+        return "down"
+    return "flat"
+
+
+def market_relative_arrows(ratios: dict[str, float], thresholds: dict) -> tuple[float | None, dict[str, tuple[float, str]]]:
+    """테마별 비율 -> (시장 중앙값, {테마: (시장 대비 비율, 화살표)}). 테마가 모자라거나 중앙값이 0 이하면 (None, {})."""
+    if len(ratios) < NEWS_RELATIVE_MIN_THEMES:
+        return None, {}
+    market = statistics.median(ratios.values())
+    if market <= 0:
+        return None, {}
+    return market, {t: (r / market, news_arrow_from_ratio(r / market, thresholds)) for t, r in ratios.items()}
+
+
+def apply_market_relative_news(conn, market: str, week_start: str, thresholds: dict) -> tuple[float | None, int]:
+    """그 주 뉴스 화살표를 시장 대비로 다시 판정한다. 반환: (시장 중앙값, 바꾼 테마 수).
+
+    DB의 원래 비율(news_ratio, 그대로 둔다)에서 계산하므로 여러 번 돌려도 같고, --theme-id로 일부만 수집한 뒤에도
+    그 주 전체 테마로 계산된다. 비율이 없는 행(na)은 건드리지 않는다 - 데이터부족은 데이터부족이다(원칙 4)."""
+    if market not in NEWS_MARKET_RELATIVE:
+        return None, 0
+    rows = conn.execute(
+        "SELECT theme_id, news_ratio FROM theme_signals WHERE market = ? AND week_start = ? AND news_ratio IS NOT NULL",
+        (market, week_start),
+    ).fetchall()
+    median, result = market_relative_arrows({r[0]: float(r[1]) for r in rows}, thresholds)
+    for theme_id, (rel, arrow) in result.items():
+        conn.execute(
+            "UPDATE theme_signals SET news_arrow = ?, news_market_ratio = ?, news_rel_ratio = ? "
+            "WHERE theme_id = ? AND market = ? AND week_start = ?",
+            (arrow, median, rel, theme_id, market, week_start),
+        )
+    conn.commit()
+    return median, len(result)
 
 
 def upsert_news_signal(conn, theme_id: str, market: str, week_start: str,

@@ -17,6 +17,10 @@ on:
         description: "US 또는 KR (비우면 둘 다)"
         required: false
         default: ""
+      recalc_relative_week:
+        description: "수집 없이 이 주(월요일 YYYY-MM-DD)의 미국 뉴스 화살표만 시장 대비로 다시 판정 (보통 비움)"
+        required: false
+        default: ""
 
 jobs:
   collect:
@@ -52,10 +56,12 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MARKET: ${{ inputs.market }}
+          RECALC_WEEK: ${{ inputs.recalc_relative_week }}
         run: >
           python scripts/collect_theme_news.py
           --weeks-back "${{ inputs.weeks_back || '1' }}"
           ${MARKET:+--market "$MARKET"}
+          ${RECALC_WEEK:+--recalc-relative "$RECALC_WEEK"}
           --theme-id ${{ inputs.theme_id }}
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
