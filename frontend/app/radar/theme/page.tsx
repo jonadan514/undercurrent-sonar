@@ -33,6 +33,8 @@ interface WeekRow {
   news_count: number | null;
   news_baseline: number | null;
   news_ratio: number | null;
+  news_market_ratio?: number | null;
+  news_rel_ratio?: number | null;
   news_arrow: Arrow;
   earn_members: number | null;
   earn_improved: number | null;
@@ -121,7 +123,8 @@ function cellTitle(axis: string, r: WeekRow | undefined): string {
   if (!r) return "이 주 데이터 없음";
   if (axis === "news_arrow")
     return r.news_count == null ? "뉴스 건수 없음(수집 실패 또는 기준선 쌓는 중)"
-      : `뉴스 ${r.news_count}건 / 기준선 ${r.news_baseline != null ? Math.round(r.news_baseline) : "-"}건`;
+      : `뉴스 ${r.news_count}건 / 기준선 ${r.news_baseline != null ? Math.round(r.news_baseline) : "-"}건` +
+        (r.news_rel_ratio != null && r.news_market_ratio != null ? ` · 테마 전체 ${r.news_market_ratio.toFixed(2)}배 대비 ${r.news_rel_ratio.toFixed(2)}배` : "");
   if (axis === "earn_arrow")
     return r.earn_members == null ? "실적 데이터 없음"
       : `${r.earn_members}개사 중 ${r.earn_improved ?? 0}개 매출 성장률이 시장 중앙값 초과` +

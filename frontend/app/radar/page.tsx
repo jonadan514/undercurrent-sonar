@@ -34,6 +34,8 @@ interface ThemeSignal {
   news_count: number | null;
   news_baseline: number | null;
   news_ratio: number | null;
+  news_market_ratio?: number | null;  // 미국: 그 주 테마 비율 중앙값(2026-11-04)
+  news_rel_ratio?: number | null;     // 미국: 시장 대비 비율 - 화살표는 이 값으로 판정
   news_arrow: Arrow;
   earn_members: number | null;
   earn_improved: number | null;
@@ -604,6 +606,11 @@ function ThemeCard({ signal, market, compact = false, ev }:
             <div className="rounded-lg px-3 py-2 text-[13px]" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: MUTED }}>
               뉴스 이번 주 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{signal.news_count ?? "-"}건</b>
               {" / "}8주 중앙값 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{signal.news_baseline != null ? Math.round(signal.news_baseline) : "-"}건</b>
+              {signal.news_ratio != null && <> ({signal.news_ratio.toFixed(2)}배)</>}
+              {signal.news_rel_ratio != null && signal.news_market_ratio != null && (
+                <> · 테마 전체 {signal.news_market_ratio.toFixed(2)}배 대비 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{signal.news_rel_ratio.toFixed(2)}배</b>
+                  {" "}<span className="text-[11px]" style={{ color: FAINT }}>(화살표 기준 - 실적 철처럼 다 같이 늘어난 몫을 뺌)</span></>
+              )}
             </div>
             <div className="rounded-lg px-3 py-2 text-[13px]" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: MUTED }}>
               주가 중앙값 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{pct(signal.price_median_ret)}</b>
@@ -748,7 +755,7 @@ export default function RadarPage() {
         <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↓</b> 하락</span>
         <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>–</b> 표본 부족</span>
         {/* 오늘 실적 축이 "중앙값 대비"로 바뀌어서, 각 축의 비교 대상을 명시하는 게 중요해졌다. */}
-        <span style={{ color: FAINT }}>뉴스=직전 4주 대비 · 실적=시장 중앙값 대비 · 주가=지수 대비</span>
+        <span style={{ color: FAINT }}>뉴스=직전 8주 중앙값 대비(미국은 테마 전체 대비) · 실적=시장 중앙값 대비 · 주가=지수 대비</span>
       </div>
 
       <div className="mt-2 mb-6 flex flex-wrap items-center gap-2.5 rounded-xl px-4 py-3 text-[11.5px]"

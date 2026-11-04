@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
     const sigRes = await client.execute({
       sql: `
-        SELECT week_start, news_count, news_baseline, news_ratio, news_arrow,
+        SELECT week_start, news_count, news_baseline, news_ratio, news_arrow, news_market_ratio, news_rel_ratio,
                earn_members, earn_improved, earn_insufficient, earn_ratio, earn_arrow, earn_as_of,
                price_median_ret, price_index_ret, price_excess, price_arrow, label, member_count
         FROM theme_signals WHERE theme_id = ? AND market = ?

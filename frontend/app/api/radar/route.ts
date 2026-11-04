@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     // earn_prelim_*(잠정실적 미리보기, 2026-11-02)는 실적 잡이 처음 돌 때 붙는 열 - 아직 없으면 그 열만 빼고 다시 조회
     const query = (prelim: boolean) => client.execute({
       sql: `
-        SELECT theme_id, news_count, news_baseline, news_ratio, news_arrow,
+        SELECT theme_id, news_count, news_baseline, news_ratio, news_arrow, news_market_ratio, news_rel_ratio,
                earn_members, earn_improved, earn_insufficient, earn_ratio, earn_arrow, earn_as_of,
                earn_surprise_n, earn_surprise_beat, earn_surprise_ratio, earn_surprise_median,
                ${prelim ? "earn_prelim_quarter, earn_prelim_n, earn_prelim_beat, earn_prelim_median," : ""}
