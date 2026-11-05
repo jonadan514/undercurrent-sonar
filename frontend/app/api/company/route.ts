@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   // 소속 테마 - 테마마다 가장 최근 승인 run(ticker-themes API와 같은 기준) + 그 테마의 최신 세 축·라벨 + 이 종목의 근거
   const themes = await safe(async () => (await rows(`
       WITH latest_runs AS (SELECT theme_id, MAX(run_id) AS run_id FROM theme_members WHERE market = ? AND approved = 1 GROUP BY theme_id)
-      SELECT tm.theme_id, tm.linkage, tm.stage, tm.evidence, ts.label, ts.news_arrow, ts.earn_arrow, ts.price_arrow, ts.week_start
+      SELECT tm.theme_id, tm.linkage, tm.stage, tm.evidence, ts.label, ts.news_arrow, ts.earn_arrow, ts.price_arrow, ts.week_start, tm.run_id
       FROM theme_members tm
       JOIN latest_runs lr ON lr.theme_id = tm.theme_id AND lr.run_id = tm.run_id
       LEFT JOIN theme_signals ts ON ts.theme_id = tm.theme_id AND ts.market = ?
@@ -60,8 +60,16 @@ export async function GET(request: Request) {
     [market, market, market, symbol, market])).map((r) => ({
       theme_id: r[0] as string, linkage: (r[1] as string) ?? "direct", stage: r[2] as string | null, evidence: r[3] as string | null,
       label: r[4] as string | null, news: r[5] as string | null, earn: r[6] as string | null, price: r[7] as string | null,
-      week: r[8] as string | null,
+      week: r[8] as string | null, run_id: r[9] as string, segment: null as number | null, segment_label: null as string | null,
     })), []);
+  // 가치사슬 구간(2026-11-05) - 테마마다 최신 승인 run에서 가장 늦게 분류한 값
+  await safe(async () => {
+    const segRows = await rows(`SELECT theme_id, run_id, segment, segment_label FROM theme_member_segments
+                                WHERE market = ? AND ticker = ? ORDER BY classified_at`, [market, symbol]);
+    for (const t of themes) {
+      for (const r of segRows) if (r[0] === t.theme_id && r[1] === t.run_id) { t.segment = Number(r[2]); t.segment_label = (r[3] as string | null) ?? null; }
+    }
+  }, undefined);
 
   // 재무 필터 판정(스크리닝 대상이면) + 워치리스트 후보 칸(후보일 때만)
   const screening = await safe(async () => {
@@ -177,7 +185,7 @@ export async function GET(request: Request) {
     market, symbol,
     name: (candidate?.name as string | undefined) ?? prof?.n ?? (market === "KR" ? krStockName(symbol) : null) ?? null,
     profile: prof ? { sector: prof.s ?? null, industry: prof.i ?? null, summary: prof.d ?? null } : null,
-    themes, screening, candidate, quarters, kr_disclosures: krDisclosures, next_earnings: nextEarnings,
+    themes: themes.map(({ run_id: _r, ...t }) => t), screening, candidate, quarters, kr_disclosures: krDisclosures, next_earnings: nextEarnings,
     sentiment, mine, notes, cautions,
   });
 }

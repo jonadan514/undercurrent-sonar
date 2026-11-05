@@ -18,7 +18,8 @@ import { tierLabel } from "@/src/lib/valuation";
 import { ChecklistSection, InsiderSection, InstitutionSection, NarrativeSection, ThemePeerSection, Us8kSection } from "@/src/components/stock/StockSections";
 
 type Theme = { theme_id: string; linkage: string; stage: string | null; evidence: string | null; label: string | null;
-               news: string | null; earn: string | null; price: string | null; week: string | null };
+               news: string | null; earn: string | null; price: string | null; week: string | null;
+               segment?: number | null; segment_label?: string | null };
 type Quarter = { quarter: string; revenue: number | null; operating_income: number | null; net_income: number | null; source: string };
 type Company = {
   market: "US" | "KR"; symbol: string; name: string | null;
@@ -164,6 +165,12 @@ function CompanyView() {
                   </span>
                   {t.label && <span className="text-[11.5px] font-bold" style={{ color: ACCENT }}>{labelWithKo(t.label)}</span>}
                 </div>
+                {t.segment != null && (
+                  <p className="mt-1 text-[12px]" style={{ color: SECONDARY }}>
+                    가치사슬 {t.segment > 0 ? <b>({t.segment}) {t.segment_label}</b> : <span style={{ color: MUTED }}>어느 구간에도 안 맞음</span>}
+                    <Link href={`/radar/theme?id=${t.theme_id}&market=${d.market}`} className="ml-1.5 underline text-[11.5px]" style={{ color: FAINT }}>구간 전체 보기</Link>
+                  </p>
+                )}
                 {t.evidence && <p className="mt-1 text-[12px] leading-relaxed" style={{ color: MUTED }}>근거: {t.evidence}</p>}
               </div>
             );

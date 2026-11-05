@@ -95,7 +95,20 @@ export async function GET(request: Request) {
         // 종목별 최근 실적 서프라이즈(최근 100일 발표만)
         const sp = await recentSurprises(client, market, members.map((m) => m.ticker as string));
         const facts = await infoFacts(client, members.map((m) => m.ticker as string));
-        members = members.map((m) => ({ ...m, surprise: sp[m.ticker as string] ?? null, facts: facts[m.ticker as string] ?? null }));
+        // 가치사슬 구간(2026-11-05, theme_member_segments) - 최신 승인 run에서 가장 늦게 분류한 값. 표가 없거나 분류 전이면 null
+        const seg: Record<string, { n: number; label: string | null }> = {};
+        if (runId) {
+          try {
+            const sRes = await client.execute({
+              sql: `SELECT ticker, segment, segment_label FROM theme_member_segments WHERE theme_id = ? AND market = ? AND run_id = ?
+                    ORDER BY classified_at`,
+              args: [themeId, market, runId],
+            });
+            sRes.rows.forEach((r) => { seg[r[0] as string] = { n: Number(r[1]), label: (r[2] as string | null) ?? null }; });
+          } catch { /* 분류 표가 아직 없는 배포 시점 */ }
+        }
+        members = members.map((m) => ({ ...m, surprise: sp[m.ticker as string] ?? null, facts: facts[m.ticker as string] ?? null,
+                                        segment: seg[m.ticker as string]?.n ?? null }));
       }
     } catch {
       // theme_member_signals가 아직 없는 배포 시점 - 세 축 이력은 그대로 보여 준다

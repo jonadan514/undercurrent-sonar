@@ -75,7 +75,7 @@ def main() -> int:
         if not chain["segments"]:
             _log(f"{t['id']}: value_chain에 (n) 구간 없음 - 건너뜀")
             continue
-        h = chain_hash(chain["segments"])
+        h = chain_hash(chain["segments"], model)
         labels = {s["n"]: s["label"] for s in chain["segments"]}
         for market in [m for m in (t.get("markets") or []) if not args.market or m == args.market]:
             run_id, members = latest_members(conn, t["id"], market)

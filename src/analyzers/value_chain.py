@@ -38,20 +38,34 @@ def parse_segments(value_chain: str | None) -> dict:
     return {"intro": " ".join(intro), "segments": segs, "exclude": " ".join(exclude)}
 
 
-def chain_hash(segments: list[dict]) -> str:
-    """구간 정의가 바뀌면 다시 분류하려고 남기는 짧은 지문."""
-    return hashlib.sha1("|".join(f"{s['n']}:{s['detail']}" for s in segments).encode("utf-8")).hexdigest()[:10]
+PROMPT_VERSION = "2"   # 프롬프트를 고치면 올린다 - 지문이 바뀌어 다시 분류한다(예전 행은 그대로 남음)
 
 
-SYSTEM = ("당신은 기업을 산업 가치사슬 구간에 배정하는 분류기입니다. 주어진 구간 번호 중 하나만 고릅니다. "
-          "판단 근거는 제공된 회사 이름·업종·매핑 단계·근거 글뿐이며, 추측으로 구간을 만들지 않습니다. "
-          "어느 구간에도 맞지 않으면 0을 고릅니다.")
+def chain_hash(segments: list[dict], model: str = "") -> str:
+    """분류 기준 지문 - 구간 글·모델·프롬프트 판이 바뀌면 다시 분류하려고 남긴다(2026-11-05 첫 실행 gpt-4o-mini는
+    한화에어로스페이스·현대로템을 방산 '구간 밖'으로 두는 등 품질이 낮아 gpt-4o로 다시 돌렸다)."""
+    key = "|".join(f"{s['n']}:{s['detail']}" for s in segments) + f"#{model}#{PROMPT_VERSION}"
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:10]
+
+
+SYSTEM = ("당신은 기업을 산업 가치사슬 구간에 배정하는 분류기입니다. 주어진 구간 번호 중 하나만 고릅니다.\n"
+          "기준:\n"
+          "- 이 테마와 관련해 그 회사가 실제로 만들거나 제공하는 제품·서비스가 어느 구간 설명에 해당하는지로 고릅니다.\n"
+          "- 여러 사업을 하는 대기업은 회사 전체가 아니라 이 테마와 관련된 사업부를 기준으로 고릅니다"
+          "(예: 자주포·장갑차를 만드는 회사는 방산의 무기체계 완제품, 수술 로봇·인공관절을 만드는 회사는 치료·수술 기기).\n"
+          "- 구간 설명에 딱 맞는 단어가 없어도 같은 종류의 제품이면 그 구간입니다.\n"
+          "- 0(어느 구간에도 안 맞음)은 이 테마의 어떤 구간과도 관련 사업이 없을 때만 씁니다.\n"
+          "- 판단 근거는 제공된 회사 이름·업종·매핑 단계·근거 글과 일반적으로 알려진 회사의 주력 제품이며, 없는 사업을 지어내지 않습니다.")
+
+
+LINKAGE_KO = {"direct": "직접", "partial": "부분", "peripheral": "간접"}
 
 
 def build_prompt(theme_name: str, chain: dict, members: list[dict]) -> str:
     seg_lines = "\n".join(f"{s['n']}. {s['detail']}" for s in chain["segments"])
     mem_lines = "\n".join(
-        f"- {m['ticker']} | {m.get('name') or '-'} | 업종: {m.get('industry') or '-'} | 매핑 단계: {m.get('stage') or '-'} | "
+        f"- {m['ticker']} | {m.get('name') or '-'} | 업종: {m.get('industry') or '-'} | 소속: {LINKAGE_KO.get(m.get('linkage'), '-')} | "
+        f"매핑 단계: {m.get('stage') or '-'} | "
         f"근거: {(m.get('evidence') or '-')[:160]}" for m in members)
     return (f"테마: {theme_name}\n설명: {chain['intro']}\n\n가치사슬 구간:\n{seg_lines}\n"
             + (f"\n참고(이 테마에 넣지 않는 것): {chain['exclude']}\n" if chain["exclude"] else "")

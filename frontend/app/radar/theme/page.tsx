@@ -15,6 +15,7 @@ import { krStockName } from "@/src/lib/krStockNames";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { ObservationCard, ObservationForm, ObservationT } from "@/src/components/Observation";
 import { labelWithKo } from "@/src/lib/labelNames";
+import VALUE_CHAINS from "@/src/data/themeValueChains.json";
 
 const GOOD = "var(--good)";
 const DANGER = "var(--danger)";
@@ -65,6 +66,7 @@ interface MemberRow {
   surprise?: { pct: number; date: string; estimate: number | null; reported: number | null } | null;
   facts?: { analysts: number | null; from_high: number | null; from_low: number | null; as_of: string | null } | null;
   wl_name: string | null;
+  segment?: number | null;   // 가치사슬 구간 번호(2026-11-05) - 0은 어느 구간에도 안 맞음, null은 분류 전
   valuation_tier: string | null;
   growth_tier: string | null;
   in_watchlist: number;
@@ -183,6 +185,54 @@ const EARN_STATUS: Record<string, { text: string; color: string }> = {
   not_improved: { text: "미달", color: MUTED },
   insufficient: { text: "데이터 부족", color: FAINT },
 };
+
+// ── 가치사슬 (2026-11-05, 마스터 플랜 2단계) ───────────────────────────────────
+// themes.yaml value_chain의 구간마다 소속 기업(직접·부분)을 놓는다. 구간 배정은 scripts/classify_value_chain.py(GPT가 구간 번호만
+// 고름). 기업 칩의 점 색은 실적 판정(중앙값 초과/미달/데이터 부족) - 구간 안 순서는 매출 YoY 순이 아니라 이름 순(순위 아님).
+function ValueChain({ themeId, market, members }: { themeId: string; market: string; members: MemberRow[] }) {
+  const segs = (VALUE_CHAINS as Record<string, { n: number; label: string }[]>)[themeId] ?? [];
+  if (!segs.length || !members.some((m) => m.segment != null)) return null;
+  const nameOf = (m: MemberRow) => (market === "KR" ? krStockName(m.ticker) || m.wl_name : m.wl_name) || m.ticker;
+  const groups = [...segs.map((sg) => ({ key: String(sg.n), title: `(${sg.n}) ${sg.label}`, items: members.filter((m) => m.segment === sg.n) })),
+    { key: "0", title: "어느 구간에도 안 맞음", items: members.filter((m) => m.segment === 0) },
+    { key: "na", title: "아직 분류 전", items: members.filter((m) => m.segment == null) }]
+    .filter((g) => g.items.length > 0 || /^\d+$/.test(g.key) && g.key !== "0");
+  return (
+    <div className="space-y-2.5">
+      {groups.map((g) => (
+        <div key={g.key} className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+          <p className="mb-1.5 text-[12.5px] font-semibold" style={{ color: g.key === "0" || g.key === "na" ? MUTED : "var(--text-primary)" }}>
+            {g.title} <span className="font-normal" style={{ color: FAINT }}>· {g.items.length}개사</span>
+          </p>
+          {g.items.length === 0 ? (
+            <p className="text-[12px]" style={{ color: FAINT }}>이 구간에 승인된 소속 기업 없음</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {[...g.items].sort((a, b) => nameOf(a).localeCompare(nameOf(b))).map((m) => {
+                const st = EARN_STATUS[m.earn_status ?? "insufficient"] ?? EARN_STATUS.insufficient;
+                return (
+                  <StockLink key={m.ticker} market={market} symbol={m.ticker}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px]"
+                    style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                    <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: st.color }} title={`실적: ${st.text}`} />
+                    {nameOf(m)}
+                    {m.rev_yoy != null && <span className="text-[10.5px]" style={{ color: FAINT }}>{pct(m.rev_yoy, 0)}</span>}
+                    {m.linkage === "partial" && <span className="text-[10.5px]" style={{ color: FAINT }}>부분</span>}
+                  </StockLink>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+      <p className="text-[11.5px]" style={{ color: FAINT }}>
+        구간은 테마 정의(themes.yaml)의 가치사슬, 기업 배정은 매핑 근거 글을 읽고 GPT가 구간 번호만 고른 것입니다. 점 색 = 실적 판정
+        (<span style={{ color: GOOD }}>●</span> 시장 중앙값 초과 · <span style={{ color: MUTED }}>●</span> 미달 · <span style={{ color: FAINT }}>●</span> 데이터 부족),
+        옆 숫자 = 최근 분기 매출 YoY. 구간 안은 이름 순이며 순위가 아닙니다.
+      </p>
+    </div>
+  );
+}
 
 function ThemeHistory() {
   const params = useSearchParams();
@@ -395,6 +445,15 @@ function ThemeHistory() {
               </div>
             </div>
           </section>
+
+          {/* 가치사슬 - 구간별 소속 기업(2026-11-05) */}
+          {members.some((m) => m.segment != null) && (
+            <section className={box} style={boxStyle}>
+              <h2 className="mb-1 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>가치사슬</h2>
+              <p className="mb-3 text-[12px]" style={{ color: FAINT }}>테마 안에서 어느 구간에 실적이 몰리는지 - 사업 소속(직접·부분) {members.length}개사</p>
+              <ValueChain themeId={themeId} market={market} members={members} />
+            </section>
+          )}
 
           {/* ④ 이번 흐름을 만든 기업 */}
           <section className={box} style={boxStyle}>
