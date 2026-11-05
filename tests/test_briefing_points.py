@@ -138,3 +138,9 @@ def test_prelim_profit_up_revenue_down_is_mixed():
     s = bp.stock_signals(_b(kr_disclosures={"prelim": {"items": [{"symbol": "1", "name": "A", "operating_income_yoy_pct": 40,
                                                                     "revenue_yoy_pct": 20}]}}))
     assert [t for _, _, t in s[("KR", "1")]["signals"]] == ["잠정실적 영업이익 크게 늘어남(전년 같은 분기 대비), 매출 늘어남"]
+
+
+def test_strip_speculation_interpretive_closings():
+    t = "롯데정밀화학은 영업이익이 줄었지만 매출은 늘었다. 이는 주목할 만한 변화이다."
+    assert g.strip_speculation(t) == "롯데정밀화학은 영업이익이 줄었지만 매출은 늘었다."
+    assert g.strip_speculation("현대건설의 매출 감소가 실적에 미칠 영향이 지속될지") == ""
