@@ -31,6 +31,7 @@ from src.db.theme_segments import classified_tickers, ensure_schema, insert_segm
 from src.llm import openai_json as oj
 
 THEMES_YAML = ROOT / "config" / "themes.yaml"
+OVERRIDES = ROOT / "config" / "value_chain_overrides.yaml"
 PROFILES = ROOT / "frontend" / "src" / "data" / "companyProfiles.json"
 ROLE = "value_chain"
 
@@ -61,6 +62,7 @@ def main() -> int:
     data = yaml.safe_load(THEMES_YAML.read_text(encoding="utf-8"))
     themes = [t for t in data["themes"] if t.get("status") == "active" and (not args.theme_id or t["id"] in args.theme_id)]
     profiles = json.loads(PROFILES.read_text(encoding="utf-8")) if PROFILES.exists() else {}
+    overrides = (yaml.safe_load(OVERRIDES.read_text(encoding="utf-8")) or {}) if OVERRIDES.exists() else {}
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not args.dry_run and not api_key:
         _log("OPENAI_API_KEY 미설정")
@@ -76,7 +78,8 @@ def main() -> int:
         if not chain["segments"]:
             _log(f"{t['id']}: value_chain에 (n) 구간 없음 - 건너뜀")
             continue
-        h = chain_hash(chain["segments"], model)
+        ov_theme = overrides.get(t["id"]) or {}
+        h = chain_hash(chain["segments"], model + json.dumps(ov_theme, sort_keys=True))
         labels = {s["n"]: s["label"] for s in chain["segments"]}
         for market in [m for m in (t.get("markets") or []) if not args.market or m == args.market]:
             run_id, members = latest_members(conn, t["id"], market)
@@ -89,7 +92,16 @@ def main() -> int:
             for m in todo:
                 p = (profiles.get(market) or {}).get(m["ticker"]) or {}
                 m["name"], m["industry"] = p.get("n"), p.get("i")
-            _log(f"{t['id']}({market}): 소속 {len(members)} 중 분류할 {len(todo)}곳 · 구간 {len(labels)}개")
+            ov = {str(k): int(v) for k, v in (ov_theme.get(market) or {}).items()}
+            manual = [(t["id"], market, m["ticker"], run_id, h, ov[m["ticker"]], labels.get(ov[m["ticker"]]), "manual", now)
+                      for m in todo if m["ticker"] in ov]
+            todo = [m for m in todo if m["ticker"] not in ov]
+            _log(f"{t['id']}({market}): 소속 {len(members)} 중 분류할 {len(todo)}곳 · 수동 보정 {len(manual)} · 구간 {len(labels)}개")
+            if manual and not args.dry_run:
+                insert_segments(conn, manual)
+                classified += len(manual)
+            if not todo:
+                continue
             if args.dry_run:
                 if args.show_prompt:
                     print(build_prompt(t.get("name_ko") or t["id"], chain, todo), flush=True)
