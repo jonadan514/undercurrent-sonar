@@ -55,6 +55,7 @@ def main() -> int:
     ap.add_argument("--theme-id", nargs="*", default=None)
     ap.add_argument("--market", choices=["US", "KR"], default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--show-prompt", action="store_true", help="dry-run에서 보낼 프롬프트를 그대로 출력(이미 분류한 기업 포함)")
     args = ap.parse_args()
 
     data = yaml.safe_load(THEMES_YAML.read_text(encoding="utf-8"))
@@ -81,7 +82,7 @@ def main() -> int:
             run_id, members = latest_members(conn, t["id"], market)
             if not members:
                 continue
-            done = classified_tickers(conn, t["id"], market, run_id, h)
+            done = set() if args.show_prompt else classified_tickers(conn, t["id"], market, run_id, h)
             todo = [m for m in members if m["ticker"] not in done]
             if not todo:
                 continue
@@ -90,6 +91,8 @@ def main() -> int:
                 m["name"], m["industry"] = p.get("n"), p.get("i")
             _log(f"{t['id']}({market}): 소속 {len(members)} 중 분류할 {len(todo)}곳 · 구간 {len(labels)}개")
             if args.dry_run:
+                if args.show_prompt:
+                    print(build_prompt(t.get("name_ko") or t["id"], chain, todo), flush=True)
                 continue
             calls += 1
             try:
@@ -105,9 +108,10 @@ def main() -> int:
             cnt = Counter(got.values())
             _log("  " + " · ".join(f"({n}) {cnt.get(n, 0)}" for n in [*labels, 0])
                  + (f" · 답 없음 {len(todo) - len(got)}" if len(got) < len(todo) else ""))
-            off = [tk for tk, n in got.items() if n == 0]
+            by_t = {m["ticker"]: m for m in todo}
+            off = [f"{tk} {by_t[tk].get('name') or ''}({by_t[tk].get('linkage')})" for tk, n in got.items() if n == 0]
             if off:
-                _log(f"  구간 밖(0): {', '.join(off[:12])}")
+                _log(f"  구간 밖(0): {', '.join(off[:15])}")
     _log(f"완료 - 호출 {calls} · 분류 {classified} · 실패 {failed} · 모델 {model}")
     conn.close()
     return 1 if failed and not classified else 0

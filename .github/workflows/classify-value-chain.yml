@@ -16,6 +16,15 @@ on:
         required: false
         type: boolean
         default: false
+      market:
+        description: "US / KR (비우면 둘 다)"
+        required: false
+        default: ""
+      show_prompt:
+        description: "dry_run과 함께 - 보낼 프롬프트를 그대로 출력"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   classify:
@@ -38,6 +47,8 @@ jobs:
           ARGS=()
           [ -n "${{ inputs.theme_id }}" ] && ARGS+=(--theme-id ${{ inputs.theme_id }})
           [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=(--dry-run)
+          [ -n "${{ inputs.market }}" ] && ARGS+=(--market ${{ inputs.market }})
+          [ "${{ inputs.show_prompt }}" = "true" ] && ARGS+=(--show-prompt)
           python scripts/classify_value_chain.py "${ARGS[@]}"
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'
