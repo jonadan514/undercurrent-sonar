@@ -119,6 +119,13 @@ export async function GET(request: Request) {
                      source: q.source }));
   }, [] as { quarter: string; revenue: number | null; operating_income: number | null; net_income: number | null; source: string }[]);
 
+  // 사업 요약 한국어판(2026-11-05, company_summaries_ko - GPT가 원문을 옮긴 것, 숫자 문장은 뺌). 가장 늦게 만든 행
+  const summaryKo = await safe(async () => {
+    const r = (await rows("SELECT summary_ko FROM company_summaries_ko WHERE market = ? AND symbol = ? ORDER BY created_at DESC LIMIT 1",
+                          [market, symbol]))[0];
+    return r ? (r[0] as string) : null;
+  }, null as string | null);
+
   // 최근 일 - 한국 공시(120일), 다음 실적 발표일, 관심도(내러티브), 내 메모, 관찰 노트
   const krDisclosures = market !== "KR" ? [] : await safe(async () => (await rows(
     `SELECT rcept_no, rcept_dt, kind, report_nm, payload FROM kr_disclosures WHERE stock_code = ? AND rcept_dt >= date('now', '-120 days')
@@ -184,7 +191,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     market, symbol,
     name: (candidate?.name as string | undefined) ?? prof?.n ?? (market === "KR" ? krStockName(symbol) : null) ?? null,
-    profile: prof ? { sector: prof.s ?? null, industry: prof.i ?? null, summary: prof.d ?? null } : null,
+    profile: prof ? { sector: prof.s ?? null, industry: prof.i ?? null, summary: prof.d ?? null, summary_ko: summaryKo } : null,
     themes: themes.map(({ run_id: _r, ...t }) => t), screening, candidate, quarters, kr_disclosures: krDisclosures, next_earnings: nextEarnings,
     sentiment, mine, notes, cautions,
   });

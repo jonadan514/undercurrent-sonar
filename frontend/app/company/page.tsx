@@ -23,7 +23,7 @@ type Theme = { theme_id: string; linkage: string; stage: string | null; evidence
 type Quarter = { quarter: string; revenue: number | null; operating_income: number | null; net_income: number | null; source: string };
 type Company = {
   market: "US" | "KR"; symbol: string; name: string | null;
-  profile: { sector: string | null; industry: string | null; summary: string | null } | null;
+  profile: { sector: string | null; industry: string | null; summary: string | null; summary_ko?: string | null } | null;
   themes: Theme[];
   screening: { status: string; reasons: string[]; piotroski: number | null; roe: number | null; screened_at: string } | null;
   candidate: Record<string, string | number | null> | null;
@@ -143,8 +143,16 @@ function CompanyView() {
       </p>
 
       {/* ① 무엇을 하는 회사인가 */}
-      <Section title={<><Step n="2-1·2-2">{null}</Step>무엇을 하는 회사인가</>} sub="사업 요약 원문(yfinance, 영문) · 소속 테마와 근거">
-        {d.profile?.summary
+      <Section title={<><Step n="2-1·2-2">{null}</Step>무엇을 하는 회사인가</>} sub={d.profile?.summary_ko ? "사업 요약(yfinance 원문을 한국어로) · 소속 테마와 근거" : "사업 요약 원문(yfinance, 영문) · 소속 테마와 근거"}>
+        {d.profile?.summary_ko ? (
+          <>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{d.profile.summary_ko}</p>
+            <details className="mt-1.5">
+              <summary className="cursor-pointer text-[11.5px]" style={{ color: FAINT }}>GPT 번역 요약(숫자는 뺌) · 영문 원문 보기</summary>
+              <p className="mt-1 text-[12px] leading-relaxed" style={{ color: MUTED }}>{d.profile.summary}</p>
+            </details>
+          </>
+        ) : d.profile?.summary
           ? <p className="text-[12.5px] leading-relaxed" style={{ color: SECONDARY }}>{d.profile.summary}</p>
           : <p className="text-[12.5px]" style={{ color: MUTED }}>사업 요약 데이터 부족</p>}
         <div className="mt-3 space-y-1.5">
