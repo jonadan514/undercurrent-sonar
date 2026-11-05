@@ -1,0 +1,27 @@
+name: Report US Quarterly Sources
+
+# 읽기 전용(2026-11-05) - 미국 분기 재무를 재무 캐시(지금) 대신 공시 원본 표(SEC 우선)에서 읽으면 실적 축·분기 이익률이
+# 어떻게 달라지는지 비교만 한다. 수집 경로 정리 1단계. 아무것도 쓰지 않는다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Compare
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/compare_us_quarterly_sources.py

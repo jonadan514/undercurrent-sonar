@@ -217,3 +217,20 @@ def _rank(rec: dict) -> tuple[int, int, str]:
 # 예전 이름을 쓰던 호출부를 위해 남겨둔다.
 def get_quarters(conn, ticker: str, market: str) -> list[dict]:
     return select_quarters(conn, ticker, market)
+
+
+def quarters_to_income_df(quarters: list[dict]):
+    """select_quarters 결과(최신 분기부터) -> 재무 캐시 분기 손익과 같은 모양의 DataFrame(2026-11-05).
+
+    행 'Total Revenue'·'Operating Income', 열 = 달력 분기 말일(최신이 앞). company_growth.quarterly_margin_change·
+    quarterly_revenue_yoy가 캐시 DataFrame과 똑같이 읽게 하려는 것 - 분기가 비어 있어도 그대로 둔다(1년 전 분기는 날짜로 찾는다).
+    분기 번호는 수집 때 분기 말일의 달력 분기로 정한 것이라(yfinance·SEC 같은 규칙) 말일도 달력 분기 끝으로 둔다."""
+    import pandas as pd
+    if not quarters:
+        return None
+    cols, rev, oi = [], [], []
+    for r in quarters:
+        cols.append(pd.Period(f"{int(r['fiscal_year'])}Q{int(r['fiscal_quarter'])}", freq="Q").end_time.normalize())
+        rev.append(r.get("revenue"))
+        oi.append(r.get("operating_income"))
+    return pd.DataFrame([rev, oi], index=["Total Revenue", "Operating Income"], columns=cols, dtype="float")
