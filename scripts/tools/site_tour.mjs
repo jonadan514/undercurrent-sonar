@@ -3,8 +3,11 @@
 import { chromium } from "playwright";
 
 const BASE = process.env.SITE || "https://u-sonar.vercel.app";
-const PAGES = ["/", "/radar", "/radar/theme?id=lng_gas&market=US", "/sector", "/briefing", "/quarterly", "/watchlist",
-  "/investors", "/notes", "/scorecard", "/status", "/guide", "/guide/detail", "/guide/playbook"];
+// PAGES(쉼표 구분)를 주면 그 페이지만, DUMP=1이면 본문 글자를 그대로(4000자까지) 찍는다 - 한 화면을 실제 데이터로 자세히 볼 때(2026-11-05).
+const DEFAULT_PAGES = ["/", "/radar", "/radar/theme?id=lng_gas&market=US", "/sector", "/briefing", "/quarterly", "/watchlist",
+  "/investors", "/notes", "/scorecard", "/status", "/guide", "/guide/detail", "/guide/playbook", "/company?stock=US:MU"];
+const PAGES = process.env.PAGES ? process.env.PAGES.split(",").map((x) => x.trim()).filter(Boolean) : DEFAULT_PAGES;
+const DUMP = process.env.DUMP === "1";
 const EMPTY = /데이터 없음|없습니다|불러오지|오류|실패|Error|error|준비 중|아직 없|no data/i;
 
 const b = await chromium.launch();
@@ -26,12 +29,13 @@ for (const W of [1280, 390]) {
         .map((e) => e.innerText.trim().replace(/\s+/g, " ").slice(0, 90));
       const sc = [...document.querySelectorAll("main, body > div, body > div > div")].reduce((m, e) => Math.max(m, e.scrollHeight), document.body.scrollHeight);
       const overflow = document.documentElement.scrollWidth > window.innerWidth + 1;
-      return { heads, empties: [...new Set(empties)].slice(0, 12), height: sc, overflow, chars: (main.innerText || "").length };
+      return { heads, empties: [...new Set(empties)].slice(0, 12), height: sc, overflow, chars: (main.innerText || "").length, text: main.innerText || "" };
     }, EMPTY.source);
     if (W === 1280) {
       console.log(`\n=== ${path}  (${Date.now() - t0}ms, 높이 ${info.height}px, 글자 ${info.chars})`);
       console.log("  머리: " + info.heads.slice(0, 40).join(" | "));
       if (info.empties.length) console.log("  빈칸/오류 문구: " + info.empties.join(" / "));
+      if (DUMP) console.log("  --- 본문 ---\n" + info.text.replace(/\n{2,}/g, "\n").slice(0, 4000));
     } else if (info.overflow || errs.length || bad.length) {
       console.log(`\n--- 모바일 ${path}${info.overflow ? "  ⚠️가로 넘침" : ""}`);
     }
