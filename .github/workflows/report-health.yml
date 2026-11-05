@@ -1,0 +1,27 @@
+name: Report Data Health
+
+# 읽기 전용(2026-11-05) - 사이트의 데이터 상태 API(/api/data/health, 사이드바 "데이터 N개 중 …"과 같은 것)를 그대로 읽어 표로 찍는다.
+# 작업 환경에서 사이트·DB에 바로 닿지 않아 상태 점검을 Actions에서 한다. 판정 기준은 API(frontend/app/api/data/health/route.ts) 하나만 쓴다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read health API
+        run: |
+          curl -sS --retry 3 --max-time 60 https://u-sonar.vercel.app/api/data/health -o health.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open("health.json"))
+          s = d["summary"]
+          print(f"점검 {d['checked_at']}  전체 {s['total']} · 정상 {s['ok']} · 늦음 {s['late']} · 없음 {s['missing']}")
+          mark = {"ok": "정상", "late": "늦음", "missing": "없음"}
+          for it in d["items"]:
+              print(f"  [{mark[it['status']]}] {it['group']} {it['label']:<20} 마지막 {it['last'] or '-'}  {it['age_days']}일 전 (허용 {it['ok_days']}일)")
+          PY
