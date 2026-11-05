@@ -293,12 +293,14 @@ themes:
     keywords_en: [defense contractor, defense budget, weapons order, military spending]
     status: active
     added_at: 2026-08-27
+    # 2026-11-05 구간 추가 (5) 방산 부품·소재·정비 - TransDigm·StandardAero·BWXT·Howmet이 들어갈 구간이 없었다(Report Mapping Evidence '구간 밖', 사용자 결정 - 소속은 맞고 구간이 좁았다)
     value_chain: |
       무기체계와 국방 조달품의 개발·생산·수출.
       (1) 지상·항공·해양 무기체계 완제품
       (2) 탄약·화약
       (3) 방산 전자·유도무기·레이더·통신
       (4) 함정 건조(조선 테마와 동시 소속 허용)
+      (5) 방산 부품·소재·정비(MRO): 군용 항공기·함정·무기체계용 부품, 해군 원자로, 엔진 정비
       편입하지 않음: 방산 매출이 확인되지 않는 반도체·화학·태양광 기업.
 
   - id: aerospace_space
@@ -363,12 +365,14 @@ themes:
     keywords_en: [factory automation, industrial robot, smart factory, machine tools]
     status: active
     added_at: 2026-08-27
+    # 2026-11-05 구간 추가 (5) 자동화 제어·모션 부품 - Honeywell·Regal Rexnord(Report Mapping Evidence '구간 밖', 사용자 결정 - 소속은 맞고 구간이 좁았다)
     value_chain: |
       공장·물류 현장의 자동화 설비.
       (1) 산업용 로봇·협동로봇
       (2) 공작기계·자동화 설비
       (3) 머신비전·자동검사 장비
       (4) 물류 자동화 시스템
+      (5) 자동화 제어·모션 부품: 제어 시스템·계측, 모터·드라이브·감속기 등 모션 제어
       편입하지 않음: 건설장비, 자동차 부품, 반도체 계측 전용 장비(반도체 장비·소재 테마로).
     note: humanoid_robot 과 구분할 것. 이쪽은 이미 매출이 나는 기존 산업.
 
@@ -534,11 +538,13 @@ themes:
     keywords_en: [travel demand, airline traffic, duty free, hotel RevPAR]
     status: active
     added_at: 2026-08-27
+    # 2026-11-05 구간 추가 (4) 크루즈·렌터카 - 소속 크루즈 3사·Avis가 들어갈 구간이 없었다(Report Mapping Evidence '구간 밖', 사용자 결정 - 소속은 맞고 구간이 좁았다)
     value_chain: |
       여행 수요에 매출이 연동되는 사업.
       (1) 항공 여객 운송
       (2) 여행사·면세점
       (3) 호텔·리조트·카지노
+      (4) 크루즈·렌터카 등 그 밖의 여행 수요 서비스
       편입하지 않음: 항공기 제조(항공우주 테마로), 여행 매출이 확인되지 않는 지주사.
 
   # ═══════════════════════════════════════════════════
@@ -691,10 +697,12 @@ themes:
     min_articles: 6
     status: active
     added_at: 2026-08-27
+    # 2026-11-05 구간 추가 (3) 반도체·전자용 기초 소재 - OCI·PI첨단소재(Report Mapping Evidence '구간 밖', 사용자 결정 - 소속은 맞고 구간이 좁았다)
     value_chain: |
       반도체·디스플레이용 특수가스와 전자재료.
       (1) 특수가스(NF3·WF6 등)·산업용 가스
       (2) 반도체·디스플레이 전자재료(전구체·식각액·고순도 화학)
+      (3) 반도체·전자용 기초 소재: 폴리실리콘·폴리이미드 필름 등
       편입하지 않음: 배터리 양극재, 반도체 검사장비.
     note: semi_equipment 과 겹침.
 
