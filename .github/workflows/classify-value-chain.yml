@@ -1,0 +1,50 @@
+name: Classify Value Chain
+
+# 소속 기업을 themes.yaml 가치사슬 구간에 배정(2026-11-05). 아직 분류하지 않은 기업만 묻는다 - 새 매핑이 승인되거나
+# 구간 글이 바뀐 테마만 비용이 든다(gpt-4o-mini, 테마·시장마다 한 번). 매주 월요일 새벽 한 번 + 수동.
+on:
+  schedule:
+    - cron: "40 19 * * 0"   # 일요일 19:40 UTC (월요일 04:40 KST) - 정기 계산 전에 끝난다
+  workflow_dispatch:
+    inputs:
+      theme_id:
+        description: "테마 ID 공백 구분 (비우면 전체)"
+        required: false
+        default: ""
+      dry_run:
+        description: "true면 묻지 않고 대상만 출력"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Classify
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          ARGS=()
+          [ -n "${{ inputs.theme_id }}" ] && ARGS+=(--theme-id ${{ inputs.theme_id }})
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=(--dry-run)
+          python scripts/classify_value_chain.py "${ARGS[@]}"
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
