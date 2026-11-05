@@ -1139,6 +1139,8 @@ def fix_passive(text: str) -> str:
     text = re.sub(r"'([^']+)'(?:으)?로 분류(?:됐|되었)다", r"'\1' 라벨이 붙었다", text)
     text = re.sub(r"(상승|하락)세를 보(였다|인|이며|이고|여)", lambda m: m.group(1) + _SE_BOINDA[m.group(2)], text)
     text = re.sub(r"보합세를 보(였다|인|이며|이고)", lambda m: "보합" + {"였다": "이었다", "인": "인", "이며": "이며", "이고": "이고"}[m.group(1)], text)
+    # 평가 말투(11/5 미리 보기 "Intel의 내부자 매수도 주목할 만하다") - 사실만 남긴다
+    text = re.sub(r"도 (주목할 만하다|주목된다|눈에 띈다|눈길을 끈다)\.", "도 있었다.", text)
 
     def keyeong(m: re.Match) -> str:
         w = m.group(1)

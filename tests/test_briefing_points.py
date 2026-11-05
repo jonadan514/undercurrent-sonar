@@ -118,3 +118,8 @@ def test_fix_passive_more():
     assert g.fix_passive("미국의 경우 뉴스가 늘었다. 한국의 경우, 조용했다.") == "미국은 뉴스가 늘었다. 한국은 조용했다."
 
     assert g.fix_passive("달러인덱스는 보합세를 보였다.") == "달러인덱스는 보합이었다."
+
+
+def test_fix_passive_drops_evaluative_tail():
+    assert g.fix_passive("Intel의 내부자 매수도 주목할 만하다.") == "Intel의 내부자 매수도 있었다."
+    assert g.fix_passive("실적이 눈에 띈다.") == "실적이 눈에 띈다."
