@@ -162,7 +162,7 @@ interface WatchItem {
   added_at: string;
   // 보유 기록. 전부 선택 입력이고, 안 적으면 그냥 관심 목록으로 쓰면 된다.
   // 수익률·순위는 만들지 않는다 - 분기 점검 때 "적어둔 조건이 현실이 됐나"만
-  // 묻는 용도다(투자 실행 가이드 4단계).
+  // 묻는 용도다(리서치 실행 가이드 4단계).
   bought_at?: string | null;
   buy_price?: number | null;
   thesis_breaks?: string | null;
@@ -317,6 +317,7 @@ const fmtPer = (v?: number | null) => (v == null ? "-" : v >= 100 ? v.toFixed(0)
 // 같은 시장·같은 업종 후보의 중앙값을 옆에 두어 그걸 가려 보게 한다. 순위·판정은 만들지 않는다
 // (원칙 1) - 숫자만 나란히. 값이 있는 후보가 PEER_MIN곳 미만이면 중앙값을 내지 않는다.
 const PEER_MIN = 5;
+const LIST_PAGE = 50;   // 후보 목록을 한 번에 그리는 개수(나머지는 "더 보기")
 type PeerStats = {
   sector: string;
   psr: number | null; nPsr: number;
@@ -1340,6 +1341,8 @@ export default function WatchlistPage() {
   const [numFilter, setNumFilter] = useState({ minF: "", maxDebt: "", minInterest: "", maxPsr: "", maxPer: "", minCagr: "" });
   const [showNumFilter, setShowNumFilter] = useState(false);
   const [sort, setSort] = useState<SortState>(null);
+  // 후보를 한 번에 다 그리면 화면이 2만 9천 픽셀까지 길어졌다(2026-11-05 사이트 둘러보기, 380종목) - 앞부분만 그리고 "더 보기"로
+  const [shown, setShown] = useState(LIST_PAGE);
   const [addedSymbols, setAddedSymbols] = useState<Set<string>>(new Set());
   const [selected, setSelected]     = useState<Candidate | null>(null);
   const [infoKey, setInfoKey]       = useState<keyof typeof INDICATOR_INFO | null>(null);
@@ -1548,6 +1551,9 @@ export default function WatchlistPage() {
     if (vb == null) return -1;
     return sort.dir === "asc" ? (va as number) - (vb as number) : (vb as number) - (va as number);
   });
+  const visible = sorted.slice(0, shown);
+  const listKey = `${tab}|${numFiltered.length}|${sort?.key ?? ""}|${sort?.dir ?? ""}|${searchQuery}`;
+  useEffect(() => { setShown(LIST_PAGE); }, [listKey]);   // 필터·정렬·검색을 바꾸면 다시 앞부분부터
   const onSort = (key: SortKey) => setSort((cur) =>
     cur?.key !== key ? { key, dir: SORT_FIRST_DIR[key] }
       : cur.dir === SORT_FIRST_DIR[key] ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
@@ -1904,7 +1910,7 @@ export default function WatchlistPage() {
                 <span style={{ marginLeft: "auto" }}>{sorted.length}종목 · 누르면 상세</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {sorted.map((c) => {
+                {visible.map((c) => {
                   const key = `${c.market}:${c.symbol}`;
                   const inList = addedSymbols.has(key);
                   return (
@@ -1966,7 +1972,7 @@ export default function WatchlistPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((c) => {
+                  {visible.map((c) => {
                     const key = `${c.market}:${c.symbol}`;
                     const inList = addedSymbols.has(key);
                     return (
@@ -2015,6 +2021,19 @@ export default function WatchlistPage() {
                 </tbody>
               </table>
             </div>
+            {sorted.length > shown && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12.5 }}>
+                <span style={{ color: TEXT_MUTED }}>{shown}개 표시 · {sorted.length - shown}개 더 있음</span>
+                <button onClick={() => setShown((n) => n + LIST_PAGE)}
+                  style={{ border: `1px solid ${BORDER_CTRL}`, padding: "4px 12px", color: ACCENT }}>
+                  {Math.min(LIST_PAGE, sorted.length - shown)}개 더 보기
+                </button>
+                <button onClick={() => setShown(sorted.length)}
+                  style={{ border: `1px solid ${BORDER_CTRL}`, padding: "4px 12px", color: TEXT_SECONDARY }}>
+                  전부 보기
+                </button>
+              </div>
+            )}
             </>
           )}
         </>
@@ -2071,7 +2090,7 @@ export default function WatchlistPage() {
 
                 {/* 보유 기록 — 실제로 산 종목만 적으면 된다. 안 적으면 그냥 관심 목록.
                     분기 점검 때 "적어둔 깨지는 조건이 현실이 됐나"를 묻는 게 목적이라
-                    수익률·순위는 계산하지 않는다(투자 실행 가이드 4단계). */}
+                    수익률·순위는 계산하지 않는다(리서치 실행 가이드 4단계). */}
                 <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${BORDER}` }}>
                   {editingHolding === item.id ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

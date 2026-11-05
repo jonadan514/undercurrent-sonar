@@ -3646,3 +3646,22 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
   src/ml 전체·build_ml_features.py(지수 예측), data_fetcher·technical_indicators·macro_collector, 표 kr_index_prediction(읽는 곳 없음),
   스크립트 backfill_profile_sources·classify_code_files·gen_kr_stock_names·gen_theme_names(일회성). 텔레그램이 주 3번(레이더 요약·브리핑·
   화요일 주간 요약) - 화요일 요약(관심도 상승·워치리스트 교차)은 브리핑과 겹침. 사용자 결정 대기.
+
+### 2026-11-05 정리 (사용자: 추천 3개 + 진단용 워크플로 + 실행 가이드)
+- **옛 코드 삭제**: `/api/fx/usdkrw`(옛 매수 체크), SignalBadge·StatusBadge, lib constants·yahooPrice, `src/ml` 전체 +
+  `build_ml_features.py`(지수 예측), `data_fetcher`·`technical_indicators`(CODE_CLEANUP_CANDIDATES의 LEGACY 9개 전부),
+  `data_store`의 `kr_index_prediction` 표 정의(표는 DROP 안 함). **남김**: `macro_collector`(REMOVAL_PLAN - 2단계 레짐 모듈용 보존),
+  `gen_kr_stock_names`·`gen_theme_names`(프론트 이름 파일 생성기, 런북), `classify_code_files`(+테스트), `backfill_profile_sources`(멱등 유지보수).
+- **화요일 텔레그램 주간 요약 중단**: weekly-analysis의 telegram-digest 잡과 `send_telegram_digest.py` 삭제 - 관심도 상승·내 워치리스트
+  교차가 전부 월요일 브리핑에 있다. 텔레그램은 이제 월요일 아침 레이더 요약 + 브리핑 요약 두 번(+실패 알림). 가이드 문구 고침.
+- **워치리스트 "더 보기"**: 후보를 50개씩(필터·정렬·검색을 바꾸면 처음부터), "N개 더 보기"·"전부 보기". 130개 가짜 데이터로 확인.
+- **진단용 워크플로 16개 + 전용 스크립트 삭제**(63 → 48): adhoc-list-run-ids, diagnose-mapping-prompt, diagnose-us-chunk-size, probe-13f·
+  finnhub-news·gdelt-news·growth-fcf-data·kr-universe-source·krx-sector-index, inspect-quarterly-signals·theme-news, fix-zero-news-weeks,
+  remove-premature-week, repair-partial-bars(+테스트), compare-trap-filter-cache, normalize-theme-evidence. 다른 곳이 쓰는 스크립트
+  (fetch_kr_universe_pykrx, report_quarterly_news)는 남김. **남긴 수동 도구**: diagnose-mapping-model(모델 A/B), inspect-company-growth·
+  inspect-sec-concepts(종목별 점검), backfill-*, relabel, 매핑 승인·병합·내보내기, probe-naver-saturation(11/4 다른 작업에서 사용 중), report-*.
+- **실행 가이드 → '리서치 실행 가이드'**(사용자 결정: 리서치 중심으로): 0단계(추적 범위·기록 위치·요일), 1단계 주간 훑기(브리핑 ⭐·짚을 점 →
+  레이더 Hidden — 실적이 먼저 → 분기 리서치 숨은 개선 → 워치리스트 밸류 LOW+성장), 2단계 기업 조사(유지), 3단계 기록하고 기다리기
+  (메모·관찰 노트·회고), 4단계 분기 점검, "매매는 도구 밖의 결정" 한 칸(살 때·팔 때·처음 3개월 매수 절차를 대신), 함정(물타기 빼고
+  관찰 노트 회고 추가, 'Quiet·조용한 변화' 오기 → Hidden), "처음 한 달"(루틴 → 기업 하나 조사 → 첫 회고 판정). 탭·안내 링크 이름도.
+- README를 지금 상태로 다시 씀(예전 스크리너 설명 제거), docs/PAGES.md에 "2026-08 이전 기준" 표시.

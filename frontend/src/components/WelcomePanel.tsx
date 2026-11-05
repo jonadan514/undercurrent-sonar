@@ -68,7 +68,7 @@ export default function WelcomePanel() {
       <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
         화면마다 맨 위 <b>"이 화면은?"</b>에 무엇을·언제·어떻게 보는지 적어 두었습니다. 점선 밑줄 용어는 누르면 뜻이 나옵니다.
         더 자세히는 <Link href="/guide" className="underline">사용 설명서</Link> ·{" "}
-        <Link href="/guide/playbook" className="underline">투자 실행 가이드</Link>.
+        <Link href="/guide/playbook" className="underline">리서치 실행 가이드</Link>.
       </p>
     </section>
   );

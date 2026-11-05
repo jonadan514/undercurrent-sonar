@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 // 시장 탭(PageMarketTabs)과 같은 자리·모양.
 const TABS = [
   { href: "/guide", label: "사용 설명서" },
-  { href: "/guide/playbook", label: "투자 실행 가이드" },
+  { href: "/guide/playbook", label: "리서치 실행 가이드" },
   { href: "/guide/detail", label: "세부 설명서" },
 ];
 

@@ -32,7 +32,7 @@ async function ensureTable() {
   //
   // 이건 "내가 산 것"을 적어두는 기록이지 매수 판정이 아니다. 수익률도 순위도
   // 만들지 않는다 - 분기 점검 때 "적어둔 조건이 현실이 됐나"만 묻는 용도다
-  // (투자 실행 가이드 4단계).
+  // (리서치 실행 가이드 4단계).
   for (const col of ["bought_at TEXT", "buy_price REAL", "thesis_breaks TEXT"]) {
     try {
       await client.execute(`ALTER TABLE my_watchlist ADD COLUMN ${col}`);

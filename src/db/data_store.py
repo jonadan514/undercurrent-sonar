@@ -122,13 +122,7 @@ _SNAPSHOT_TABLES = {
             updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """,
-    "kr_index_prediction": """
-        CREATE TABLE IF NOT EXISTS kr_index_prediction (
-            id          INTEGER PRIMARY KEY CHECK (id = 1),
-            payload     TEXT NOT NULL,
-            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    """,
+    # kr_index_prediction(지수 예측, 2026-08 제거)은 2026-11-05 코드에서 뺐다 - 표 자체는 DROP하지 않는다(원칙 5).
 }
 
 # --------------------------------------------------------------------------
