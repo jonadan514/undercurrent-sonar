@@ -4,6 +4,11 @@ name: Report US Quarterly Sources
 # 어떻게 달라지는지 비교만 한다. 수집 경로 정리 1단계. 아무것도 쓰지 않는다.
 on:
   workflow_dispatch:
+    inputs:
+      market:
+        description: "US(전체) / KR(워치리스트 한국 후보만, 2026-11-05)"
+        required: false
+        default: "US"
 
 permissions:
   contents: read
@@ -24,4 +29,4 @@ jobs:
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
           TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
           PYTHONUNBUFFERED: "1"
-        run: python scripts/compare_us_quarterly_sources.py
+        run: python scripts/compare_us_quarterly_sources.py --market ${{ inputs.market || 'US' }}

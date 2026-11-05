@@ -13,9 +13,13 @@ quarterly_financials_raw(미국 유니버스 yfinance + 워치리스트 SEC 공�
   5) 워치리스트 미국 후보의 분기 영업이익률 판정(개선/유지/악화) 일치 여부
 
     python scripts/compare_us_quarterly_sources.py
+    python scripts/compare_us_quarterly_sources.py --market KR   # 워치리스트 한국 후보만(5번) - 실적 축은 11/2부터 이미 DART 먼저
+
+2026-11-05 한국 워치리스트도 같은 비교(사용자: 다음 작업 2번). 한국은 공시 원본 표가 DART(연결 우선)다.
 """
 from __future__ import annotations
 
+import argparse
 import statistics
 import sys
 from pathlib import Path
@@ -60,6 +64,15 @@ def _q(s: pd.Series | None) -> str | None:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--market", choices=["US", "KR"], default="US")
+    args = ap.parse_args()
+    if args.market == "KR":
+        conn = get_db()
+        watchlist_section(conn, "KR")
+        conn.close()
+        return 0
+
     data = yaml.safe_load(THEMES_YAML.read_text(encoding="utf-8"))
     themes = [t for t in data["themes"] if t.get("status") == "active" and "US" in (t.get("markets") or [])]
     thresholds = data.get("config", {}).get("earnings_thresholds", {"strong_up": 0.70, "up": 0.55, "down": 0.45})
@@ -133,34 +146,51 @@ def main() -> int:
     for d, t, a, b in big[:12]:
         _log(f"    {t:<6} 캐시 {a * 100:+.1f}% / 공시 원본 표 {b * 100:+.1f}%  (최신 출처 {raw.get(t, [{}])[0].get('source')})")
 
-    cands = [r[0] for r in conn.execute("SELECT symbol FROM watchlist_candidates WHERE market = 'US'").fetchall()]
+    watchlist_section(conn, "US")
+    conn.close()
+    return 0
+
+
+def watchlist_section(conn, market: str) -> None:
+    """[5] 워치리스트 후보의 분기 영업이익률 판정·분기 매출 YoY - 재무 캐시 vs 공시 원본 표(같은 분기 판정 비교 포함)."""
+    from analyzers.company_growth import pick_latest
+    cands = [r[0] for r in conn.execute("SELECT symbol FROM watchlist_candidates WHERE market = ?", (market,)).fetchall()]
+    names = dict(conn.execute("SELECT symbol, name FROM watchlist_candidates WHERE market = ?", (market,)).fetchall())
     wl_cache = get_cached_financials_bulk(conn, cands)
-    wl_raw = select_quarters_bulk(conn, cands, "US")
+    wl_raw = select_quarters_bulk(conn, cands, market)
     agree = disagree = only_old = only_new = 0
-    examples = []
+    same_q_diff, newer, examples = 0, {"raw": 0, "cache": 0, "same": 0}, []
+    final_change = 0
     for t in cands:
         q_old = (wl_cache.get(t) or {}).get("financials_quarterly")
         q_new = quarters_to_income_df(wl_raw.get(t, []))
         a, b = quarterly_margin_change(q_old), quarterly_margin_change(q_new)
+        picked = pick_latest(b, a)   # 실제로 바꾸면 쓰일 값(최신 분기가 늦은 쪽, 같으면 원본)
+        if (picked or {}).get("status") != (a or {}).get("status"):
+            final_change += 1
         if a and b:
+            newer["same" if a["quarter"] == b["quarter"] else "raw" if b["quarter"] > a["quarter"] else "cache"] += 1
             if a["status"] == b["status"]:
                 agree += 1
             else:
                 disagree += 1
-                examples.append(f"{t} {a['quarter']} {a['status']} → {b['quarter']} {b['status']}")
+                same_q_diff += a["quarter"] == b["quarter"]
+                examples.append(f"{t} {names.get(t) or ''} {a['quarter']} {a['status']}({a['now'] * 100:.1f}%) → "
+                                f"{b['quarter']} {b['status']}({b['now'] * 100:.1f}%)")
         elif a:
             only_old += 1
         elif b:
             only_new += 1
-    _log(f"\n[5] 워치리스트 미국 후보 {len(cands)}종목 분기 영업이익률 판정: 같음 {agree} · 다름 {disagree} · "
+    label = "미국" if market == "US" else "한국"
+    _log(f"\n[5] 워치리스트 {label} 후보 {len(cands)}종목 분기 영업이익률 판정: 같음 {agree} · 다름 {disagree}(같은 분기인데 다름 {same_q_diff}) · "
          f"지금만 있음 {only_old} · 바꾼 뒤만 있음 {only_new}")
-    for e in examples[:10]:
+    _log(f"    둘 다 있는 종목의 최신 분기: 같음 {newer['same']} · 공시 원본이 늦음 {newer['raw']} · 캐시가 늦음 {newer['cache']}")
+    _log(f"    실제로 바꾸면(늦은 쪽, 같으면 원본) 판정이 달라지는 종목 {final_change}")
+    for e in examples[:15]:
         _log(f"    {e}")
     ry_old = sum(1 for t in cands if quarterly_revenue_yoy((wl_cache.get(t) or {}).get("financials_quarterly")))
     ry_new = sum(1 for t in cands if quarterly_revenue_yoy(quarters_to_income_df(wl_raw.get(t, []))))
-    _log(f"    분기 매출 전년 대비 계산 가능: 지금 {ry_old} → 바꾼 뒤 {ry_new}")
-    conn.close()
-    return 0
+    _log(f"    분기 매출 전년 대비 계산 가능: 지금 {ry_old} → 바꾼 뒤(원본만) {ry_new}")
 
 
 if __name__ == "__main__":
