@@ -54,6 +54,22 @@ def _log(msg: str) -> None:
     print(f"[earn] {msg}")
 
 
+def default_week(conn, today: date) -> str:
+    """--week-start를 안 줬을 때 쓸 주(2026-11-05).
+
+    정기 실행(일요일 밤 UTC, 밀리면 월요일)은 signal_week_monday() - 방금 끝난 주. 그 밖의 요일에 손으로 돌리면 같은 규칙이
+    아직 진행 중인 주를 잡아, 실적만 든 새 주 행이 생기고 화면(MAX(week_start))이 뉴스·주가·라벨 없는 주를 보여 줬다
+    (11-05 목요일 수동 실행). 그래서 주 중간에는 이미 있는 최신 주를 다시 계산한다 - 새 주는 정기 실행만 연다."""
+    week = signal_week_monday(today).isoformat()
+    if today.weekday() in (6, 0):   # 일·월(UTC) - 정기 실행
+        return week
+    latest = conn.execute("SELECT MAX(week_start) FROM theme_signals").fetchone()[0]
+    if latest and latest < week:
+        _log(f"주 중간 실행 - 진행 중인 주({week}) 대신 이미 있는 최신 주 {latest}를 다시 계산")
+        return latest
+    return week
+
+
 def load_active_themes(theme_ids: list[str] | None) -> tuple[list[dict], dict]:
     with open(THEMES_YAML, encoding="utf-8") as f:
         data = yaml.safe_load(f)
@@ -106,7 +122,7 @@ def main() -> None:
     ensure_fundamentals_schema(conn)
     ensure_schema(conn)
 
-    week_start = args.week_start or signal_week_monday(date.today()).isoformat()
+    week_start = args.week_start or default_week(conn, date.today())
 
     # (테마, 시장) 쌍별 소속 기업을 먼저 다 모아서, 필요한 티커 전체(US+KR
     # 합쳐)에 대해 재무 캐시를 한 번만 벌크 조회한다 - 개별 조회하면 겹치는

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       week_start:
-        description: "기준 주 월요일 YYYY-MM-DD (비우면 오늘이 속한 주)"
+        description: "기준 주 월요일 YYYY-MM-DD (비우면 일·월은 방금 끝난 주, 주 중간은 이미 있는 최신 주)"
         required: false
         default: ""
       theme_id:
