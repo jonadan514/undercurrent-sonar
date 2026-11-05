@@ -66,6 +66,7 @@ interface MemberRow {
   surprise?: { pct: number; date: string; estimate: number | null; reported: number | null } | null;
   facts?: { analysts: number | null; from_high: number | null; from_low: number | null; as_of: string | null } | null;
   wl_name: string | null;
+  profile_name?: string | null;   // 유니버스 목록의 회사 이름(2026-11-05) - 후보가 아닌 미국 종목도 이름이 보이게
   segment?: number | null;   // 가치사슬 구간 번호(2026-11-05) - 0은 어느 구간에도 안 맞음, null은 분류 전
   valuation_tier: string | null;
   growth_tier: string | null;
@@ -192,7 +193,7 @@ const EARN_STATUS: Record<string, { text: string; color: string }> = {
 function ValueChain({ themeId, market, members }: { themeId: string; market: string; members: MemberRow[] }) {
   const segs = (VALUE_CHAINS as Record<string, { n: number; label: string }[]>)[themeId] ?? [];
   if (!segs.length || !members.some((m) => m.segment != null)) return null;
-  const nameOf = (m: MemberRow) => (market === "KR" ? krStockName(m.ticker) || m.wl_name : m.wl_name) || m.ticker;
+  const nameOf = (m: MemberRow) => (market === "KR" ? krStockName(m.ticker) || m.wl_name : m.wl_name || m.profile_name) || m.ticker;
   const groups = [...segs.map((sg) => ({ key: String(sg.n), title: `(${sg.n}) ${sg.label}`, items: members.filter((m) => m.segment === sg.n) })),
     { key: "0", title: "어느 구간에도 안 맞음", items: members.filter((m) => m.segment === 0) },
     { key: "na", title: "아직 분류 전", items: members.filter((m) => m.segment == null) }]
@@ -488,7 +489,7 @@ function ThemeHistory() {
                     <tbody>
                       {shown.map((m) => {
                         const st = EARN_STATUS[m.earn_status ?? "insufficient"] ?? EARN_STATUS.insufficient;
-                        const name = market === "KR" ? (krStockName(m.ticker) || m.wl_name) : m.wl_name;
+                        const name = market === "KR" ? (krStockName(m.ticker) || m.wl_name) : (m.wl_name || m.profile_name);
                         return (
                           <tr key={m.ticker} style={{ borderBottom: "1px solid var(--border-dim)" }}>
                             <td className="py-2">

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getClient } from "@/src/lib/db";
 import { recentSurprises } from "@/src/lib/surprises";
 import { infoFacts } from "@/src/lib/infoFacts";
+import PROFILES_RAW from "@/src/data/companyProfiles.json";
+
+const PROFILES = PROFILES_RAW as Record<string, Record<string, { n?: string }>>;
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +111,9 @@ export async function GET(request: Request) {
           } catch { /* 분류 표가 아직 없는 배포 시점 */ }
         }
         members = members.map((m) => ({ ...m, surprise: sp[m.ticker as string] ?? null, facts: facts[m.ticker as string] ?? null,
-                                        segment: seg[m.ticker as string]?.n ?? null }));
+                                        segment: seg[m.ticker as string]?.n ?? null,
+                                        // 회사 이름(2026-11-05) - 워치리스트 후보가 아니면 wl_name이 비어 티커만 보였다
+                                        profile_name: PROFILES[market]?.[m.ticker as string]?.n ?? null }));
       }
     } catch {
       // theme_member_signals가 아직 없는 배포 시점 - 세 축 이력은 그대로 보여 준다
