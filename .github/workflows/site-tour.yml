@@ -1,0 +1,20 @@
+name: Site Tour
+
+# 읽기 전용(2026-11-05) - 사이트 페이지를 차례로 열어 섹션 머리·빈 칸/오류 문구·콘솔 오류·실패한 API 요청을 로그로 찍는다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tour:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: npm i --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - run: node scripts/tools/site_tour.mjs
