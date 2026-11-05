@@ -177,13 +177,17 @@ def theme_points(b: dict, theme_names: dict[str, str], members: dict[tuple[str, 
             for sym in sorted(members.get((m, tid)) or []):
                 s = signals.get((m, sym))
                 if s and s["signals"]:
-                    e["members"].append(f"{s['name']}: " + ", ".join(t for _, _, t in s["signals"]))
+                    e["members"].append((m, f"{s['name']}: " + ", ".join(t for _, _, t in s["signals"])))
                     e.setdefault("signal_names", []).append(s["name"])
         name = theme_names.get(tid, tid)
         if len({l.split(":")[0] for l in e["labels"] if "새로 붙음" in l}) > 1:
             e["labels"].append("같은 테마인데 미국과 한국의 라벨이 다름 - 두 시장을 따로 봐야 함")
-        facts = e["labels"] + e["reviews"] + ([e["macro"]] if e["macro"] else []) + \
-            ([f"소속 종목 중 이번 주 신호: " + " / ".join(e["members"][:3])] if e["members"] else [])
+        # 시장을 앞에 붙인다(2026-11-05) - 미국 라벨 + 한국 노트인 테마에서 GPT가 한국 종목 신호를 미국 라벨 문장에 붙였다
+        member_facts = []
+        for mk in sorted({mk for mk, _ in e["members"]}):
+            texts = [t for m2, t in e["members"] if m2 == mk][:3]
+            member_facts.append(f"{MARKET_KO.get(mk, mk)} 소속 종목 중 이번 주 신호: " + " / ".join(texts))
+        facts = e["labels"] + e["reviews"] + ([e["macro"]] if e["macro"] else []) + member_facts
         linked = bool(e["labels"] or e["macro"])
         if e["reviews"] and not (linked or e["members"]) and all("기대를 적지 않음" in r for r in e["reviews"]):
             continue   # 기대도 안 적었고 이번 주 이어지는 것도 없으면 할 말이 없다

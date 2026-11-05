@@ -79,6 +79,14 @@ def pipeline(statements: list[tuple[str, list | None]], timeout: int = 30) -> li
     return results
 
 
+def as_bool(v) -> bool:
+    """DB의 0/1 칸을 참·거짓으로(2026-11-05). Hrana는 INTEGER를 문자열로 돌려주는데 bool("0")은 True라,
+    그대로 쓰면 '계획 매수'·'예상 날짜' 같은 표시가 전부 켜진다(실제로 그랬다)."""
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true")
+    return bool(v)
+
+
 def _rows_from_result(result: dict) -> list[dict]:
     cols = [c["name"] for c in result.get("cols", [])]
     rows = []

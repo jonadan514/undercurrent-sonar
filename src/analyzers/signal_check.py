@@ -16,6 +16,8 @@
 """
 from __future__ import annotations
 
+from src.db.turso_http import as_bool
+
 from datetime import date, timedelta
 from statistics import median
 
@@ -49,7 +51,7 @@ def insider_signals(rows: list[dict], watched: set[str]) -> list[dict]:
             d["owners"].append(r["owner"])
         d["value"] += float(r["value"] or 0)
         d["trades"] += 1
-        d["all_plan"] = d["all_plan"] and bool(r.get("plan"))
+        d["all_plan"] = d["all_plan"] and as_bool(r.get("plan"))
     for g in by.values():
         d = g["detail"]
         d["buyers"] = len(d.pop("owners"))

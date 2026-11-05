@@ -9,6 +9,8 @@
 """
 from __future__ import annotations
 
+from src.db.turso_http import as_bool
+
 from datetime import date, timedelta
 
 WINDOW_DAYS = 30     # 펼쳤을 때 보이는 목록 기간
@@ -57,7 +59,7 @@ def insider_events(rows: list[dict]) -> list[dict]:
             g["value"] += float(r["value"])
             g["known"] = True
         g["trades"] += 1
-        g["plan"] = g["plan"] and bool(r.get("plan"))
+        g["plan"] = g["plan"] and as_bool(r.get("plan"))
         if r["filed_on"] > g["date"]:
             g["date"] = r["filed_on"]
     out = []

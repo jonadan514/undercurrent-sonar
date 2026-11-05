@@ -59,7 +59,7 @@ def test_theme_review_macro_and_members():
     kb = by["K-뷰티 테마 · 관찰 노트 회고"]
     assert kb["kind"] == "review"
     assert "한국 관찰 노트(4주 전): '뉴스가 늘 것'이라 봤는데 그렇게 되지 않음" in kb["facts"]
-    assert "소속 종목 중 이번 주 신호: 코스맥스: 매출 대비 큰 공급계약" in kb["facts"]
+    assert "한국 소속 종목 중 이번 주 신호: 코스맥스: 매출 대비 큰 공급계약" in kb["facts"]   # 시장을 앞에(2026-11-05)
     assert "같은 주 천연가스 가격 1주 큰 폭 상승" in by["천연가스·LNG 테마"]["facts"]
     assert "게임 테마" not in by                                  # 라벨 하나뿐이고 이어지는 게 없으면 뺀다
     assert not any("infra" in t for t in by)                      # 기대도 안 적고 이어지는 것도 없는 회고는 뺀다

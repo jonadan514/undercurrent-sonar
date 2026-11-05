@@ -35,7 +35,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.db.turso_http import get_credentials, query as _turso_query
+from src.db.turso_http import as_bool, get_credentials, query as _turso_query
 from src.analyzers.signal_check import sentiment_window
 from src.analyzers.theme_labels import label_display
 from src.collectors.kr_disclosures import prelim_has_values, quarter_label, summary as disclosure_summary
@@ -336,7 +336,7 @@ def earnings_week_items(rows: list[dict], week: str, tags: dict[str, list[str]],
         key = f"{r['market']}:{r['ticker']}"
         items.append({"market": r["market"], "symbol": r["ticker"], "name": names.get(key),
                       "date": d.isoformat(), "date_end": str(r.get("earnings_date_end") or d.isoformat())[:10],
-                      "estimate": bool(r.get("is_estimate")), "tags": tags.get(key, [])})
+                      "estimate": as_bool(r.get("is_estimate")), "tags": tags.get(key, [])})
     items.sort(key=lambda x: (x["date"], x["market"], x["symbol"]))
     by_market: dict[str, int] = {}
     for x in items:
@@ -478,7 +478,7 @@ def insider_week_items(rows: list[dict], tags: dict[str, list[str]], names: dict
         d = r.get("trade_date") or r.get("filed_on")
         if d and (g["last_date"] is None or d > g["last_date"]):
             g["last_date"] = d
-        g["all_plan"] = g["all_plan"] and bool(r.get("plan"))
+        g["all_plan"] = g["all_plan"] and as_bool(r.get("plan"))
     groups = list(by.values())
     for g in groups:
         g["buyers"] = len(g["owners"])
