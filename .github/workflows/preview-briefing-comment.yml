@@ -1,6 +1,7 @@
 name: Preview Briefing Comment
 
 # 읽기 전용(2026-11-02) - 저장된 최근 주간 브리핑으로 GPT 총평만 만들어 로그에 출력. 저장·텔레그램 발송 없음.
+# full=1(2026-11-05)이면 지금 데이터로 브리핑 전체를 만들어 칸별 건수·총평·텔레그램 본문을 출력(--dry-run, 스냅샷 저장도 안 함).
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +13,10 @@ on:
         description: "텔레그램 본문도 출력(1이면)"
         required: false
         default: "1"
+      full:
+        description: "1이면 지금 데이터로 브리핑 전체 미리 보기(저장·발송 없음)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -37,4 +42,4 @@ jobs:
           MODEL_BRIEFING_COMMENT: ${{ inputs.model }}
           PREVIEW_TELEGRAM: ${{ inputs.telegram }}
           PYTHONUNBUFFERED: "1"
-        run: python scripts/generate_weekly_briefing.py --preview-comment
+        run: python scripts/generate_weekly_briefing.py ${{ inputs.full == '1' && '--dry-run' || '--preview-comment' }}

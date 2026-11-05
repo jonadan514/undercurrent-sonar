@@ -193,6 +193,11 @@ def get_kr_rate_week(key: str) -> dict | None:
             "as_of": rows[0]["date"]}
 
 
+# 전체 미리 보기(--dry-run, 2026-11-05) - 아무것도 쓰지 않는다. 스냅샷 저장까지 건너뛰어야 일요일 실제 실행의 신규·탈락 비교가
+# 목요일 미리 보기 목록과 비교되는 일이 없다.
+DRY_RUN = [False]
+
+
 def get_watchlist_changes() -> dict:
     """이번 주 후보 vs 지난주 스냅샷 비교 → 신규/탈락. 이번 주 스냅샷 저장."""
     turso_exec(
@@ -218,11 +223,12 @@ def get_watchlist_changes() -> dict:
 
     # 이번 주 스냅샷 저장 (월요일 날짜 기준)
     week = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    turso_exec(
-        "INSERT INTO watchlist_weekly_snapshots (week, payload) VALUES (?, ?) "
-        "ON CONFLICT(week) DO UPDATE SET payload=excluded.payload",
-        [week, json.dumps(current, ensure_ascii=False)],
-    )
+    if not DRY_RUN[0]:
+        turso_exec(
+            "INSERT INTO watchlist_weekly_snapshots (week, payload) VALUES (?, ?) "
+            "ON CONFLICT(week) DO UPDATE SET payload=excluded.payload",
+            [week, json.dumps(current, ensure_ascii=False)],
+        )
 
     return {
         "total": len(current),
@@ -290,8 +296,9 @@ def get_turnaround_changes(week: str) -> dict | None:
     prev_rows = _payload(turso_exec(
         "SELECT week, payload FROM turnaround_weekly_snapshots WHERE week < ? ORDER BY week DESC LIMIT 1", [week]))
     result = turnaround_diff(current, prev_rows[0]["_data"] if prev_rows else None)
-    turso_exec("INSERT OR IGNORE INTO turnaround_weekly_snapshots (week, payload) VALUES (?, ?)",
-               [week, json.dumps(result["items"], ensure_ascii=False)])
+    if not DRY_RUN[0]:
+        turso_exec("INSERT OR IGNORE INTO turnaround_weekly_snapshots (week, payload) VALUES (?, ?)",
+                   [week, json.dumps(result["items"], ensure_ascii=False)])
     result.pop("items")
     return result
 
@@ -1576,11 +1583,39 @@ def send_telegram_summary(b: dict) -> None:
             logger.error("텔레그램 발송 실패 (%d/%d): %s", i, len(parts), e)
 
 
+def print_dry_run(b: dict, points: list | None) -> None:
+    """--dry-run 출력 - 칸마다 건수·몇 줄, 총평, 텔레그램 본문. 저장하지 않는다."""
+    def n(v):
+        return len(v) if isinstance(v, (list, dict)) else ("-" if v is None else v)
+    print(f"== 브리핑 미리 보기 (week={b['week']}, 저장·발송 안 함) ==")
+    for k in ("us", "kr", "macro", "kr_flows", "kr_disclosures", "insider_week", "us_8k_week", "inst_13f_week",
+              "sentiment_heating", "catalysts", "observation_reviews", "earnings_week", "my_stocks_week"):
+        v = b.get(k)
+        print(f"  {k}: {type(v).__name__} {n(v)}" + (f" keys={list(v)[:8]}" if isinstance(v, dict) else ""))
+    w = b.get("watchlist") or {}
+    print(f"  watchlist: 후보 {w.get('total')} · 신규 {w.get('added_count')} · 탈락 {w.get('removed_count')} (직전 스냅샷 {'있음' if w.get('has_prev') else '없음'})")
+    for x in (w.get("added") or [])[:10]:
+        print(f"    + {x.get('market')}:{x.get('symbol')} {x.get('name') or ''}")
+    for x in (w.get("removed") or [])[:10]:
+        print(f"    - {x.get('market')}:{x.get('symbol')} {x.get('name') or ''}")
+    t = b.get("turnaround") or {}
+    print(f"  turnaround: {t.get('total')} · 신규 {t.get('added_count')} · 빠짐 {t.get('removed_count')}")
+    tl = b.get("theme_labels") or {}
+    print(f"  theme_labels: 신규 {len(tl.get('new_labels') or [])} · 소멸 {len(tl.get('dropped_labels') or [])} · 기준 주 {tl.get('week')}")
+    print("\n== 짚을 점(코드가 고름) ==")
+    for pt in points or []:
+        print(f"[{pt['kind']}] {pt['title']}\n  - " + "\n  - ".join(pt["facts"]))
+    print("\n== 총평 ==\n" + (b.get("gpt_comment") or "(없음)"))
+    print("\n== 텔레그램 ==\n" + build_telegram_summary(b))
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-telegram", action="store_true")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="지금 데이터로 브리핑 전체를 만들어 요약·총평·텔레그램 본문만 출력(저장·스냅샷·발송 없음, 2026-11-05)")
     parser.add_argument("--preview-comment", action="store_true",
                         help="저장된 최근 브리핑으로 총평만 만들어 출력(저장·발송 안 함, 2026-11-02)")
     args = parser.parse_args()
@@ -1621,6 +1656,7 @@ def main() -> None:
             print("\n== PAYLOAD_B64 ==\n" + base64.b64encode(gzip.compress(json.dumps(b, ensure_ascii=False).encode())).decode())
         return
 
+    DRY_RUN[0] = args.dry_run
     now = datetime.now(timezone.utc)
     # 브리핑 주차 라벨 = 다가오는 월요일 (일요일 밤 실행 기준)
     days_to_mon = (7 - now.weekday()) % 7
@@ -1649,7 +1685,11 @@ def main() -> None:
     }
     briefing["my_stocks_week"] = get_my_stocks_week(briefing)
     briefing["gpt_comment"] = gpt_comment(briefing)   # 관심 종목 칸까지 만든 뒤 - 총평이 그 내용도 쓴다(2026-11-02)
-    briefing.pop("_comment_points", None)
+    points = briefing.pop("_comment_points", None)
+
+    if args.dry_run:
+        print_dry_run(briefing, points)
+        return
 
     turso_exec(
         "CREATE TABLE IF NOT EXISTS weekly_briefings ("
