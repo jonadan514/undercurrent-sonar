@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   tour:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 브라우저가 ubuntu-latest(26.04)를 아직 지원하지 않는다(2026-11-05)
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
