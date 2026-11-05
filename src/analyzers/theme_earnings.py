@@ -224,7 +224,8 @@ def dart_revenue_series(quarters: list[dict]) -> pd.Series | None:
 
 
 def pick_revenue(yf_series: pd.Series | None, dart_series: pd.Series | None) -> tuple[pd.Series | None, str | None]:
-    """한국 종목 분기 매출 고르기 -> (Series, 'DART'|'yfinance'|None). 최신 분기가 늦은 쪽, 같으면 DART(공시 원본).
+    """종목 분기 매출 고르기 -> (Series, 'DART'|'yfinance'|None). 최신 분기가 늦은 쪽, 같으면 DART(공시 원본).
+    'DART'는 "공시 원본 표(quarterly_financials_raw)" 쪽이라는 뜻 - 2026-11-05부터 미국(SEC 먼저)도 이 함수로 고른다.
     분기 수가 모자라 yoy를 못 내는 쪽은 고르지 않는다(다른 쪽이 낼 수 있으면)."""
     def usable(s):
         return s is not None and len(s) >= MIN_QUARTERS

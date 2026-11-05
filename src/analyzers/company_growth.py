@@ -183,6 +183,16 @@ def quarterly_margin_change(q_df) -> dict | None:
     return {"now": now, "year_ago": ago, "change": change, "quarter": _quarter_label(t0), "status": status}
 
 
+def pick_latest(raw: dict | None, cache: dict | None) -> dict | None:
+    """같은 계산(quarterly_margin_change·quarterly_revenue_yoy)을 두 출처로 낸 결과 중 하나를 고른다(2026-11-05).
+
+    raw = 공시 원본 표(quarterly_financials_raw, SEC 먼저), cache = 재무 캐시(백필, yfinance). 최신 분기가 늦은 쪽,
+    같으면 공시 원본 - 실적 축의 theme_earnings.pick_revenue와 같은 규칙. 한쪽만 있으면 그쪽(둘 다 없으면 None)."""
+    if raw and (not cache or raw["quarter"] >= cache["quarter"]):
+        return raw
+    return cache or raw
+
+
 def quarterly_revenue_yoy(q_df) -> dict | None:
     """최신 분기 매출 ÷ 1년 전 같은 분기 매출 - 1 (2026-10-09).
 

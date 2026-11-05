@@ -56,7 +56,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from src.analyzers.company_growth import (quarterly_margin_change, quarterly_revenue_yoy, ttm_revenue_yoy,
+from src.analyzers.company_growth import (pick_latest, quarterly_margin_change, quarterly_revenue_yoy, ttm_revenue_yoy,
                                            growth_tier as calc_growth_tier,
                                            operating_margin_direction,
                                            revenue_cagr, revenue_yoy)
@@ -65,7 +65,7 @@ from src.analyzers.company_cashflow import fcf_yield
 from src.analyzers.trap_filter import FINANCIAL_SECTORS
 from src.db.data_store import get_db
 from src.db.fundamentals_cache import get_cached_financials_bulk
-from src.db.quarterly_financials import select_quarters_bulk
+from src.db.quarterly_financials import quarters_to_income_df, select_quarters_bulk
 from src.db.turso_http import execute_many, get_credentials
 
 # watchlist_candidates에 뒤늦게 붙이는 컬럼. DDL(CREATE TABLE IF NOT EXISTS)만 고치면
@@ -161,6 +161,12 @@ def write_updates(conn, market: str, updates: list[tuple]) -> None:
     conn.commit()
 
 
+# 분기 영업이익률·분기 매출 YoY를 공시 원본 표(quarterly_financials_raw - 미국은 SEC 먼저, 없으면 유니버스 yfinance)에서
+# 먼저 읽는 시장(2026-11-05 사용자 결정, 수집 경로 정리 2단계). 최신 분기가 늦은 쪽, 같으면 원본 - 재무 캐시는 폴백.
+# 비교(Report US Quarterly Sources): 판정 같음 159·다름 25·새로 생김 37. 한국은 아직 캐시(바꾸려면 따로 비교부터).
+RAW_FIRST_MARKETS = {"US"}
+
+
 def run(conn, markets: list[str]) -> None:
     for market in markets:
         candidates = load_candidates(conn, market)
@@ -195,8 +201,14 @@ def run(conn, markets: list[str]) -> None:
             cagr_by_ticker[sym] = revenue_cagr(periods)
             yoy_by_ticker[sym] = revenue_yoy(periods)
             op_dir_by_ticker[sym] = operating_margin_direction(periods)
-            om_by_ticker[sym] = (quarterly_margin_change(cached.get("financials_quarterly")) if cached else None) or {}
-            rq_by_ticker[sym] = (quarterly_revenue_yoy(cached.get("financials_quarterly")) if cached else None) or {}
+            cached_q = cached.get("financials_quarterly") if cached else None
+            if market in RAW_FIRST_MARKETS:
+                raw_q = quarters_to_income_df(quarters)
+                om_by_ticker[sym] = pick_latest(quarterly_margin_change(raw_q), quarterly_margin_change(cached_q)) or {}
+                rq_by_ticker[sym] = pick_latest(quarterly_revenue_yoy(raw_q), quarterly_revenue_yoy(cached_q)) or {}
+            else:
+                om_by_ticker[sym] = quarterly_margin_change(cached_q) or {}
+                rq_by_ticker[sym] = quarterly_revenue_yoy(cached_q) or {}
             # 현금흐름표도 손익과 같은 모양(컬럼=회계기간)이라 같은 변환을 쓴다.
             # 금융업은 계산하지 않는다 - 예금·보험료 흐름이 영업현금흐름에 섞여 FCF가 사업의
             # 현금 창출을 뜻하지 않는다(실측: 현대해상 62%, Synchrony 37%가 상위를 차지).

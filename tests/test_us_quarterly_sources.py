@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.db.quarterly_financials import quarters_to_income_df  # noqa: E402
-from src.analyzers.company_growth import quarterly_margin_change, quarterly_revenue_yoy  # noqa: E402
+from src.analyzers.company_growth import pick_latest, quarterly_margin_change, quarterly_revenue_yoy  # noqa: E402
 
 
 def _q(y, q, rev, oi):
@@ -25,3 +25,12 @@ def test_quarters_to_income_df_empty_and_gap():
     assert quarters_to_income_df([]) is None
     df = quarters_to_income_df([_q(2026, 3, 120, 24), _q(2025, 3, 100, None)])   # 1년 전 영업이익 없음 -> 데이터부족
     assert quarterly_margin_change(df) is None and abs(quarterly_revenue_yoy(df)["yoy"] - 0.2) < 1e-9
+
+
+def test_pick_latest_prefers_newer_then_raw():
+    raw, cache = {"quarter": "2026-Q3", "src": "raw"}, {"quarter": "2026-Q3", "src": "cache"}
+    assert pick_latest(raw, cache)["src"] == "raw"                                   # 같은 분기 -> 공시 원본
+    assert pick_latest({"quarter": "2026-Q2", "src": "raw"}, cache)["src"] == "cache"  # 캐시가 더 최근
+    assert pick_latest({"quarter": "2026-Q4", "src": "raw"}, cache)["src"] == "raw"
+    assert pick_latest(None, cache)["src"] == "cache" and pick_latest(raw, None)["src"] == "raw"
+    assert pick_latest(None, None) is None
