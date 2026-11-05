@@ -1,0 +1,26 @@
+name: Report Market Regime
+
+# 읽기 전용(2026-11-05) - 시장 환경 축(금리·신용·달러/환율·변동성·외국인 수급)의 지난 12주 상태와 조합 이름 미리 보기. 쓰지 않음, GPT 없음.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Report
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/report_market_regime.py
