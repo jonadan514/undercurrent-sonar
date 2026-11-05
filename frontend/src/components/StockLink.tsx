@@ -1,9 +1,9 @@
-// 종목 이름을 누르면 워치리스트 상세 카드로 (2026-10-20, 사이트 사용성 1번).
-// /watchlist?stock=US:MU - 이번 주 후보면 상세 카드가 바로 열리고, 후보가 아니면 외부 시세 링크를 보여준다.
+// 종목 이름을 누르면 기업 기초조사 카드로 (2026-10-20 워치리스트 상세 카드 → 2026-11-05 /company).
+// /company?stock=US:MU - 기업 기초조사 카드(2026-11-05). 예전엔 /watchlist?stock=(후보 팝업)였고, 그 주소도 그대로 동작한다.
 import type { ReactNode } from "react";
 
 export function stockHref(market: string, symbol: string): string {
-  return `/watchlist?stock=${encodeURIComponent(`${market}:${symbol}`)}`;
+  return `/company?stock=${encodeURIComponent(`${market}:${symbol}`)}`;
 }
 
 export default function StockLink({ market, symbol, children, className, style }: {
