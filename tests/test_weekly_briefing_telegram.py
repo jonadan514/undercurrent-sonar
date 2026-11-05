@@ -378,3 +378,20 @@ def test_comment_8k_listing_wording_and_polish():
     assert "GM" in g._fact_names(f)
     out = g.polish_comment("■ 공시·내부자 - GM이 상장 관련 통지를 냈습니다. 이는 주가에 부정적일 수 있습니다.", f)
     assert out == "■ 공시·내부자\nGM이 상장 관련 통지를 냈습니다."
+
+
+def test_vix_spread_qual_and_telegram_points():
+    # 2026-11-05: VIX·장단기 금리차 추가(텔레그램은 VIX만 지수 줄 끝), 짚을 점 제목 묶음
+    assert g.qual_macro("vix", {"value": 19.5, "chg_1w": 3.4}) == "큰 폭 상승"
+    assert g.qual_macro("spread_10y_2y", {"value": 0.35, "chg_1w": -0.06}) == "하락"
+    text = g.build_telegram_summary(_briefing(macro={"vix": {"value": 19.5, "chg_1w": 3.4}},
+                                              comment_points=["한미사이언스 · 신호가 엇갈림", "천연가스·LNG 테마"]))
+    assert "VIX 19.5 (+3.4)" in text.split("━━ 🌐 시장 ━━")[1].split("\n")[1]
+    heads = [l for l in text.split("\n") if l.startswith("━━")]
+    assert heads[0] == "━━ 🔎 이번 주 짚을 점 ━━" and heads[1] == "━━ 🌐 시장 ━━"
+    assert "  • 한미사이언스 · 신호가 엇갈림" in text
+
+
+def test_theme_keywords_core_minor():
+    core, minor = g.theme_keywords("petrochemical", ["KR"])
+    assert core == ["석유화학", "에틸렌 스프레드"] and "정제마진" in minor

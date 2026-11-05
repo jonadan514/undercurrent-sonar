@@ -42,11 +42,14 @@ def short_source(src: str) -> str:
 
 
 def pick_headlines(rows: list[dict], first_names: list[str] | None = None, other_names: list[str] | None = None,
-                   n: int = PER_POINT, must_contain: str | None = None, keywords: list[str] | None = None) -> list[dict]:
-    """rows: title·url·source·published_at. 반환: 같은 필드(title은 정리된 것, source는 www. 뗀 것), 최대 n개."""
+                   n: int = PER_POINT, must_contain: str | None = None, keywords: list[str] | None = None,
+                   minor_keywords: list[str] | None = None) -> list[dict]:
+    """rows: title·url·source·published_at. 반환: 같은 필드(title은 정리된 것, source는 www. 뗀 것), 최대 n개.
+    차례: 신호 종목 이름 → 핵심 키워드 → 다른 소속 종목 이름 → 곁가지 키워드(2026-11-05) → 나머지."""
     first = [x for x in (first_names or []) if x]
     other = [x for x in (other_names or []) if x and x not in first]
     kws = [k.lower() for k in (keywords or []) if k]
+    minor = [k.lower() for k in (minor_keywords or []) if k]
 
     def tier(t: str) -> int:
         if any(nm in t for nm in first):
@@ -55,7 +58,9 @@ def pick_headlines(rows: list[dict], first_names: list[str] | None = None, other
             return 1
         if any(nm in t for nm in other):
             return 2
-        return 3
+        if any(k in t.lower() for k in minor):
+            return 3
+        return 4
 
     cands = []
     for r in rows:

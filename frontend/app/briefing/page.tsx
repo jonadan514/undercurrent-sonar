@@ -45,7 +45,8 @@ interface Briefing {
   // dxy·wti는 2026-10-09부터
   macro?: { as_of?: string; us10y?: MacroItem | null; kr3y?: MacroItem | null; usdkrw?: MacroItem | null;
             dxy?: MacroItem | null; wti?: MacroItem | null; copper?: MacroItem | null;   // copper는 2026-10-17부터
-            natgas?: MacroItem | null; hy_spread?: MacroItem | null; real10y?: MacroItem | null } | null;   // 2026-10-17 밤부터
+            natgas?: MacroItem | null; hy_spread?: MacroItem | null; real10y?: MacroItem | null;   // 2026-10-17 밤부터
+            vix?: MacroItem | null; spread_10y_2y?: MacroItem | null } | null;   // 2026-11-05부터
   // 워치리스트 '실적 반전'(3년 정체·역성장인데 지금 흐름 성장) 주간 변동(2026-10-17부터). 예전 브리핑엔 없다.
   kr_flows?: Record<string, FlowSum> | null;
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
@@ -170,15 +171,17 @@ interface TurnaroundItem { market: string; symbol: string; name?: string | null;
 interface MacroItem { value: number | null; chg_1w: number | null }
 
 // 매크로는 줄마다 한 칸씩이면 9줄이 넘어 브리핑이 길어진다 - 작은 칸으로 묶는다(2026-10-20)
-type MacroKey = "us10y" | "real10y" | "hy_spread" | "kr3y" | "usdkrw" | "dxy" | "wti" | "copper" | "natgas";
+type MacroKey = "us10y" | "real10y" | "hy_spread" | "spread_10y_2y" | "kr3y" | "usdkrw" | "dxy" | "vix" | "wti" | "copper" | "natgas";
 const pp = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`;
 const MACRO_ROWS: { key: MacroKey; label: string; fmt: (v: number) => string; chg?: (v: number) => string }[] = [
   { key: "us10y", label: "미 10년물", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
   { key: "real10y", label: "미 실질금리", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
   { key: "hy_spread", label: "하이일드 스프레드", fmt: (v) => `${v.toFixed(2)}%p`, chg: pp },
+  { key: "spread_10y_2y", label: "장단기 금리차", fmt: (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`, chg: pp },   // 미 10년-2년(2026-11-05)
   { key: "kr3y", label: "국고채 3년", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
   { key: "usdkrw", label: "원/달러", fmt: (v) => `${Math.round(v).toLocaleString()}원`, chg: (v) => `${v >= 0 ? "+" : ""}${Math.round(v).toLocaleString()}원` },
   { key: "dxy", label: "달러인덱스", fmt: (v) => v.toFixed(1), chg: (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}` },
+  { key: "vix", label: "VIX", fmt: (v) => v.toFixed(1), chg: (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}` },   // 2026-11-05
   { key: "wti", label: "WTI 유가", fmt: (v) => `$${v.toFixed(1)}` },          // 유가·원자재는 변화율(usdChg)
   { key: "copper", label: "구리", fmt: (v) => `$${v.toFixed(2)}/lb` },
   { key: "natgas", label: "천연가스", fmt: (v) => `$${v.toFixed(2)}` },

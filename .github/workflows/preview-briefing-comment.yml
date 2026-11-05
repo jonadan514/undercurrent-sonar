@@ -8,6 +8,10 @@ on:
         description: "총평 모델 바꿔 보기(비우면 config/models.yaml의 briefing_comment)"
         required: false
         default: ""
+      telegram:
+        description: "텔레그램 본문도 출력(1이면)"
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -31,5 +35,6 @@ jobs:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           MODEL_BRIEFING_COMMENT: ${{ inputs.model }}
+          PREVIEW_TELEGRAM: ${{ inputs.telegram }}
           PYTHONUNBUFFERED: "1"
         run: python scripts/generate_weekly_briefing.py --preview-comment

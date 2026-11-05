@@ -122,7 +122,9 @@ def get_macro_week() -> dict | None:
     # dxy(달러인덱스)·wti(유가)는 2026-10-09 추가 - 원/달러가 달러 강세 탓인지, 에너지 테마 해석용
     # copper(구리)는 2026-10-17 추가 - 웹 브리핑에만 표시(텔레그램 지표 줄은 늘리지 않는다)
     # natgas·hy_spread·real10y는 2026-10-17 추가 - 웹 브리핑만(텔레그램 지표 줄은 늘리지 않는다)
-    pick = {k: items.get(k) for k in ("us10y", "usdkrw", "dxy", "wti", "copper", "natgas", "hy_spread", "real10y")}
+    # vix·spread_10y_2y는 2026-11-05 추가(BACKLOG A) - 웹 브리핑 칸 + 텔레그램은 VIX만 지수 줄 끝에(지표 줄은 늘리지 않는다)
+    pick = {k: items.get(k) for k in ("us10y", "usdkrw", "dxy", "wti", "copper", "natgas", "hy_spread", "real10y",
+                                       "vix", "spread_10y_2y")}
     pick["kr3y"] = get_kr_rate_week("kr3y")
     if not any(v and v.get("value") is not None for v in pick.values()):
         return None
@@ -829,7 +831,9 @@ def qual_macro(key: str, item: dict | None) -> str | None:
     if not item or item.get("value") is None or item.get("chg_1w") is None:
         return None
     v, c = float(item["value"]), float(item["chg_1w"])
-    if key in ("us10y", "kr3y", "real10y", "hy_spread"):
+    if key == "vix":
+        return qual_pct(c, big=3.0, mid=1.0, small=0.3)            # VIX 포인트: 3 이상 큰 폭, 1 이상, 0.3 미만 보합
+    if key in ("us10y", "kr3y", "real10y", "hy_spread", "spread_10y_2y"):
         return qual_pct(c * 10, big=1.5, mid=0.5, small=0.2)      # 0.15%p 이상 큰 폭, 0.05%p 이상, 0.02%p 미만 보합
     if key == "usdkrw":
         return qual_pct(c / 10, big=2.0, mid=0.5, small=0.2)      # 20원 큰 폭, 5원, 2원 미만 보합
@@ -973,7 +977,8 @@ def comment_facts(b: dict) -> dict:
     mc = b.get("macro") or {}
     names = load_theme_names()
     macro_ko = {"us10y": "미 10년물 금리", "real10y": "미 실질금리", "hy_spread": "하이일드 스프레드", "kr3y": "국고채 3년",
-                "usdkrw": "원/달러 환율", "dxy": "달러인덱스", "wti": "WTI 유가", "copper": "구리", "natgas": "천연가스"}
+                "usdkrw": "원/달러 환율", "dxy": "달러인덱스", "wti": "WTI 유가", "copper": "구리", "natgas": "천연가스",
+                "vix": "VIX(미국 변동성지수)", "spread_10y_2y": "미 장단기 금리차(10년-2년)"}
     flows = b.get("kr_flows") or {}
     market = {
         "미국 지수(S&P 500) 1주": qual_pct(b["us"].get("index_chg_1w")),
@@ -1069,21 +1074,26 @@ def _stock_news_rows(market: str, name: str, after, before) -> list[dict]:
     return search_google_news_en(f'"{name}"', after, before, limit=60)
 
 
-def theme_keywords(theme_id: str, markets: list[str]) -> list[str]:
-    """themes.yaml의 검색 키워드(한국 keywords_ko, 미국 keywords_en) + 테마 이름."""
+CORE_KEYWORDS = 2   # 키워드 목록 앞 두 개가 테마의 핵심어(석유화학·에틸렌 스프레드) - 뒤쪽(정제마진)은 곁가지
+
+
+def theme_keywords(theme_id: str, markets: list[str]) -> tuple[list[str], list[str]]:
+    """themes.yaml 검색 키워드(한국 keywords_ko, 미국 keywords_en)를 (핵심, 곁가지)로. 기사 고를 때 핵심어가 든 제목을 먼저
+    (2026-11-05: 석유화학 테마에 BP 정제마진 기사가 붙었다 - 테마 정의는 정유를 일부러 포함하므로 정의는 두고 고르는 순서만)."""
     try:
         cfg = yaml.safe_load((ROOT / "config" / "themes.yaml").read_text(encoding="utf-8")) or {}
     except Exception:  # noqa: BLE001
-        return []
+        return [], []
     for t in cfg.get("themes") or []:
         if t.get("id") == theme_id:
-            out = [t.get("name_ko") or ""]
-            if "KR" in markets:
-                out += t.get("keywords_ko") or []
-            if "US" in markets:
-                out += t.get("keywords_en") or []
-            return [k for k in out if k]
-    return []
+            core, minor = [], []
+            for mk, field in (("KR", "keywords_ko"), ("US", "keywords_en")):
+                if mk in markets:
+                    kws = [k for k in (t.get(field) or []) if k]
+                    core += kws[:CORE_KEYWORDS]
+                    minor += kws[CORE_KEYWORDS:]
+            return core, minor
+    return [], []
 
 
 def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str]) -> None:
@@ -1099,8 +1109,9 @@ def attach_news(points: list[dict], b: dict, members: dict, names: dict[str, str
                 mk = p.get("markets") or []
                 member_names = _clean_names(names.get(f"{m}:{sym}") or "" for m in mk for sym in members.get((m, p["theme_id"])) or [])
                 rows = _theme_news_rows(p["theme_id"], mk, tl_week)
+                core, minor = theme_keywords(p["theme_id"], mk)
                 p["news"] = pick_headlines(rows, _clean_names(p.get("signal_names") or []), member_names,
-                                           keywords=theme_keywords(p["theme_id"], mk))
+                                           keywords=core, minor_keywords=minor)
             elif p.get("symbol"):
                 nm = (_clean_names([p.get("title_name") or ""]) or [p["symbol"]])[0]
                 rows = _stock_news_rows(p.get("market") or "US", nm, after, before)
@@ -1162,6 +1173,7 @@ def gpt_comment(briefing: dict) -> str:
     briefing["_comment_points"] = points   # 미리 보기 출력용(저장 전에 지운다)
     # 화면용 관련 기사 - 소제목(■ 줄)과 같은 글자로 묶는다. GPT를 거치지 않은 원문 제목·링크
     briefing["comment_news"] = {p["title"]: p["news"] for p in points if p.get("news")}
+    briefing["comment_points"] = [p["title"] for p in points]   # 텔레그램 '짚을 점' 제목 줄
     if not market and not points:
         return ""
     for_gpt = [{"제목": p["title"], "왜 골랐나": p["note"], "사실": p["facts"],
@@ -1307,6 +1319,12 @@ def build_telegram_summary(b: dict) -> str:
             lines.append(f"  외 {my['count'] - MY_TG_MAX}종목")
         lines.append("")
 
+    # 총평 '이번 주 짚을 점' 제목(2026-11-05) - 코드가 만든 제목만(GPT 문장은 웹에만, 원칙 2). 본문·기사는 웹 링크로
+    pts = b.get("comment_points") or []
+    if pts:
+        group("🔎 이번 주 짚을 점")
+        lines += [f"  • {html.escape(t)}" for t in pts[:5]]
+
     group("🌐 시장")
     idx = []
     if b["us"].get("index_chg_1w") is not None:
@@ -1318,6 +1336,9 @@ def build_telegram_summary(b: dict) -> str:
         if fk is not None:
             kospi += f" (외국인 {fmt_krw_flow(fk)})"
         idx.append(kospi)
+    vx = (b.get("macro") or {}).get("vix") or {}
+    if idx and vx.get("value") is not None:   # VIX는 지수 옆에(2026-11-05) - 지표 줄을 늘리지 않는다
+        idx.append(f"VIX {vx['value']:.1f}" + (f" ({vx['chg_1w']:+.1f})" if vx.get("chg_1w") is not None else ""))
     if idx:
         lines.append("지난 1주 " + " · ".join(idx))
 
@@ -1572,6 +1593,12 @@ def main() -> None:
         b = rows[0]["_data"]
         if not b.get("my_stocks_week"):
             b["my_stocks_week"] = get_my_stocks_week(b)
+        # 저장된 브리핑보다 나중에 생긴 매크로 칸(VIX·장단기 금리차, 2026-11-05)은 지금 값으로 채워 미리 보기(저장은 안 함)
+        fresh = get_macro_week() or {}
+        if b.get("macro") is not None:
+            for k in ("vix", "spread_10y_2y"):
+                if k not in b["macro"] and fresh.get(k):
+                    b["macro"][k] = fresh[k]
         final = gpt_comment(b)
         print("== 짚을 점(코드가 고름) ==")
         for pt in b.pop("_comment_points", None) or []:

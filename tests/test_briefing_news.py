@@ -60,3 +60,12 @@ def test_one_per_member_first():
     out = pick_headlines(rows, ["SK하이닉스", "삼성전기", "LG이노텍"])
     assert [o["title"] for o in out] == ["SK하이닉스 HBM 완판", "삼성전기 MLCC 수주 확대", "LG이노텍 카메라모듈 부진"]
     assert len(pick_headlines(rows[:2], ["SK하이닉스"])) == 2      # 다른 이름이 없으면 같은 종목 둘째 기사도
+
+
+def test_minor_keyword_below_members():
+    # 석유화학: 핵심어(석유화학) 기사 → 소속 종목(Chevron) 기사 → 곁가지(정제마진) 기사 순
+    rows = [_r("[영국 특징주] BP, 정제마진 급등에 이익 18년 만에 최대", "2026-10-31"),
+            _r("Chevron Stock And Refining Margins Are Now The Key Profit Story", "2026-10-31"),
+            _r("역래깅 직면한 금호석유화학, 고부가 제품으로 체질 개선 추진", "2026-10-30")]
+    out = pick_headlines(rows, [], ["Chevron"], keywords=["석유화학", "petrochemical"], minor_keywords=["정제마진", "refining margin"])
+    assert [o["title"][:6] for o in out] == ["역래깅 직면", "Chevro", "[영국 특징"]
