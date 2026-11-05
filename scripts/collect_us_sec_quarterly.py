@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from src.collectors.sec_financials import quarterly_values
 from src.db.data_store import get_db
-from src.db.quarterly_financials import ensure_schema, insert_quarter, select_quarters
+from src.db.quarterly_financials import ensure_schema, insert_quarter, select_quarters, WITHDRAWN, withdrawn_keys
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
@@ -113,7 +113,7 @@ def main() -> int:
     _log(f"SEC 기업 매핑 {len(ciks)}건 / 대상 {len(tickers)}종목")
     latest = latest_sec_values(conn)
     now = datetime.utcnow().isoformat()
-    stats = {"ok": 0, "no_cik": 0, "no_data": 0, "error": 0, "lt8": 0, "unchanged": 0}
+    stats = {"ok": 0, "no_cik": 0, "no_data": 0, "error": 0, "lt8": 0, "unchanged": 0, "withdrawn": 0}
     saved = 0
 
     for n, t in enumerate(tickers, 1):
@@ -138,6 +138,9 @@ def main() -> int:
         prev = latest.get(t, {})
         to_save = {k: v for k, v in values.items()
                    if k not in prev or not all(_same(p, v.get(f)) for p, f in zip(prev[k], VALUE_KEYS))}
+        for k in withdrawn_keys(values, prev):   # 예전 분기 이름으로 남은 행 거둬들이기(2026-11-05)
+            to_save[k] = {"derived": WITHDRAWN}
+            stats["withdrawn"] += 1
         for (y, q), v in to_save.items():
             insert_quarter(conn, t, "US", y, q, v, SOURCE, "USD", now)
         if to_save:

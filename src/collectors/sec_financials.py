@@ -41,7 +41,9 @@ def _d(s: str) -> date:
 
 
 def quarter_of(end: date) -> tuple[int, int]:
-    return end.year, (end.month - 1) // 3 + 1
+    """분기 말일 -> (연도, 분기). 52/53주 회계연도 보정은 quarterly_financials.calendar_quarter(2026-11-05)."""
+    from src.db.quarterly_financials import calendar_quarter
+    return calendar_quarter(end)
 
 
 def _latest_by_period(items: list[dict]) -> dict[tuple[date, date], float]:

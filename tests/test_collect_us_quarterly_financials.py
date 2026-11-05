@@ -23,7 +23,8 @@ def _df(**cols: dict) -> pd.DataFrame:
 def test_분기_말일에서_연도와_분기를_뽑는다():
     assert quarter_of(pd.Timestamp("2026-06-30")) == (2026, 2)
     assert quarter_of(pd.Timestamp("2025-12-31")) == (2025, 4)
-    assert quarter_of(pd.Timestamp("2026-01-01")) == (2026, 1)
+    assert quarter_of(pd.Timestamp("2026-01-01")) == (2025, 4)   # 52/53주 회계연도 - 다음 분기 첫 14일은 앞 분기(2026-11-05)
+    assert quarter_of(pd.Timestamp("2026-01-31")) == (2026, 1)
 
 
 # ── 값 추출 ───────────────────────────────────────────────────

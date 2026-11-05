@@ -58,7 +58,7 @@ export function NarrativeSection({ c }: { c: StockRef }) {
         const res = await fetch(`/api/watchlist/narrative?${params}`);
         const data = await res.json();
         if (cancelled) return;
-        if (res.status === 404 && data.pending) { setPending(true); return; }
+        if (data.pending) { setPending(true); return; }
         if (!res.ok) throw new Error(data.error ?? "요청 실패");
         setBrief(data);
       } catch (e) {
@@ -82,7 +82,7 @@ export function NarrativeSection({ c }: { c: StockRef }) {
         )}
         {pending && !loading && (
           <p className="text-[12px]" style={{ color: TEXT_SECONDARY }}>
-            아직 내러티브가 없습니다. 다음 주간 워치리스트 스크리닝(주 1회 자동 실행) 뒤에 표시됩니다.
+            아직 내러티브가 없습니다. 워치리스트 후보·내 워치리스트 종목만 주 1회(일요일 밤) 만듭니다.
           </p>
         )}
         {error && !loading && (

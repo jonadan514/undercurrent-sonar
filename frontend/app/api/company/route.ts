@@ -18,7 +18,7 @@ const FS_PREF = ["CFS", "OFS", "NA"];
 const SRC_PREF = new Set(["DART", "SEC"]);
 
 type QRow = { fy: number; fq: number; revenue: number | null; operating_income: number | null; net_income: number | null;
-              source: string; fs_div: string; collected_at: string };
+              source: string; fs_div: string; collected_at: string; derived?: string };
 
 // src/db/quarterly_financials.py _rank와 같은 순서: 연결 우선 → 공시 원본(DART·SEC) → 늦게 수집한 것
 function rank(r: QRow): [number, number, string] {
@@ -83,13 +83,25 @@ export async function GET(request: Request) {
   }, null);
 
   // 분기 재무 - 공시 원본 표에서 분기마다 하나(파이썬 select_quarters와 같은 규칙), 최근 8분기
+  // 거둬들인 분기(같은 출처·구분의 마지막 행이 derived='withdrawn')와 아직 끝나지 않은 분기는 뺀다 - 파이썬 _best_per_quarter와 같은 규칙(2026-11-05)
   const quarters = await safe(async () => {
+    const all: QRow[] = (await rows(`SELECT fiscal_year, fiscal_quarter, revenue, operating_income, net_income, source, fs_div, collected_at, derived
+                                FROM quarterly_financials_raw WHERE market = ? AND ticker = ?`, [market, symbol])).map((r) => ({
+      fy: Number(r[0]), fq: Number(r[1]), revenue: r[2] == null ? null : Number(r[2]),
+      operating_income: r[3] == null ? null : Number(r[3]), net_income: r[4] == null ? null : Number(r[4]),
+      source: String(r[5] ?? ""), fs_div: String(r[6] ?? "NA"), collected_at: String(r[7] ?? ""), derived: String(r[8] ?? "") }));
+    const latest = new Map<string, QRow>();
+    for (const q of all) {
+      const k = `${q.fy}-${q.fq}-${q.source}-${q.fs_div}`;
+      const cur = latest.get(k);
+      if (!cur || q.collected_at > cur.collected_at) latest.set(k, q);
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const qEnd = (y: number, q: number) => new Date(Date.UTC(y, q * 3, 0)).toISOString().slice(0, 10);
     const best = new Map<string, QRow>();
-    for (const r of await rows(`SELECT fiscal_year, fiscal_quarter, revenue, operating_income, net_income, source, fs_div, collected_at
-                                FROM quarterly_financials_raw WHERE market = ? AND ticker = ?`, [market, symbol])) {
-      const q: QRow = { fy: Number(r[0]), fq: Number(r[1]), revenue: r[2] == null ? null : Number(r[2]),
-        operating_income: r[3] == null ? null : Number(r[3]), net_income: r[4] == null ? null : Number(r[4]),
-        source: String(r[5] ?? ""), fs_div: String(r[6] ?? "NA"), collected_at: String(r[7] ?? "") };
+    for (const q of all) {
+      const l = latest.get(`${q.fy}-${q.fq}-${q.source}-${q.fs_div}`)!;
+      if (l.derived === "withdrawn" || qEnd(q.fy, q.fq) > today) continue;
       const k = `${q.fy}-${q.fq}`;
       const cur = best.get(k);
       if (!cur || better(q, cur)) best.set(k, q);

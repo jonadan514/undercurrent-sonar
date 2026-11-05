@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     });
     const row = res.rows[0];
     if (!row) {
-      return NextResponse.json({ pending: true }, { status: 404 });
+      return NextResponse.json({ pending: true });   // 없음은 정상 상태(원칙 4) - 404면 브라우저 콘솔에 오류로 찍힌다(2026-11-05)
     }
     const payload = JSON.parse(row[0] as string);
     return NextResponse.json({ ...payload, cached_at: row[1] as string });
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const msg = e instanceof Error ? e.message : "알 수 없는 오류";
     // 테이블이 아직 없으면 "생성 대기" 취급
     if (msg.includes("no such table")) {
-      return NextResponse.json({ pending: true }, { status: 404 });
+      return NextResponse.json({ pending: true });   // 없음은 정상 상태(원칙 4) - 404면 브라우저 콘솔에 오류로 찍힌다(2026-11-05)
     }
     return NextResponse.json({ error: msg }, { status: 500 });
   }

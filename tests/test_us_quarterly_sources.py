@@ -34,3 +34,40 @@ def test_pick_latest_prefers_newer_then_raw():
     assert pick_latest({"quarter": "2026-Q4", "src": "raw"}, cache)["src"] == "raw"
     assert pick_latest(None, cache)["src"] == "cache" and pick_latest(raw, None)["src"] == "raw"
     assert pick_latest(None, None) is None
+
+
+# ── 52/53주 회계연도 분기 이름·거둬들인 분기 (2026-11-05, 코카콜라 2026 분기 중복) ─────────────────
+from datetime import date  # noqa: E402
+
+from src.db.quarterly_financials import _best_per_quarter, calendar_quarter, withdrawn_keys  # noqa: E402
+
+
+def test_calendar_quarter_grace_for_52_53_week_years():
+    assert calendar_quarter(date(2026, 4, 3)) == (2026, 1)    # KO 2026 1분기
+    assert calendar_quarter(date(2026, 10, 2)) == (2026, 3)
+    assert calendar_quarter(date(2027, 1, 1)) == (2026, 4)
+    assert calendar_quarter(date(2026, 9, 26)) == (2026, 3)
+    assert calendar_quarter(date(2026, 1, 31)) == (2026, 1)   # 1월 말 결산(소매)은 그대로
+    assert calendar_quarter(date(2026, 10, 31)) == (2026, 4)  # 10월 말 결산도 그대로
+
+
+def test_withdrawn_keys_only_newer_and_alive():
+    prev = {(2026, 4): (13.4, 4.5, 4.0), (2026, 3): (13.4, 4.7, 4.4), (2025, 4): (1, 1, 1), (2027, 1): (None, None, None)}
+    assert withdrawn_keys({(2026, 3): {}, (2026, 2): {}}, prev) == [(2026, 4)]   # 이미 거둔 (2027,1)은 다시 안 넣음
+    assert withdrawn_keys({}, prev) == []
+
+
+def _rec(y, q, rev, src="SEC", at="2026-11-01", derived="reported"):
+    return {"fiscal_year": y, "fiscal_quarter": q, "revenue": rev, "operating_income": None if rev is None else 1.0,
+            "net_income": None, "source": src, "fs_div": "NA", "collected_at": at, "derived": derived}
+
+
+def test_best_per_quarter_skips_withdrawn_and_unfinished():
+    recs = [_rec(2026, 3, 13.4, at="2026-10-30"), _rec(2026, 3, None, at="2026-11-05", derived="withdrawn"),   # SEC가 거둬들임
+            _rec(2026, 3, 13.3, src="yfinance"),                                         # 다른 출처는 살아 있음
+            _rec(2026, 2, 12.5), _rec(2026, 4, 9.9)]                                      # 2026-Q4는 아직 안 끝남
+    best = _best_per_quarter(recs, today=date(2026, 11, 5))
+    assert sorted(best) == [(2026, 2), (2026, 3)]
+    assert best[(2026, 3)]["source"] == "yfinance"
+    assert (2026, 4) in _best_per_quarter(recs, today=date(2027, 1, 2))
+    assert (2026, 1) in _best_per_quarter([_rec(2026, 1, None)], today=date(2026, 11, 5))   # 금액만 빈 분기는 그대로(원칙 4)

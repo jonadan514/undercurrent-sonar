@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from src.db.data_store import get_db
-from src.db.quarterly_financials import ensure_schema, insert_quarter, migrate_legacy_rows
+from src.db.quarterly_financials import calendar_quarter, ensure_schema, insert_quarter, migrate_legacy_rows, WITHDRAWN, withdrawn_keys
 from collectors.watchlist_collector import get_us_universe
 
 RATE_LIMIT_BACKOFF = [60, 180, 600]
@@ -52,8 +52,8 @@ def _log(msg: str) -> None:
 
 
 def quarter_of(ts) -> tuple[int, int]:
-    """yfinance 분기 열의 날짜(분기 말일)에서 (연도, 분기)를 뽑는다."""
-    return ts.year, (ts.month - 1) // 3 + 1
+    """yfinance 분기 열의 날짜(분기 말일)에서 (연도, 분기)를 뽑는다. 52/53주 보정은 calendar_quarter(2026-11-05)."""
+    return calendar_quarter(ts)
 
 
 def _first_value(series: pd.Series, keys: tuple[str, ...]) -> float | None:
@@ -179,7 +179,7 @@ def main() -> int:
     _log(f"대상 {len(tickers)}종목")
     latest_values = load_latest_values(conn)
     now = datetime.utcnow().isoformat()
-    stats = {"ok": 0, "no_data": 0, "rate_limited": 0, "error": 0, "lt5": 0, "unchanged": 0}
+    stats = {"ok": 0, "no_data": 0, "rate_limited": 0, "error": 0, "lt5": 0, "unchanged": 0, "withdrawn": 0}
     saved_rows = 0
 
     for n, t in enumerate(tickers, 1):
@@ -193,6 +193,9 @@ def main() -> int:
             stats["no_data"] += 1
             continue
         to_save = changed_quarters(quarters, latest_values.get(t, {}))
+        for k in withdrawn_keys(quarters, latest_values.get(t, {})):   # 예전 분기 이름으로 남은 행 거둬들이기(2026-11-05)
+            to_save[k] = {"derived": WITHDRAWN}
+            stats["withdrawn"] += 1
         for (y, q), v in to_save.items():
             insert_quarter(conn, t, "US", y, q, v, "yfinance", "USD", now)
         if to_save:
