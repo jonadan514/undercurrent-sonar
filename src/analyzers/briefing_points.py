@@ -90,12 +90,20 @@ def stock_signals(b: dict, comment_8k: dict[str, str] | None = None) -> dict[tup
         put(x, -1, "termination", "공급계약 해지", "KR")
     for x in (kd.get("prelim") or {}).get("items") or []:
         turn = x.get("operating_income_yoy_turn")
+        rev = _chg_word(x.get("revenue_yoy_pct"), "매출")
         if turn:
-            put(x, 1 if "흑자" in turn and "전환" in turn else -1 if "적자" in turn else 0, "prelim", f"잠정실적 영업이익 {turn}", "KR")
+            sign = 1 if "흑자" in turn and "전환" in turn else -1 if "적자" in turn else 0
+            put(x, sign, "prelim", f"잠정실적 영업이익 {turn}", "KR")
+            if rev and sign and rev[0] != sign:   # 흑자전환인데 매출은 줄어듦 등 - 따로 세어 엇갈림으로
+                put(x, rev[0], "prelim_rev", f"잠정실적 {rev[1]}(전년 같은 분기 대비)", "KR")
             continue
         op = _chg_word(x.get("operating_income_yoy_pct"), "영업이익")
-        rev = _chg_word(x.get("revenue_yoy_pct"), "매출")
-        if op:
+        if op and rev and op[0] != rev[0]:
+            # 영업이익과 매출이 반대로 움직이면 한 신호로 묶지 않는다(2026-11-05) - 11/9 미리 보기에서 현대건설(영업이익 크게 늘어남,
+            # 매출 줄어듦)이 내부자 매수와 함께 '같은 방향 신호가 겹침'으로 묶이고 총평이 매출 감소를 빼고 "좋은 신호가 겹쳤다"고 썼다
+            put(x, op[0], "prelim", f"잠정실적 {op[1]}(전년 같은 분기 대비)", "KR")
+            put(x, rev[0], "prelim_rev", f"잠정실적 {rev[1]}(전년 같은 분기 대비)", "KR")
+        elif op:
             put(x, op[0], "prelim", f"잠정실적 {op[1]}(전년 같은 분기 대비)" + (f", {rev[1]}" if rev else ""), "KR")
         elif rev:
             put(x, 0, "prelim", f"잠정실적 {rev[1]}, 영업이익은 큰 변화 없음", "KR")

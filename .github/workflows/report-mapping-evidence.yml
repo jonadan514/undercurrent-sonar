@@ -1,0 +1,26 @@
+name: Report Mapping Evidence
+
+# 읽기 전용(2026-11-05) - 매핑 근거 글이 짧거나 상투적이거나 테마 어휘가 없는 소속 기업 목록(다음 재매핑·수동 보정용). GPT·비용 없음.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Report
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/report_mapping_evidence.py

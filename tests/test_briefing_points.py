@@ -123,3 +123,18 @@ def test_fix_passive_more():
 def test_fix_passive_drops_evaluative_tail():
     assert g.fix_passive("Intel의 내부자 매수도 주목할 만하다.") == "Intel의 내부자 매수도 있었다."
     assert g.fix_passive("실적이 눈에 띈다.") == "실적이 눈에 띈다."
+
+
+def test_prelim_profit_up_revenue_down_is_mixed():
+    """영업이익과 매출이 반대 방향이면 '같은 방향'이 아니라 '엇갈림'(2026-11-05, 11/9 미리 보기 현대건설)."""
+    b = _b(kr_disclosures={"prelim": {"items": [{"symbol": "000720", "name": "현대건설", "operating_income_yoy_pct": 120,
+                                                 "revenue_yoy_pct": -15}]}},
+           insider_week={"items": [{"market": "KR", "symbol": "000720", "name": "현대건설", "buyers": 3, "all_plan": False}]})
+    pts = bp.find_points(b, {}, {}, set())
+    p = next(x for x in pts if x["symbol"] == "000720")
+    assert p["kind"] == "mixed"
+    assert "잠정실적 매출 줄어듦(전년 같은 분기 대비)" in p["facts"]
+    # 같은 방향이면 예전처럼 한 줄
+    s = bp.stock_signals(_b(kr_disclosures={"prelim": {"items": [{"symbol": "1", "name": "A", "operating_income_yoy_pct": 40,
+                                                                    "revenue_yoy_pct": 20}]}}))
+    assert [t for _, _, t in s[("KR", "1")]["signals"]] == ["잠정실적 영업이익 크게 늘어남(전년 같은 분기 대비), 매출 늘어남"]
