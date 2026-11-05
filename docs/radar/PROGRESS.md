@@ -3636,3 +3636,13 @@ Q2 기준 데이터라 이른 상태로 보일 수 있지만 틀린 값은 아�
 ### 2026-11-05 상황 점검
 - `Report Data Health`(새, 읽기 전용): 사이트 `/api/data/health`를 Actions에서 읽어 표로 출력 - 작업 환경에서 사이트·DB에 바로 닿지 않아서. 판정 기준은 API 하나.
 - 결과: 21개 전부 정상(늦음·없음 0). 11/2 이후 정기 실행 실패 없음. 13F 최근 신고일 8/14 - 3분기 신고 기한(11/14) 전이라 정상.
+
+### 2026-11-05 사이트 둘러보기 점검
+- `Site Tour`(새, 읽기 전용, `scripts/tools/site_tour.mjs`): 14개 페이지를 PC·모바일로 열어 섹션 머리·빈 칸/오류 문구·콘솔 오류·실패 API를 로그로.
+  ubuntu-latest(26.04)는 Playwright 브라우저 미지원이라 ubuntu-24.04 고정.
+- 결과: API 실패 0, 모바일 가로 넘침 0. 개요(/)에서 React 하이드레이션 오류(#418) - 상단 명언(DailyQuote)이 시각으로 고르는데
+  미리 만든 페이지는 빌드 시각 명언이라 어긋남 → 브라우저에서만 고르게 고침. 워치리스트는 후보 전부를 한 번에 그려 높이 2.9만px.
+- 코드 점검: 안 쓰는 것 - `/api/fx/usdkrw`(옛 매수 체크), 컴포넌트 SignalBadge·StatusBadge, lib constants.ts·yahooPrice.ts,
+  src/ml 전체·build_ml_features.py(지수 예측), data_fetcher·technical_indicators·macro_collector, 표 kr_index_prediction(읽는 곳 없음),
+  스크립트 backfill_profile_sources·classify_code_files·gen_kr_stock_names·gen_theme_names(일회성). 텔레그램이 주 3번(레이더 요약·브리핑·
+  화요일 주간 요약) - 화요일 요약(관심도 상승·워치리스트 교차)은 브리핑과 겹침. 사용자 결정 대기.

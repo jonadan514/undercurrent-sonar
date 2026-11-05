@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 type Mood = "go" | "caution" | "stop" | "all";
 interface Quote { text: string; ko: string; author: string; mood: Mood }
 
@@ -72,7 +74,12 @@ function pickQuote(): Quote {
 }
 
 export default function DailyQuote() {
-  const { text, ko, author } = pickQuote();
+  // 명언은 시각으로 고르는데, 미리 만들어 둔 페이지(개요 등)는 빌드 시각의 명언을 담고 있어 브라우저 시각과 달라지면
+  // React 하이드레이션 오류(#418)가 났다(2026-11-05 사이트 둘러보기). 브라우저에서만 고른다 - 그 전엔 빈 자리.
+  const [q, setQ] = useState<Quote | null>(null);
+  useEffect(() => setQ(pickQuote()), []);
+  if (!q) return <div className="hidden lg:flex flex-1 min-w-0" />;
+  const { text, ko, author } = q;
   const accentColor = "#ffb020";
 
   return (
