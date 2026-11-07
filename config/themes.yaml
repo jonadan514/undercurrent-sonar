@@ -560,12 +560,14 @@ themes:
     keywords_en: [EV battery, cathode material, solid state battery, battery cell]
     status: active
     added_at: 2026-08-27
+    # 2026-11-07 구간 추가 (5) 폐배터리 재활용 - 성일하이텍이 들어갈 구간이 없었다(Site Check '구간 밖', 사용자 결정)
     value_chain: |
       2차전지 셀과 그 소재·장비 공급망.
       (1) 배터리 셀 제조
       (2) 양극재·음극재·전해질·분리막·동박 등 핵심소재
       (3) 배터리 제조 장비
       (4) 전고체 등 차세대 배터리 개발
+      (5) 폐배터리 재활용(리튬·니켈·코발트 등 금속 회수, 희토류·핵심광물 테마의 재활용과 동시 소속 허용)
       편입하지 않음: 반도체 기업, 완성차(전기차 밸류체인 테마로), 보험·금융사.
 
   - id: ev_value_chain
