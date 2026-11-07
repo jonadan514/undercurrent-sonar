@@ -3,7 +3,7 @@
 import { tierLabel } from "@/src/lib/valuation";
 import { classLabel } from "@/src/lib/quarterlyNames";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { externalQuoteUrl } from "@/src/components/StockLink";
+import { externalQuoteUrl, stockHref } from "@/src/components/StockLink";
 import { X, Info, Pencil, Search } from "lucide-react";
 import StockTechPanel from "@/src/components/StockTechPanel";
 import { themeName } from "@/src/lib/themeNames";
@@ -481,6 +481,9 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
             </div>
             {c.name && <p className="text-[13px] mt-0.5" style={{ color: TEXT_SECONDARY }}>{c.name}</p>}
             {c.sector && <p className="text-[12px] mt-0.5" style={{ color: TEXT_SECONDARY }}>{c.sector} · {formatCap(c.market, c.market_cap)}</p>}
+            {/* 목록을 훑을 때는 이 팝업, 한 종목을 조사할 때는 기업 카드(2026-11-07 - 팝업에서 카드로 가는 길이 없었다) */}
+            <a href={stockHref(c.market, c.symbol)} className="inline-block mt-1.5 text-[12.5px] font-semibold hover:underline" style={{ color: ACCENT }}>
+              기업 카드 전체 보기 →</a>
           </div>
           <button onClick={onClose} className="p-1" style={{ color: TEXT_SECONDARY }}><X size={18} /></button>
         </div>
@@ -1598,14 +1601,16 @@ export default function WatchlistPage() {
               <div key={item.id} style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ color: item.market === "US" ? INFO : BAD, fontSize: 11, fontWeight: 600, minWidth: 24 }}>{item.market}</span>
-                  <span style={{ fontWeight: 700, fontSize: 15, minWidth: 60, color: NUM }}>{item.symbol}</span>
+                  <a href={stockHref(item.market, item.symbol)} className="hover:underline" title="기업 카드 열기"
+                    style={{ fontWeight: 700, fontSize: 15, minWidth: 60, color: NUM }}>{item.symbol}</a>
                   {heating.has(`${item.market}:${item.symbol}`) && (
                     <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(`${item.market}:${item.symbol}`)}) · 뉴스량 기준 보조 정보`}
                       style={{ fontSize: 10, fontWeight: 700, color: BAD, border: `1px solid ${BAD}55`, padding: "1px 5px", verticalAlign: "middle" }}>
                       ▲관심
                     </span>
                   )}
-                  <span style={{ color: TEXT_SECONDARY, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name ?? ""}</span>
+                  <a href={stockHref(item.market, item.symbol)} className="hover:underline"
+                    style={{ color: TEXT_SECONDARY, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name ?? ""}</a>
                   <span style={{ color: TEXT_FAINT, fontSize: 11 }}>{item.added_at.slice(0, 10)}</span>
                   <button onClick={() => removeFromWatchlist(item.id)} style={{ background: "transparent", color: TEXT_MUTED, border: `1px solid ${BORDER_CTRL}`, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>삭제</button>
                 </div>
