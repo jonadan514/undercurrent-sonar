@@ -39,6 +39,7 @@ const DEADLINES: [number, number, string][] = [
   [11, 14, "미국 13F 3분기 마감 · 한국 3분기보고서 마감"],
 ];
 const CHECKPOINTS = [4, 12];
+const FIRST_MONTHLY = "2026-11-01";   // 월간 보고서는 10월분(11월 첫 월요일)부터 - 그 전 달 링크는 빈 화면이라 표시 안 함
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (s: string, n: number) => { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
@@ -142,6 +143,10 @@ export async function GET(req: Request) {
                     themes: [...(themesOf.get(k) ?? [])].slice(0, 3), href: `/company?stock=${encodeURIComponent(k)}` });
     }
     if (!latestRows.length) notes.push("실적 발표일 표(earnings_calendar)가 비어 있습니다.");
+    const firstFetch = (await q("SELECT MIN(fetched_on) AS f FROM earnings_calendar"))[0]?.f as string | undefined;
+    if (firstFetch && from < firstFetch) {
+      notes.push(`실적 발표일은 ${Number(firstFetch.slice(5, 7))}/${Number(firstFetch.slice(8))}부터 받기 시작해 그 전 발표는 없을 수 있습니다.`);
+    }
 
     // ── 관찰 노트 회고 도착(작성 주 + N주가 지난 다음 월요일 브리핑) ──
     for (const r of await q(`SELECT o.id, o.kind, o.market, o.theme_id, o.ticker, o.week_start,
@@ -168,7 +173,7 @@ export async function GET(req: Request) {
     const wd = new Date(`${d}T00:00:00Z`).getUTCDay();
     if (wd !== 1) continue;
     events.push({ date: d, kind: "tool", text: "주간 브리핑", href: "/briefing" });
-    if (Number(d.slice(8)) <= 7) {
+    if (Number(d.slice(8)) <= 7 && d >= FIRST_MONTHLY) {
       const pm = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
       events.push({ date: d, kind: "tool", text: `월간 보고서(${Number(pm.slice(5))}월)`, href: `/report?month=${pm}` });
     }
