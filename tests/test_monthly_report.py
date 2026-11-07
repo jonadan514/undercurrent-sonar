@@ -129,3 +129,9 @@ def test_verbatim_titles():
     t = ["패키지도 그대로 베껴… K뷰티 ‘짝퉁’ 대응 나섰다", "짧은 제목"]
     assert mr.verbatim_titles("'패키지도 그대로 베껴… K뷰티 ‘짝퉁’ 대응 나섰다'가 있었다", t) == 1
     assert mr.verbatim_titles("짝퉁 대응을 다룬 기사가 나왔다", t) == 0
+
+
+def test_missing_names_same_sentence():
+    t = "AI 반도체는 실적이 올랐다. 방산에서는 탄약 구간이 비어 있다."
+    assert mr.missing_names(t, ["방산|실적", "AI 반도체|실적"]) == ["방산"]
+    assert mr.missing_names("방산은 소속 기업 실적이 월초 오름에서 월말 보합으로 돌아섰다.", ["방산|실적"]) == []
