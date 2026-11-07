@@ -925,7 +925,8 @@ COMMENT_8K = {"3.01": "상장 관련 통지(상장 기준 미달 통보 또는 �
 
 # 데이터에 없는 효과를 짐작한 문장(11/2 미리 보기: "기관 순매수가 지수에 긍정적인 영향을 미쳤을 것") - 프롬프트로 막아도 새어 나와 코드로 뺀다
 _SPECULATION_RE = re.compile(r"영향을\s*(미쳤|미친|미칠|줬|준|줄|주었)|(긍정적|부정적|우호적|호재|악재)(인|으로|이다|입니다)?|기여(했|한|할)|덕분|때문|끌어올|끌어내|견인|이끌|이로 인해|그로 인해|그 결과|시사(한다|하는|했다)|보여준다|의미한다|방증"
-                             r"|주목할\s*만|눈여겨볼|(^|\s)이는\s|미칠\s*영향")   # 11/5 미리 보기: "이는 주목할 만한 변화이다", "매출 감소가 실적에 미칠 영향"
+                             r"|주목할\s*만|눈여겨볼|(^|\s)이는\s|미칠\s*영향"
+                             r"|주목(받|된|되|을\s*받|할\s*(일정|대목|부분))|관심을\s*끌|기대를\s*모")   # 11/7 월간 보고서: "주목할 일정이다", "주목받았다"   # 11/5 미리 보기: "이는 주목할 만한 변화이다", "매출 감소가 실적에 미칠 영향"
 
 # 한국어 조사: 받침 있는 말 뒤 / 없는 말 뒤
 _PARTICLES = (("이", "가"), ("은", "는"), ("을", "를"), ("과", "와"))
@@ -1233,7 +1234,13 @@ JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next
 
 문체 - 경제 신문의 시황·종목 기사처럼:
 - 기사체 평서문 "~했다", "~이다", "~모습이다"로 끝냅니다("~습니다" 쓰지 않음). 추측은 "~로 보인다" 정도만.
-- 첫 문장에 요점을 먼저(두괄식). 한 문장에 한 가지 사실, 문장은 짧게.
+- 첫 문장에 요점을 먼저(두괄식). 그다음 관련 사실 두세 개는 "~했고", "~한 반면", "~하면서", "~과 달리", "한편" 같은 연결어로 엮는다.
+  짧은 과거형 문장을 끊어서 나열하지 않는다("맞았다. 조용했다. 올랐다."처럼 읽으면 어색하다 - 11/7 사용자).
+- 문장 끝을 다양하게: "~로 돌아섰다", "~가 이어졌다", "~이 붙었다", "~에 이름을 올렸다", "~에서 빠졌다", "~가 예정돼 있다" 등.
+  같은 끝맺음("~했다", "~였다", "~맞았다")을 두 문장 연달아 쓰지 않는다.
+- 실적 이야기에는 '실적'을 꼭 넣는다("조선은 오름세로 돌아섰다"만 쓰면 주가 얘기로 읽힌다 → "조선은 소속 기업 실적이 오름으로 돌아섰다").
+- 한 문장에 주어를 둘 겹치지 않는다("가나테마가 실적이 …" 대신 "가나테마는 실적이 …").
+- 관찰 노트는 "'뉴스가 늘 것'이라고 적어 둔 기대가 맞았다/빗나갔다"처럼 결과를 분명히. "기대가 유지되었다"처럼 맞았는지 흐려지는 말은 쓰지 않는다.
 - 피동·번역투를 쓰지 않습니다: "분류됐다"·"분류되었다" 대신 "라벨이 붙었다", "나타났다"는 되도록 피하고 무엇이 어떻게 됐는지 바로.
   "~의 경우", "~에 있어서", "~를 보였다", "~세를 보였다"는 쓰지 않습니다.
 - 문단을 소제목 이름으로 시작하지 마세요(제목이 이미 위에 있음). "좋은 신호와 주의할 신호" 같은 설명문 대신 무엇과 무엇이 엇갈렸는지 직접.
@@ -1245,29 +1252,57 @@ JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next
   next 예: "가나테마 주가가 실적을 따라 오를지", "다라전자 관심도가 다음 주에도 이어질지"
 
 - 관련 기사 제목은 참고만: 어떤 주제의 보도가 이어졌는지 한 구절로 덧붙일 수 있습니다(예: "수출 확대 관련 보도도 이어졌다").
-  기사 제목을 그대로 옮기지 말고, 제목 속 숫자·전망·원인 해석은 쓰지 마세요. 기사는 화면에 링크로 따로 붙습니다.
+  기사 제목을 따옴표째 옮기지 말고 무엇을 다룬 기사인지 짧은 우리말로(영어 제목도 우리말로), 제목 속 숫자·전망·원인 해석·매수 권유는 쓰지 마세요.
+  기사는 화면에 링크로 따로 붙습니다.
 - 제목은 쓰지 마세요(코드가 붙입니다). 늘고 줄어든 것은 사실에 적힌 크기(크게·소폭)를 그대로 살리고, 좋다·나쁘다로 바꾸지 마세요.
 - 사실에 없는 원인·효과·전망은 쓰지 마세요("영향", "때문", "덕분", "이로 인해", "긍정적", "부정적" 금지).
   "이는 ~을 시사한다/보여준다/의미한다" 같은 해석 맺음 문장도 쓰지 마세요.
 - 숫자(%·금액·건수)는 쓰지 마세요. 이름은 적힌 글자 그대로. 매수·매도 권유 금지."""
 
-    try:
-        resp = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=build_payload(model_for("briefing_comment"),
-                               "당신은 경제 신문 증권부 기자입니다. 주어진 사실만으로 짧고 자연스러운 기사체 문장을 쓰고, 사실 사이의 관계를 짚습니다.",
-                               prompt, max_output_tokens=2000, temperature=0.4),
-            timeout=90,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["choices"][0]["message"]["content"].strip()
-        _LAST_RAW_COMMENT[0] = raw   # 미리 보기에서 뒷손질 전후를 비교하려고
-        data = json.loads(raw)
-        return assemble_comment(str(data.get("market") or ""), list(data.get("points") or []), points)
-    except Exception as e:
-        logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
-        return ""
+    titles = [n["title"] for p in points for n in (p.get("news") or [])]
+    best, best_key = "", None
+    for attempt in range(2):   # 같은 끝맺음이 이어지거나 기사 제목을 그대로 옮기면 한 번 더 받아 나은 쪽(11/7 월간 보고서에서 옮김)
+        try:
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=build_payload(model_for("briefing_comment"),
+                                   "당신은 경제 신문 증권부 기자입니다. 주어진 사실만으로 자연스럽게 읽히는 기사체 문장을 쓰고, 사실 사이의 관계를 짚습니다.",
+                                   prompt, max_output_tokens=2000, temperature=0.4),
+                timeout=90,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            _LAST_RAW_COMMENT[0] = raw   # 미리 보기에서 뒷손질 전후를 비교하려고
+            data = json.loads(raw)
+            text = assemble_comment(str(data.get("market") or ""), list(data.get("points") or []), points)
+        except Exception as e:
+            logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
+            continue
+        rep, vt = repeat_endings(text), verbatim_titles(text, titles)
+        logger.info("총평 %d차: 같은 끝맺음 연속 %d곳, 기사 제목 그대로 %d곳", attempt + 1, rep, vt)
+        k = (-vt, -rep)
+        if best_key is None or k > best_key:
+            best, best_key = text, k
+        if vt == 0 and rep <= 1:
+            break
+    return best
+
+
+def repeat_endings(text: str) -> int:
+    """앞 문장과 끝맺음(마지막 세 글자)이 같은 문장 수 - ■ 소제목 줄·'→ 이어서 볼 것' 줄은 빼고 문단마다."""
+    n = 0
+    for para in text.split("\n"):
+        if not para.strip() or para.startswith(("■", "→")):
+            continue
+        ends = [x.strip()[-4:-1] for x in re.split(r"(?<=다\.)\s+", para.strip()) if x.strip()]
+        n += sum(1 for a, b in zip(ends, ends[1:]) if a == b)
+    return n
+
+
+def verbatim_titles(text: str, titles: list[str]) -> int:
+    """기사 제목을 통째로 옮긴 곳 수(제목 앞 열두 글자가 그대로 들어 있으면)."""
+    return sum(1 for t in titles if len(t) >= 12 and t[:12] in text)
 
 
 # ── 텔레그램 요약 ────────────────────────────────────────────────────────────

@@ -144,3 +144,15 @@ def test_strip_speculation_interpretive_closings():
     t = "롯데정밀화학은 영업이익이 줄었지만 매출은 늘었다. 이는 주목할 만한 변화이다."
     assert g.strip_speculation(t) == "롯데정밀화학은 영업이익이 줄었지만 매출은 늘었다."
     assert g.strip_speculation("현대건설의 매출 감소가 실적에 미칠 영향이 지속될지") == ""
+
+
+def test_comment_style_checks():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import generate_weekly_briefing as wb
+    t = "■ 시장 분위기\n가가 맞았다. 나나 맞았다. 다다로 돌아섰다.\n→ 이어서 볼 것: 라라가 이어질지"
+    assert wb.repeat_endings(t) == 1
+    assert wb.strip_speculation("Apple 실적 발표도 주목할 일정이다. 조선은 실적이 올랐다.") == "조선은 실적이 올랐다."
+    assert wb.strip_speculation("가나테마는 시장의 주목을 받았다. 실적이 늘었다.") == "실적이 늘었다."
+    assert wb.verbatim_titles("'패키지도 그대로 베껴… K뷰티 짝퉁' 기사", ["패키지도 그대로 베껴… K뷰티 ‘짝퉁’ 대응 나섰다"]) == 1
