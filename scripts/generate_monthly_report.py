@@ -640,8 +640,10 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None,
         log(f"다듬기 실패 {type(e).__name__} - 초안 사용")
         return best
     log(f"다듬기: {len(polished)}자 {sentence_count(polished)}문장, 같은 끝맺음 연속 {repeat_endings(polished)}곳 (초안 {repeat_endings(best)}곳)")
-    log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}, 제목 그대로 {verbatim_titles(polished, titles or [])}곳")
-    if (polished.count("\n\n") != best.count("\n\n") or len(polished) < len(best) * 0.75
+    np_, nb = len(polished.split("\n\n")), len(best.split("\n\n"))
+    log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}, 제목 그대로 {verbatim_titles(polished, titles or [])}곳, "
+        f"문단 {np_}(초안 {nb})")
+    if (np_ != nb or len(polished) < len(best) * 0.75
             or len(missing_names(polished, required)) > len(missing_names(best, required))
             or verbatim_titles(polished, titles or []) > verbatim_titles(best, titles or [])):
         log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠져 초안 사용")
