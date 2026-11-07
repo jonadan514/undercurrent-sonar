@@ -105,3 +105,14 @@ def test_review_sentence_and_market_split():
     f = mr.summary_facts(r)
     kr, us = f.index("[테마 - 한국]"), f.index("[테마 - 미국]")
     assert kr < f.index("한국 조선 실적 축: 첫 주 보합 → 마지막 주 오름") < us < next(i for i, x in enumerate(f) if x.startswith("미국 AI 소프트웨어"))
+
+
+def test_market_lead():
+    W = [{"combos": ["긴축 압력"]}, {"combos": ["위험 회피"]}, {"combos": ["위험 회피"]}]
+    K = [{"combos": []}, {"combos": ["위험 회피"]}, {"combos": ["위험 회피"]}]
+    assert mr.market_lead({"regime": {"US": W, "KR": K}}) == (
+        "이달 미국 시장은 첫째 주 '긴축 압력'에서 둘째 주부터 '위험 회피'로 바뀌었고, "
+        "한국 시장은 첫째 주에는 뚜렷한 조합이 없다가 둘째 주부터 '위험 회피'가 이어졌다.")
+    assert mr.market_lead({"regime": {"US": K, "KR": K}}).startswith("이달 미국과 한국 시장은 모두 첫째 주에는")
+    assert mr.lead_flow(["위험 회피", "위험 회피", "긴축 압력"]) == "첫째 주부터 둘째 주까지 '위험 회피'에서 셋째 주에 '긴축 압력'으로 바뀌었다"
+    assert mr.market_lead({"regime": {}}) == ""

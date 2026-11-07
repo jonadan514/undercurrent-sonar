@@ -417,6 +417,53 @@ def review_sentence(kind: str, y: dict) -> str:
     return f"'{want}'이라고 적어 둔 기대는 데이터가 모자라 판단하지 못했다"
 
 
+def _ro(word: str) -> str:
+    """'(으)로' - 받침 있으면 '으로'(ㄹ 받침은 '로')."""
+    ch = (word or " ")[-1]
+    if "가" <= ch <= "힣":
+        jong = (ord(ch) - 0xAC00) % 28
+        return "으로" if jong not in (0, 8) else "로"
+    return "로"
+
+
+def lead_flow(seq: list[str]) -> str:
+    """시장 환경 흐름을 요약 첫 문장용으로 짧게: "첫째 주 '긴축 압력'에서 둘째 주부터 '위험 회피'로 바뀌었다"."""
+    runs: list[list] = []
+    for i, c in enumerate(seq):
+        if runs and runs[-1][0] == c:
+            runs[-1][2] += 1
+        else:
+            runs.append([c, i, 1])
+    if not runs:
+        return ""
+    if len(runs) == 1:
+        c = runs[0][0]
+        return f"한 달 내내 '{c}'{_josa(c, '이가')} 이어졌다" if c else "한 달 내내 뚜렷한 조합이 없었다"
+    if len(runs) == 2:
+        (c1, _, n1), (c2, s2, n2) = runs
+        head = ORD[0] if n1 == 1 else f"{ORD[0]}부터 {ORD[n1 - 1]}까지"
+        tail = f"{ORD[s2]}부터" if n2 > 1 else f"{ORD[s2]}에"
+        if c1 and c2:
+            return f"{head} '{c1}'에서 {tail} '{c2}'{_ro(c2)} 바뀌었다"
+        if c2:
+            return f"{head}에는 뚜렷한 조합이 없다가 {tail} '{c2}'{_josa(c2, '이가')} {'이어졌다' if n2 > 1 else '붙었다'}"
+        return f"{head} '{c1}'{_josa(c1, '이가')} 이어진 뒤 {tail}는 뚜렷한 조합이 없었다"
+    return regime_flow(seq)
+
+
+def market_lead(r: dict) -> str:
+    """요약 첫 문장(시장 환경)은 코드가 쓴다 - GPT가 두 나라 흐름을 '긴축 압력과 위험 회피라는 흐름'처럼 뭉개 틀리게 썼다(11/7).
+    정해진 조합 이름과 주 순서만 쓰고 숫자·해석은 없다."""
+    flows = {mk: lead_flow([", ".join(w["combos"]) for w in r["regime"].get(mk) or []]) for mk in ("US", "KR")}
+    us, kr = flows["US"], flows["KR"]
+    if us and kr:
+        if us == kr:
+            return f"이달 미국과 한국 시장은 모두 {us}."
+        return f"이달 미국 시장은 {us[:-1]}고, 한국 시장은 {kr}."
+    one = us or kr
+    return f"이달 {'미국' if us else '한국'} 시장은 {one}." if one else ""
+
+
 def summary_facts(r: dict) -> list[str]:
     """요약에 넘길 사실 - 칸 순서대로 [머리]를 붙여 묶는다. 숫자는 넘기지 않는다(기사 제목 속 숫자는 문장째 걸러진다)."""
     facts: list[str] = []
@@ -529,7 +576,7 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
     model = model_for("briefing_comment")
     prompt = (f"{month} 한 달 동안 리서치 도구에 쌓인 사실입니다. [ ]는 묶음 이름입니다.\n" + "\n".join(f if f.startswith("[") else f"- {f}" for f in facts) +
               "\n\n이 사실만으로 월간 보고서 첫머리 요약을 문단 셋으로 쓰세요.\n"
-              "1문단: 시장 환경 흐름(미국·한국)과 테마 흐름(라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 테마마다 방향까지, "
+              "1문단: 테마 흐름(시장 환경 문장은 코드가 문단 맨 앞에 따로 붙이니 쓰지 말고, '테마별로는'이나 '한국에서는'처럼 테마부터 시작한다. 라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 테마마다 방향까지, "
               "주요 기사 제목이 다룬 내용). 테마는 [테마 - 한국]과 [테마 - 미국]을 따로 문장으로 쓰고, 한 문장에 두 나라 테마를 섞지 않는다"
               "('한국에서는 …', '미국에서는 …'처럼).\n"
               "2문단: 기업 지도와 워치리스트(소속 기업에 생긴 일, 비어 있는 구간, 목록에 새로 든 곳·빠진 곳).\n"
@@ -646,7 +693,11 @@ def build(month: str, use_gpt: bool = True) -> dict:
     if r["calendar"]["deadlines"]:
         req.append("마감")
     req += [x["name"] for x in r["calendar"]["earnings"] if "내 관심" in x["tags"]][:1]
-    r["summary"] = gpt_summary(r["summary_facts"], month, req) if use_gpt else ""
+    # 시장 환경은 market_lead가 쓰니 GPT에는 넘기지 않는다(두 번 쓰거나 뭉갠다)
+    gpt_facts = [f for f in r["summary_facts"] if not (f == "[시장]" or f.startswith(("미국 시장 환경", "한국 시장 환경")))]
+    body = gpt_summary(gpt_facts, month, req) if use_gpt else ""
+    lead = market_lead(r)
+    r["summary"] = (f"{lead} {body}" if lead else body) if body else ""
     return r
 
 
