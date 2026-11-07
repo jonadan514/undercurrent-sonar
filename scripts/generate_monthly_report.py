@@ -364,6 +364,10 @@ def regime_flow(seq: list[str]) -> str:
     return " → ".join(out)
 
 
+# 투자 권유·종목 추천 꼴 제목은 요약에 넘기지 않는다(화면 뉴스 칸에는 원문 그대로) - '저가매수 기회'가 요약에 옮겨 왔다(11/7)
+_ADVICE_RE = re.compile(r"매수|매도|저가|기회|추천|유망|사야|팔아|\bbuy\b|\bsell\b|\bavoid\b|opportunit|could be worth|stocks? to|\bI'd\b", re.I)
+
+
 def summary_facts(r: dict) -> list[str]:
     """요약에 넘길 사실 - 칸 순서대로 [머리]를 붙여 묶는다. 숫자는 넘기지 않는다(기사 제목 속 숫자는 문장째 걸러진다)."""
     facts: list[str] = []
@@ -386,7 +390,7 @@ def summary_facts(r: dict) -> list[str]:
     for t in r["themes"]["earn_turns"][:6]:
         facts.append(f"{t['theme']}({MK[t['market']]}) 실적 축: 첫 주 {ARROW_KO.get(t['from'], t['from'])} → 마지막 주 {ARROW_KO.get(t['to'], t['to'])}")
     for n in (r.get("news") or [])[:6]:
-        titles = [a["title"] for a in n["articles"][:2]]
+        titles = [a["title"] for a in n["articles"] if not _ADVICE_RE.search(a["title"])][:2]
         if titles:
             facts.append(f"{n['theme']}({MK[n['market']]}) 이달 주요 기사 제목: " + " / ".join(f"'{x}'" for x in titles))
     facts.append("[기업]")
@@ -439,7 +443,7 @@ STYLE = (
     "- '뉴스↑', '실적↑ 유지' 같은 기호는 '뉴스가 늘 것이라는 기대', '실적 개선이 이어질 것이라는 기대'처럼 말로 푼다.\n"
     "- 라벨('숨은 강세' 등)과 시장 환경 조합('위험 회피' 등), 회사·테마 이름은 바꾸지 않는다.\n"
 )
-RULES = ("[지킬 것] 위 사실에 없는 내용은 쓰지 않는다. 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다/눈여겨볼' 같은 평가를 "
+RULES = ("[지킬 것] 위 사실에 없는 내용은 쓰지 않는다. 기사 제목 속 매수·매도·투자 기회 같은 표현은 옮기지 않는다. 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다/눈여겨볼' 같은 평가를 "
          "쓰지 않는다. 숫자는 쓰지 않는다. 존댓말이 아닌 '~다' 기사체.\n")
 
 

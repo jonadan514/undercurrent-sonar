@@ -79,3 +79,10 @@ def test_event_list_order_and_sentence_count():
 def test_repeat_endings():
     assert mr.repeat_endings("가가 맞았다. 나나 맞았다. 다다로 돌아섰다.") == 1
     assert mr.repeat_endings("가가 맞았다.\n\n나나 맞았다.") == 0
+
+
+def test_advice_titles_not_passed_to_summary():
+    assert mr._ADVICE_RE.search("K뷰티 주가 조정 끝물?…'이 기업' 저가매수 기회")
+    assert mr._ADVICE_RE.search("Semiconductor Sell-Off: The 1 AI Chip Stock I'd Buy and 1 I'd Avoid")
+    assert not mr._ADVICE_RE.search("금호석유화학그룹, R&D 사활…고부가 소재·배터리 만든다")
+    assert not mr._ADVICE_RE.search("Consumer AI agents could upend online shopping")
