@@ -123,3 +123,9 @@ def test_when_in_month():
     assert mr.when_in_month(W, "2026-10-26") == "월말(넷째 주)"
     assert mr.when_in_month(W, "2026-10-05") == "월초(첫째 주)"
     assert mr.when_in_month(W, "2026-10-12") == "월중(둘째 주)"
+
+
+def test_verbatim_titles():
+    t = ["패키지도 그대로 베껴… K뷰티 ‘짝퉁’ 대응 나섰다", "짧은 제목"]
+    assert mr.verbatim_titles("'패키지도 그대로 베껴… K뷰티 ‘짝퉁’ 대응 나섰다'가 있었다", t) == 1
+    assert mr.verbatim_titles("짝퉁 대응을 다룬 기사가 나왔다", t) == 0

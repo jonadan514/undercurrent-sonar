@@ -553,6 +553,8 @@ STYLE = (
     "- '첫 주/마지막 주'는 '월초', '월말'로 바꿔 쓴다. 한 주에만 붙은 라벨을 '달 내내', '한 달 동안'처럼 늘려 쓰지 않는다.\n"
     "- '(한국)', '(미국)' 괄호 대신 '한국의 K-뷰티', '미국 방산'처럼 말 속에 넣는다.\n"
     "- '뉴스↑', '실적↑ 유지' 같은 기호는 '뉴스가 늘 것이라는 기대', '실적 개선이 이어질 것이라는 기대'처럼 말로 푼다.\n"
+    "- 기사 제목은 따옴표로 그대로 옮기지 않는다. 무엇을 다룬 기사인지 짧게 우리말로 풀어 쓴다"
+    "(예: '짝퉁 대응과 에이피알의 성장 비결을 다룬 기사가 나왔다', '엔비디아의 중국 시장 상실을 다룬 기사가 있었다'). 영어 제목도 우리말로.\n"
     "- 라벨('숨은 강세' 등)과 시장 환경 조합('위험 회피' 등), 회사·테마 이름은 바꾸지 않는다.\n"
 )
 RULES = ("[지킬 것] 위 사실에 없는 내용은 쓰지 않는다. 기사 제목 속 매수·매도·투자 기회 같은 표현은 옮기지 않는다. 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다/눈여겨볼' 같은 평가를 "
@@ -578,7 +580,12 @@ def missing_names(text: str, names_: list[str]) -> list[str]:
     return [n for n in names_ if n and n not in text]
 
 
-def gpt_summary(facts: list[str], month: str, required: list[str] | None = None) -> str:
+def verbatim_titles(text: str, titles: list[str]) -> int:
+    """기사 제목을 통째로 옮긴 곳 수(제목 앞 열두 글자가 그대로 들어 있으면) - 내용만 짧게 쓰라고 했다(11/7 사용자)."""
+    return sum(1 for t in titles if len(t) >= 12 and t[:12] in text)
+
+
+def gpt_summary(facts: list[str], month: str, required: list[str] | None = None, titles: list[str] | None = None) -> str:
     """문단 셋(시장·테마 / 기업·워치리스트 / 회고·다음 달). 초안 → 다듬기 두 번 호출. 문단은 빈 줄로 구분해 저장."""
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key or not facts:
@@ -607,11 +614,12 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
             continue
         text = "\n\n".join(_clean_paras(out))
         miss = missing_names(text, required)
-        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장, 빠진 테마 {miss or '없음'}")
-        k = (-len(miss), len(text))
+        vt = verbatim_titles(text, titles or [])
+        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장, 빠진 테마 {miss or '없음'}, 제목 그대로 {vt}곳")
+        k = (-len(miss), -vt, len(text))
         if best_key is None or k > best_key:
             best, best_key = text, k
-        if not miss and len(text) >= MIN_CHARS:
+        if not miss and not vt and len(text) >= MIN_CHARS:
             break
     if not best:
         return ""
@@ -619,6 +627,8 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
     edit = ("아래는 월간 리서치 보고서 요약 초안입니다. 데스크 기자로서 문장만 다듬으세요. 사실을 더하거나 빼지 말고, "
             "문단 수와 문단별 내용은 그대로 둡니다. 특히 짧은 문장이 같은 끝맺음으로 이어지는 곳을 연결어로 엮고, 끝맺음을 다양하게 바꾸세요.\n\n"
             + STYLE + RULES
+            + ("\n초안에 기사 제목을 따옴표째 옮긴 곳이 있으면 무엇을 다룬 기사인지 짧은 우리말로 바꾸세요.\n"
+               if verbatim_titles(best, titles or []) else "")
             + (f"\n초안에 빠진 것: {', '.join(missing_names(best, required))} - 아래 사실에서 찾아 알맞은 문단에 한 문장씩 넣으세요(이것만은 더해도 됩니다).\n"
                if missing_names(best, required) else "")
             + "\n[초안]\n" + best + "\n\n[참고 - 초안이 근거로 삼은 사실]\n" + "\n".join(f for f in facts if not f.startswith("[")) +
@@ -630,9 +640,10 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
         log(f"다듬기 실패 {type(e).__name__} - 초안 사용")
         return best
     log(f"다듬기: {len(polished)}자 {sentence_count(polished)}문장, 같은 끝맺음 연속 {repeat_endings(polished)}곳 (초안 {repeat_endings(best)}곳)")
-    log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}")
+    log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}, 제목 그대로 {verbatim_titles(polished, titles or [])}곳")
     if (polished.count("\n\n") != best.count("\n\n") or len(polished) < len(best) * 0.75
-            or len(missing_names(polished, required)) > len(missing_names(best, required))):
+            or len(missing_names(polished, required)) > len(missing_names(best, required))
+            or verbatim_titles(polished, titles or []) > verbatim_titles(best, titles or [])):
         log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠져 초안 사용")
         return best
     return polished
@@ -710,7 +721,8 @@ def build(month: str, use_gpt: bool = True) -> dict:
     req += [x["name"] for x in r["calendar"]["earnings"] if "내 관심" in x["tags"]][:1]
     # 시장 환경은 market_lead가 쓰니 GPT에는 넘기지 않는다(두 번 쓰거나 뭉갠다)
     gpt_facts = [f for f in r["summary_facts"] if not (f == "[시장]" or f.startswith(("미국 시장 환경", "한국 시장 환경")))]
-    body = gpt_summary(gpt_facts, month, req) if use_gpt else ""
+    titles = [a["title"] for n in r["news"] for a in n["articles"]]
+    body = gpt_summary(gpt_facts, month, req, titles) if use_gpt else ""
     lead = market_lead(r)
     r["summary"] = (f"{lead} {body}" if lead else body) if body else ""
     return r
