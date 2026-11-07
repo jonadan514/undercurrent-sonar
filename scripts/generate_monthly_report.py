@@ -643,7 +643,7 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None,
     np_, nb = len(polished.split("\n\n")), len(best.split("\n\n"))
     log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}, 제목 그대로 {verbatim_titles(polished, titles or [])}곳, "
         f"문단 {np_}(초안 {nb})")
-    if (np_ != nb or len(polished) < len(best) * 0.75
+    if (np_ not in (nb, nb + 1) or len(polished) < len(best) * 0.75   # 긴 1문단을 한국·미국으로 나눠 한 문단 늘리는 건 받는다
             or len(missing_names(polished, required)) > len(missing_names(best, required))
             or verbatim_titles(polished, titles or []) > verbatim_titles(best, titles or [])):
         log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠져 초안 사용")
