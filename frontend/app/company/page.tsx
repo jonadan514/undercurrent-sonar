@@ -102,7 +102,7 @@ function QuarterTable({ quarters, market }: { quarters: Quarter[]; market: strin
 }
 
 // 반대 의견·악재 기사(2026-11-07, 가이드 2-6) - 구글 뉴스 최근 60일에서 부정 낱말이 든 제목만(/api/company/news). GPT 없음.
-type Contra = { title: string; url: string; source: string; date: string; words: string[] };
+type Contra = { title: string; url: string; source: string; date: string; words: string[]; price_only?: boolean };
 function ContraNews({ stock, market }: { stock: string; market: string }) {
   const [r, setR] = useState<{ query: string; days?: number; total: number | null; items: Contra[]; search_url: string; error?: string } | null | undefined>(undefined);
   useEffect(() => {
@@ -129,7 +129,7 @@ function ContraNews({ stock, market }: { stock: string; market: string }) {
               <span className="shrink-0 w-11 text-[11.5px]" style={{ color: FAINT, fontVariantNumeric: "tabular-nums" }}>{x.date ? md(x.date) : ""}</span>
               <span className="min-w-0">
                 <a href={x.url} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: SECONDARY }}>{x.title}</a>
-                <span className="ml-1.5 text-[11px]" style={{ color: FAINT }}>{x.source}{market === "US" && x.words.length ? ` · ${x.words.join(", ")}` : ""}</span>
+                <span className="ml-1.5 text-[11px]" style={{ color: FAINT }}>{x.source}{x.price_only ? " · 주가 등락" : market === "US" && x.words.length ? ` · ${x.words.join(", ")}` : ""}</span>
               </span>
             </li>
           ))}
@@ -137,7 +137,7 @@ function ContraNews({ stock, market }: { stock: string; market: string }) {
       )}
       {r && (
         <p className="mt-1.5 text-[11px]" style={{ color: FAINT }}>
-          제목에 정해 둔 낱말(하락·우려·소송·하향·downgrade 등)이 있는 것만 원문 그대로 - 요약·판단이 아닙니다. 증권사 리포트의 반대 의견은 직접 찾아보세요 ·{" "}
+          제목에 회사 이름과 정해 둔 낱말(우려·소송·하향·중단·downgrade 등)이 있는 것만 원문 그대로 - 요약·판단이 아닙니다. 주가 등락만 다룬 기사는 뒤에 2건까지, 같은 날 같은 사건은 1건. 증권사 리포트의 반대 의견은 직접 찾아보세요 ·{" "}
           <a href={r.search_url} target="_blank" rel="noopener noreferrer" className="underline">&ldquo;{r.query}&rdquo; 기사 전체 보기 ↗</a>
         </p>
       )}

@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (U-Sonar research)" }, next: { revalidate: 21600 } });
     if (!res.ok) return NextResponse.json({ query: name, total: null, items: [], search_url: searchUrl, error: `뉴스 응답 ${res.status}` });
     const all = parseRss(await res.text());
-    return NextResponse.json({ query: name, days: DAYS, total: all.length, items: pickContra(all, market), search_url: searchUrl });
+    return NextResponse.json({ query: name, days: DAYS, total: all.length, items: pickContra(all, market, 6, name, symbol), search_url: searchUrl });
   } catch (err) {
     console.error("[api/company/news] error:", err);
     return NextResponse.json({ query: name, total: null, items: [], search_url: searchUrl, error: "뉴스를 받지 못함" });
