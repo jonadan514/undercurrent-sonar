@@ -154,12 +154,23 @@ def news_section(themes: list[dict], weeks: list[str], members: dict, nm: dict[s
     from src.analyzers.briefing_news import pick_headlines
     out = []
     for t in themes[:MAX_THEMES]:
-        rows = wb.turso_exec("SELECT title, url, source, published_at FROM theme_news WHERE theme_id = ? AND market = ? AND week_start IN ("
-                             + ",".join("?" * len(weeks)) + ") ORDER BY published_at DESC LIMIT 600", [t["theme_id"], t["market"], *weeks])
+        # 주마다 따로 골라 한 달에 고르게(예전엔 최근 600건에서 골라 마지막 주 기사만 나왔고, 건수도 600에서 잘렸다)
         core, minor = wb.theme_keywords(t["theme_id"], [t["market"]])
         mem = wb._clean_names(nm.get(f"{t['market']}:{s}") or "" for s in members.get((t["market"], t["theme_id"])) or [])
-        picked = pick_headlines(rows, [], mem, n=NEWS_PER_THEME, keywords=core, minor_keywords=minor)
-        out.append({"theme_id": t["theme_id"], "theme": t["theme"], "market": t["market"], "articles": picked, "total": len(rows)})
+        picked, seen = [], set()
+        per_week = max(1, -(-NEWS_PER_THEME // max(1, len(weeks))))
+        for w in weeks:
+            rows = wb.turso_exec("SELECT title, url, source, published_at FROM theme_news WHERE theme_id = ? AND market = ? AND week_start = ? "
+                                 "ORDER BY published_at DESC LIMIT 300", [t["theme_id"], t["market"], w])
+            for a in pick_headlines(rows, [], mem, n=per_week + 1, keywords=core, minor_keywords=minor):
+                if a["url"] not in seen and a["title"] not in seen and sum(1 for x in picked if x.get("_w") == w) < per_week:
+                    seen.update((a["url"], a["title"]))
+                    picked.append({**a, "_w": w})
+        picked = [{k: v for k, v in a.items() if k != "_w"} for a in picked][:max(NEWS_PER_THEME, len(weeks))]
+        cnt = wb.turso_exec("SELECT COUNT(*) AS n FROM theme_news WHERE theme_id = ? AND market = ? AND week_start IN ("
+                            + ",".join("?" * len(weeks)) + ")", [t["theme_id"], t["market"], *weeks])
+        out.append({"theme_id": t["theme_id"], "theme": t["theme"], "market": t["market"], "articles": picked,
+                    "total": int(cnt[0]["n"]) if cnt else len(picked)})
     return out
 
 
