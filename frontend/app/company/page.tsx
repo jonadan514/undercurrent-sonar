@@ -101,6 +101,50 @@ function QuarterTable({ quarters, market }: { quarters: Quarter[]; market: strin
   );
 }
 
+// 반대 의견·악재 기사(2026-11-07, 가이드 2-6) - 구글 뉴스 최근 60일에서 부정 낱말이 든 제목만(/api/company/news). GPT 없음.
+type Contra = { title: string; url: string; source: string; date: string; words: string[] };
+function ContraNews({ stock, market }: { stock: string; market: string }) {
+  const [r, setR] = useState<{ query: string; days?: number; total: number | null; items: Contra[]; search_url: string; error?: string } | null | undefined>(undefined);
+  useEffect(() => {
+    let cancel = false;
+    fetch(`/api/company/news?stock=${encodeURIComponent(stock)}`).then((x) => x.json())
+      .then((j) => { if (!cancel) setR(j && Array.isArray(j.items) ? j : null); }).catch(() => { if (!cancel) setR(null); });
+    return () => { cancel = true; };
+  }, [stock]);
+  return (
+    <div className="mt-3 rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      <p className="text-[12.5px] font-semibold" style={{ color: SECONDARY }}>
+        반대 의견·악재 기사 <span className="font-normal text-[11.5px]" style={{ color: FAINT }}>
+          — 최근 {r?.days ?? 60}일 기사 중 부정적인 낱말이 든 제목{r?.total != null ? ` (${r.total}건 중 ${r.items.length}건)` : ""}</span>
+      </p>
+      {r === undefined && <p className="mt-1 text-[12px]" style={{ color: MUTED }}>불러오는 중...</p>}
+      {r === null && <p className="mt-1 text-[12px]" style={{ color: MUTED }}>기사를 받지 못했습니다.</p>}
+      {r && r.items.length === 0 && (
+        <p className="mt-1 text-[12px]" style={{ color: MUTED }}>{r.error ? `기사를 받지 못했습니다(${r.error}).` : "걸리는 제목이 없습니다 - 반대 의견이 없다는 뜻은 아닙니다."}</p>
+      )}
+      {r && r.items.length > 0 && (
+        <ul className="mt-1.5 space-y-1 text-[12.5px]">
+          {r.items.map((x) => (
+            <li key={x.url} className="flex gap-2 min-w-0">
+              <span className="shrink-0 w-11 text-[11.5px]" style={{ color: FAINT, fontVariantNumeric: "tabular-nums" }}>{x.date ? md(x.date) : ""}</span>
+              <span className="min-w-0">
+                <a href={x.url} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: SECONDARY }}>{x.title}</a>
+                <span className="ml-1.5 text-[11px]" style={{ color: FAINT }}>{x.source}{market === "US" && x.words.length ? ` · ${x.words.join(", ")}` : ""}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {r && (
+        <p className="mt-1.5 text-[11px]" style={{ color: FAINT }}>
+          제목에 정해 둔 낱말(하락·우려·소송·하향·downgrade 등)이 있는 것만 원문 그대로 - 요약·판단이 아닙니다. 증권사 리포트의 반대 의견은 직접 찾아보세요 ·{" "}
+          <a href={r.search_url} target="_blank" rel="noopener noreferrer" className="underline">&ldquo;{r.query}&rdquo; 기사 전체 보기 ↗</a>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CompanyView() {
   const stock = useSearchParams().get("stock") ?? "";
   const [d, setD] = useState<Company | null | undefined>(undefined);
@@ -245,7 +289,8 @@ function CompanyView() {
                 <span style={{ color: SECONDARY }}>{x.text}<span className="ml-1.5 text-[11.5px]" style={{ color: FAINT }}>{x.why}</span></span></li>
             ))}
           </ul>
-        ) : <p className="text-[12.5px]" style={{ color: MUTED }}>저장된 데이터에서 걸리는 것은 없습니다. 반대 의견은 증권사 리포트·기사에서 직접 찾아보세요(가이드 2-6).</p>}
+        ) : <p className="text-[12.5px]" style={{ color: MUTED }}>저장된 데이터에서 걸리는 것은 없습니다.</p>}
+        <ContraNews stock={`${d.market}:${d.symbol}`} market={d.market} />
       </Section>
 
       {/* ⑤ 내 기록 */}
