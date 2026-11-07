@@ -51,7 +51,7 @@ def test_month_events_and_summary_facts_have_no_numbers():
     assert "AI 반도체(미국) 가치사슬에서 소속 기업이 없는 구간: 기판" in facts
     assert any(f.startswith("트랩 필터 통과 목록: 한 달 사이 전체 규모가 늘었다. 새로 든 곳 예: Apple") for f in facts)
     assert "다음 달 실적 발표 - 내 워치리스트: Micron" in facts
-    assert "관찰 노트 회고 - K-뷰티(한국): 적어 둔 기대 '뉴스↑' 빗나감" in facts
+    assert "관찰 노트 회고 - 한국 K-뷰티: '뉴스가 늘 것'이라고 적어 둔 기대가 빗나갔다(뉴스는 늘지 않았다)" in facts
     assert not any(re.search(r"\d+\s*(%|개|종목)", f) for f in facts)
 
 
@@ -93,3 +93,15 @@ def test_advice_titles_not_passed_to_summary():
 def test_drop_eval_and_missing():
     assert mr._drop_eval("가가 예정돼 있다. 나나도 주목할 일정이다.") == "가가 예정돼 있다."
     assert mr.missing_names("조선과 방산", ["조선", "방산", "재생에너지"]) == ["재생에너지"]
+
+
+def test_review_sentence_and_market_split():
+    assert mr.review_sentence("theme", {"expect": "실적↑ 유지", "hit": True}) == "'실적 개선이 이어질 것'이라고 적어 둔 기대가 맞았다(실제로 실적 개선이 이어졌다)"
+    assert mr.review_sentence("theme", {"key": "news_up", "hit": None}).endswith("판단하지 못했다")
+    r = {"regime": {}, "themes": {"labeled": [{"theme": "K-뷰티", "market": "KR", "labels": [{"week": "w", "label": "Quiet Strength"}]},
+                                                {"theme": "AI 소프트웨어", "market": "US", "labels": [{"week": "w", "label": "Quiet Strength"}]}],
+                                   "earn_turns": [{"theme": "조선", "market": "KR", "from": "flat", "to": "up1"}]},
+         "watchlist": {}, "reviews": [], "calendar": {}}
+    f = mr.summary_facts(r)
+    kr, us = f.index("[테마 - 한국]"), f.index("[테마 - 미국]")
+    assert kr < f.index("한국 조선 실적 축: 첫 주 보합 → 마지막 주 오름") < us < next(i for i, x in enumerate(f) if x.startswith("미국 AI 소프트웨어"))

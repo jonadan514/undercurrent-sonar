@@ -305,7 +305,7 @@ def reviews_section(bs: list[dict], tnames: dict[str, str], nm: dict[str, str]) 
             res = r.get("expect_results") or {}
             out.append({"kind": r.get("kind"), "market": r.get("market"), "target": target, "checkpoint": r.get("checkpoint"),
                         "created_at": str(r.get("created_at") or "")[:10],
-                        "results": [{"expect": wb.EXPECT_KO.get(r.get("kind") or "theme", {}).get(e, e), "hit": v} for e, v in res.items()]})
+                        "results": [{"key": e, "expect": wb.EXPECT_KO.get(r.get("kind") or "theme", {}).get(e, e), "hit": v} for e, v in res.items()]})
     return out
 
 
@@ -382,6 +382,41 @@ def regime_flow(seq: list[str]) -> str:
 _ADVICE_RE = re.compile(r"매수|매도|저가|기회|추천|유망|사야|팔아|\bbuy\b|\bsell\b|\bavoid\b|opportunit|could be worth|stocks? to|\bI'd\b", re.I)
 
 
+# 관찰 노트 기대를 말로(기대 / 실제로 그렇게 됨 / 그렇게 안 됨). '실적↑ 유지 맞음'을 GPT가 '기대도 유지되었다'로 써서
+# 결과(맞음)가 아니라 기대가 이어졌다는 말처럼 읽혔다(11/7) - 결과까지 다 쓴 문장으로 넘긴다.
+EXPECT_SENT = {
+    "theme": {"news_up": ("뉴스가 늘 것", "실제로 뉴스가 늘었다", "뉴스는 늘지 않았다"),
+              "news_down": ("뉴스가 줄 것", "실제로 뉴스가 줄었다", "뉴스는 줄지 않았다"),
+              "earn_up": ("실적이 좋아질 것", "실제로 실적이 좋아졌다", "실적은 좋아지지 않았다"),
+              "earn_down": ("실적이 나빠질 것", "실제로 실적이 나빠졌다", "실적은 나빠지지 않았다"),
+              "price_up": ("주가가 오를 것", "실제로 주가가 올랐다", "주가는 오르지 않았다"),
+              "price_down": ("주가가 내릴 것", "실제로 주가가 내렸다", "주가는 내리지 않았다"),
+              "earn_hold": ("실적 개선이 이어질 것", "실제로 실적 개선이 이어졌다", "실적 개선이 이어지지 않았다")},
+    "stock": {"news_up": ("테마 뉴스가 늘 것", "실제로 테마 뉴스가 늘었다", "테마 뉴스는 늘지 않았다"),
+              "news_down": ("테마 뉴스가 줄 것", "실제로 테마 뉴스가 줄었다", "테마 뉴스는 줄지 않았다"),
+              "earn_up": ("실적이 테마 동료보다 좋을 것", "실제로 실적이 동료보다 좋았다", "실적이 동료보다 좋지 않았다"),
+              "earn_down": ("실적이 테마 동료보다 나쁠 것", "실제로 실적이 동료보다 나빴다", "실적이 동료보다 나쁘지 않았다"),
+              "price_up": ("주가가 지수보다 더 오를 것", "실제로 지수보다 더 올랐다", "지수보다 더 오르지 못했다"),
+              "price_down": ("주가가 지수보다 덜 오를 것", "실제로 지수보다 덜 올랐다", "지수보다 덜 오르지는 않았다"),
+              "earn_hold": ("실적이 유지될 것", "실제로 실적이 유지됐다", "실적이 유지되지 않았다")},
+}
+
+
+def review_sentence(kind: str, y: dict) -> str:
+    """회고 한 건을 완성된 문장으로: "'뉴스가 늘 것'이라고 적어 둔 기대가 맞았다(실제로 뉴스가 늘었다)"."""
+    key = y.get("key") or next((k for k, v in wb.EXPECT_KO.get(kind, {}).items() if v == y.get("expect")), None)
+    sent = EXPECT_SENT.get(kind, {}).get(key or "")
+    if not sent:
+        what = y.get("expect")
+        return f"'{what}' 기대가 {'맞았다' if y.get('hit') else '빗나갔다' if y.get('hit') is False else '아직 판단할 수 없었다'}"
+    want, yes, no = sent
+    if y.get("hit") is True:
+        return f"'{want}'이라고 적어 둔 기대가 맞았다({yes})"
+    if y.get("hit") is False:
+        return f"'{want}'이라고 적어 둔 기대가 빗나갔다({no})"
+    return f"'{want}'이라고 적어 둔 기대는 데이터가 모자라 판단하지 못했다"
+
+
 def summary_facts(r: dict) -> list[str]:
     """요약에 넘길 사실 - 칸 순서대로 [머리]를 붙여 묶는다. 숫자는 넘기지 않는다(기사 제목 속 숫자는 문장째 걸러진다)."""
     facts: list[str] = []
@@ -392,21 +427,25 @@ def summary_facts(r: dict) -> list[str]:
         flow = regime_flow([", ".join(w["combos"]) for w in r["regime"].get(mk) or []])
         if flow:
             facts.append(f"{MK[mk]} 시장 환경: {flow}")
-    facts.append("[테마]")
-    for t in r["themes"]["labeled"][:8]:
-        parts = [f"{ordinal_week(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
-        means = sorted({wb.LABEL_MEANING.get(x["label"], "").split(" - ")[0] for x in t["labels"]} - {""})   # 뒤 꼬리('시장이 덜 본 개선')는 그대로 옮겨 어색했다
-        last = t.get("last") or {}
-        facts.append(f"{t['theme']}({MK[t['market']]}) 라벨이 붙은 주: {', '.join(parts)}"
-                     + (f" (라벨 뜻: {' / '.join(means)})" if means else "")
-                     + f" · 마지막 주 뉴스 {ARROW_KO.get(last.get('news') or 'na')}, 실적 {ARROW_KO.get(last.get('earn') or 'na')}, "
-                       f"주가 {ARROW_KO.get(last.get('price') or 'na')}")
-    for t in r["themes"]["earn_turns"][:6]:
-        facts.append(f"{t['theme']}({MK[t['market']]}) 실적 축: 첫 주 {ARROW_KO.get(t['from'], t['from'])} → 마지막 주 {ARROW_KO.get(t['to'], t['to'])}")
-    for n in (r.get("news") or [])[:6]:
-        titles = [a["title"] for a in n["articles"] if not _ADVICE_RE.search(a["title"])][:2]
-        if titles:
-            facts.append(f"{n['theme']}({MK[n['market']]}) 이달 주요 기사 제목: " + " / ".join(f"'{x}'" for x in titles))
+    for mk in ("KR", "US"):   # 한국 테마·미국 테마를 따로 묶는다 - 한 문장에 섞어 미국 테마가 '한국의 …'로 읽혔다(11/7)
+        sub: list[str] = []
+        for t in [x for x in r["themes"]["labeled"][:8] if x["market"] == mk]:
+            parts = [f"{ordinal_week(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
+            means = sorted({wb.LABEL_MEANING.get(x["label"], "").split(" - ")[0] for x in t["labels"]} - {""})   # 뒤 꼬리('시장이 덜 본 개선')는 그대로 옮겨 어색했다
+            last = t.get("last") or {}
+            sub.append(f"{MK[mk]} {t['theme']} 라벨이 붙은 주: {', '.join(parts)}"
+                       + (f" (라벨 뜻: {' / '.join(means)})" if means else "")
+                       + f" · 마지막 주 뉴스 {ARROW_KO.get(last.get('news') or 'na')}, 실적 {ARROW_KO.get(last.get('earn') or 'na')}, "
+                         f"주가 {ARROW_KO.get(last.get('price') or 'na')}")
+        for t in [x for x in r["themes"]["earn_turns"][:6] if x["market"] == mk]:
+            sub.append(f"{MK[mk]} {t['theme']} 실적 축: 첫 주 {ARROW_KO.get(t['from'], t['from'])} → 마지막 주 {ARROW_KO.get(t['to'], t['to'])}")
+        for n in [x for x in (r.get("news") or [])[:6] if x["market"] == mk]:
+            titles = [a["title"] for a in n["articles"] if not _ADVICE_RE.search(a["title"])][:2]
+            if titles:
+                sub.append(f"{MK[mk]} {n['theme']} 이달 주요 기사 제목: " + " / ".join(f"'{x}'" for x in titles))
+        if sub:
+            facts.append(f"[테마 - {MK[mk]}]")
+            facts += sub
     facts.append("[기업]")
     for m in r.get("company_map") or []:
         ev = [f"{it['name']} {'·'.join(it['events'])}" for g in m["groups"] for it in g["items"] if it["events"]]
@@ -429,8 +468,9 @@ def summary_facts(r: dict) -> list[str]:
         facts.append(f"{label}: 한 달 사이 전체 규모가 {grow}. 새로 든 곳 예: {', '.join(nm_of(x) for x in w['added'][:6]) or '없음'}"
                      f" / 빠진 곳 예: {', '.join(nm_of(x) for x in w['removed'][:4]) or '없음'}")
     for x in r.get("reviews") or []:
-        res = ", ".join(f"적어 둔 기대 '{y['expect']}' {'맞음' if y['hit'] else '빗나감' if y['hit'] is False else '판단 불가'}" for y in x["results"])
-        facts.append(f"관찰 노트 회고 - {x['target']}({MK.get(x['market'], x['market'])}): {res or '적어 둔 기대 없음'}")
+        res = [review_sentence(x.get("kind") or "theme", y) for y in x["results"]]
+        if res:   # 적어 둔 기대가 없는 노트는 넘기지 않는다(맞고 틀림이 없다)
+            facts.append(f"관찰 노트 회고 - {MK.get(x['market'], x['market'])} {x['target']}: " + " / ".join(res))
     facts.append("[다음 달]")
     cal = r.get("calendar") or {}
     for d in cal.get("deadlines") or []:
@@ -490,9 +530,11 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
     prompt = (f"{month} 한 달 동안 리서치 도구에 쌓인 사실입니다. [ ]는 묶음 이름입니다.\n" + "\n".join(f if f.startswith("[") else f"- {f}" for f in facts) +
               "\n\n이 사실만으로 월간 보고서 첫머리 요약을 문단 셋으로 쓰세요.\n"
               "1문단: 시장 환경 흐름(미국·한국)과 테마 흐름(라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 테마마다 방향까지, "
-              "주요 기사 제목이 다룬 내용).\n"
+              "주요 기사 제목이 다룬 내용). 테마는 [테마 - 한국]과 [테마 - 미국]을 따로 문장으로 쓰고, 한 문장에 두 나라 테마를 섞지 않는다"
+              "('한국에서는 …', '미국에서는 …'처럼).\n"
               "2문단: 기업 지도와 워치리스트(소속 기업에 생긴 일, 비어 있는 구간, 목록에 새로 든 곳·빠진 곳).\n"
-              "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정.\n"
+              "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정. 회고는 사실에 적힌 '~이라고 적어 둔 기대가 맞았다/빗나갔다'와 괄호 속 실제 결과를 "
+              "살려 쓰고, '기대가 유지되었다'처럼 결과가 흐려지는 말로 바꾸지 않는다.\n"
               "문단마다 세~다섯 문장, 테마·회사 이름을 구체적으로('여러 기업'처럼 뭉뚱그리지 말 것).\n\n" + STYLE + RULES +
               "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
     required = required or []
