@@ -452,7 +452,7 @@ def build(month: str, use_gpt: bool = True) -> dict:
     themes = theme_section(weeks, tnames)
     ev = month_events(bs)
     have = {k: sum(1 for b in bs if b.get(k)) for k in ("insider_week", "kr_disclosures", "us_8k_week", "turnaround")}
-    log(f"이달 생긴 일 {len(ev)}종목 (브리핑에 칸이 있는 주: {have})")
+    log(f"이달 생긴 일 {len(ev)}종목 (브리핑에 칸이 있는 주: {have}) {sorted(ev)[:40]}")
     r = {
         "month": month, "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "weeks": weeks,
         "briefing_weeks": [b.get("week") for b in bs],
