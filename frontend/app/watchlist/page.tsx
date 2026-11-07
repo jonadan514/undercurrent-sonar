@@ -135,6 +135,7 @@ function weekSignalsFrom(b: Record<string, unknown> | null): WeekSignals {
   for (const x of kd.contract?.items ?? []) if ((x.pct ?? 0) >= 10) add("KR", x.symbol, "큰 공급계약");
   for (const x of kd.termination?.items ?? []) add("KR", x.symbol, "계약 해지");
   for (const x of ((b.us_8k_week ?? {}) as { items?: G[] }).items ?? []) if (x.warn) add("US", x.symbol, "8-K 주의");
+  for (const x of ((b.turnaround ?? {}) as { added?: G[] }).added ?? []) add(x.market, x.symbol, "실적 반전 신규");
   return out;
 }
 
@@ -1074,16 +1075,21 @@ export default function WatchlistPage() {
   // 업종 중앙값은 필터를 건 목록이 아니라 시장 전체 후보로 낸다 - 필터에 따라 기준이 바뀌면 안 된다.
   const peerStats = useMemo(() => buildPeerStats(candidates), [candidates]);
 
+  // 목록에 넣는 이유 = 이번 주 새로 생긴 것(처음 87개였다 - 계속 유지되는 '실적 반전' 89개·라벨 테마 소속 전원·관심도 소폭 상승까지 세서).
+  // 그 밖의 것은 참고 칩으로만(contextFor).
   const reasonsFor = (c: Candidate): string[] => {
     const k = `${c.market}:${c.symbol}`;
+    const heat = heating.get(k) ?? "";
     return [
       ...(c.is_new === true ? [c.is_reentry ? "재진입" : "신규 통과"] : []),
-      ...(isTurnaround(c) ? ["실적 반전"] : []),
       ...(c.valuation_tier === "싼 편" && c.growth_tier === "성장" ? ["밸류 LOW·성장"] : []),
-      ...(heating.has(k) ? ["관심도 상승"] : []),
-      ...((c.themes ?? []).some(isFlowTheme) ? ["라벨 붙은 테마"] : []),
+      ...(heat.endsWith("HOT") ? ["관심도 HOT 진입"] : []),
       ...(weekSignals.get(k) ?? []),
     ];
+  };
+  const contextFor = (c: Candidate): string[] => {
+    const heat = heating.get(`${c.market}:${c.symbol}`) ?? "";
+    return [...((c.themes ?? []).some(isFlowTheme) ? ["라벨 붙은 테마"] : []), ...(heat && !heat.endsWith("HOT") ? ["관심도 상승"] : [])];
   };
   const isFocus = (c: Candidate) => (c.themes ?? []).length > 0 && reasonsFor(c).length > 0;
   const focusCount = inMarket.filter(isFocus).length;
@@ -1180,8 +1186,11 @@ export default function WatchlistPage() {
           {(inList || isTurnaround(c)) && (
             <TagBadges tags={[...(inList ? ["my"] : []), ...(isTurnaround(c) ? ["turnaround"] : [])]} />
           )}
-          {focus && reasonsFor(c).filter((r) => !["신규 통과", "재진입", "실적 반전"].includes(r)).map((r) => (
+          {focus && reasonsFor(c).filter((r) => !["신규 통과", "재진입"].includes(r)).map((r) => (
             <span key={r} style={{ fontSize: 10, color: ACCENT, border: `1px solid ${ACCENT}44`, padding: "1px 5px" }}>{r}</span>
+          ))}
+          {focus && contextFor(c).map((r) => (
+            <span key={r} title="참고 - 이것만으로는 '이번 주 볼 후보'에 넣지 않음" style={{ fontSize: 10, color: TEXT_MUTED, border: `1px solid ${BORDER_CTRL}`, padding: "1px 5px" }}>{r}</span>
           ))}
           {heating.has(key) && (
             <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(key)}) · 뉴스량 기준 보조 정보`}
@@ -1331,7 +1340,7 @@ export default function WatchlistPage() {
               </div>
               <p style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 6, lineHeight: 1.5 }}>
                 {focus
-                  ? "재무 필터 통과 종목 중 테마에 소속돼 있고 이번 주 이유(신규 통과·실적 반전·밸류 LOW·성장·관심도 상승·라벨 붙은 테마·내부자 매수·큰 공급계약·8-K 주의)가 하나라도 있는 것만 - 이유는 이름 옆에. 순위가 아니고 기준값은 그대로입니다."
+                  ? "재무 필터 통과 종목 중 테마에 소속돼 있고 이번 주에 생긴 이유(신규 통과·실적 반전 신규·밸류 LOW·성장·관심도 HOT 진입·내부자 매수·큰 공급계약·계약 해지·8-K 주의)가 하나라도 있는 것만 - 이유는 이름 옆에(흐린 칩은 참고). 순위가 아니고 기준값은 그대로입니다."
                   : "재무 필터(F-Score·ROE·이자보상·부채비율)를 통과한 전부 - 순위 없음."}
               </p>
             </div>
