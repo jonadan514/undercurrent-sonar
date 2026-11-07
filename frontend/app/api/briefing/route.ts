@@ -4,12 +4,14 @@ import { getClient } from "@/src/lib/db";
 export const dynamic = "force-dynamic";
 
 // 주간 브리핑 아카이브 — scripts/generate_weekly_briefing.py가 매주 생성
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const client = getClient();
-    const res = await client.execute(
-      "SELECT week, payload, created_at FROM weekly_briefings ORDER BY week DESC LIMIT 12"
-    );
+    // ?limit=1 - 최근 한 주만(워치리스트 '이번 주 볼 후보'가 그 주 신호만 쓴다, 2026-11-07). 기본·최대 12
+    const lim = Math.min(12, Math.max(1, Number(new URL(request.url).searchParams.get("limit")) || 12));
+    const res = await client.execute({
+      sql: "SELECT week, payload, created_at FROM weekly_briefings ORDER BY week DESC LIMIT ?", args: [lim],
+    });
     const briefings = res.rows
       .map((r) => {
         try {

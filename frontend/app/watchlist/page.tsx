@@ -115,6 +115,29 @@ const PRESETS: { key: PresetKey; label: string; note: string; test: (c: Candidat
     test: (c) => c.valuation_tier === "싼 편" && c.growth_tier === "역성장" },
 ];
 
+// ── 이번 주 볼 후보 (2026-11-07, 사용자: 380개는 너무 많다) ───────────────────────
+// 재무 필터 기준값은 그대로 두고(원칙 3) 처음 보여 줄 것만 줄인다: 테마에 소속돼 있으면서 이번 주 이유가 하나라도 있는 종목.
+// 이유는 그대로 칩으로 보여 준다 - 점수나 순위가 아니다(원칙 1). 전체 통과 목록은 토글 한 번으로.
+type WeekSignals = Map<string, string[]>;
+function weekSignalsFrom(b: Record<string, unknown> | null): WeekSignals {
+  const out: WeekSignals = new Map();
+  if (!b) return out;
+  const add = (m: string | undefined, s: string | undefined, why: string) => {
+    if (!m || !s) return;
+    const k = `${m}:${s}`;
+    const cur = out.get(k) ?? [];
+    if (!cur.includes(why)) out.set(k, [...cur, why]);
+  };
+  type G = { market?: string; symbol?: string; buyers?: number; all_plan?: boolean; pct?: number | null; warn?: boolean };
+  const ins = (b.insider_week ?? {}) as { items?: G[]; discovery?: G[] };
+  for (const g of [...(ins.items ?? []), ...(ins.discovery ?? [])]) if (!g.all_plan) add(g.market, g.symbol, (g.buyers ?? 0) > 1 ? "내부자 여러 명 매수" : "내부자 매수");
+  const kd = (b.kr_disclosures ?? {}) as Record<string, { items?: G[] } | undefined>;
+  for (const x of kd.contract?.items ?? []) if ((x.pct ?? 0) >= 10) add("KR", x.symbol, "큰 공급계약");
+  for (const x of kd.termination?.items ?? []) add("KR", x.symbol, "계약 해지");
+  for (const x of ((b.us_8k_week ?? {}) as { items?: G[] }).items ?? []) if (x.warn) add("US", x.symbol, "8-K 주의");
+  return out;
+}
+
 // ── 프로토타입 팔레트 (이 페이지 한정) ───────────────────────────────────────
 // globals.css의 공용 토큰과는 별도로, 워치리스트 페이지에서만 새 팔레트를 시험한다.
 // "터미널 앰버" — 본문은 종이빛 화이트, 티커·숫자만 앰버로 강조하는 배색.
@@ -878,6 +901,8 @@ export default function WatchlistPage() {
   const [screened_at, setScreenedAt] = useState<string | null>(null);
   const [loading, setLoading]       = useState(true);
   const [tab, setTab]               = useState<"candidates" | "my">("candidates");
+  const [focus, setFocus]           = useState(true);    // 이번 주 볼 후보(기본) / 전체 통과 목록
+  const [weekSignals, setWeekSignals] = useState<WeekSignals>(new Map());
   const [marketFilter, setMarketFilter] = useState<"ALL" | "US" | "KR">("ALL");
   const [regimeFilter, setRegimeFilter] = useState<"ALL" | "growth" | "dividend" | "neutral">("ALL");
   const [newOnly, setNewOnly] = useState(false);
@@ -925,6 +950,9 @@ export default function WatchlistPage() {
   const heating = new Map(shifts.map((s) => [`${s.market}:${s.symbol}`, `${s.prev_sentiment}→${s.sentiment}`]));
   const [heatingOnly, setHeatingOnly] = useState(false);
   useEffect(() => {
+    fetch("/api/briefing?limit=1").then((r) => r.json())
+      .then((d) => setWeekSignals(weekSignalsFrom(Array.isArray(d?.briefings) && d.briefings.length ? d.briefings[0] : null)))
+      .catch(() => setWeekSignals(new Map()));
     fetch("/api/watchlist/narrative-shifts")
       .then((r) => r.json())
       .then((d) => setShifts(d.shifts ?? []))
@@ -1046,7 +1074,21 @@ export default function WatchlistPage() {
   // 업종 중앙값은 필터를 건 목록이 아니라 시장 전체 후보로 낸다 - 필터에 따라 기준이 바뀌면 안 된다.
   const peerStats = useMemo(() => buildPeerStats(candidates), [candidates]);
 
+  const reasonsFor = (c: Candidate): string[] => {
+    const k = `${c.market}:${c.symbol}`;
+    return [
+      ...(c.is_new === true ? [c.is_reentry ? "재진입" : "신규 통과"] : []),
+      ...(isTurnaround(c) ? ["실적 반전"] : []),
+      ...(c.valuation_tier === "싼 편" && c.growth_tier === "성장" ? ["밸류 LOW·성장"] : []),
+      ...(heating.has(k) ? ["관심도 상승"] : []),
+      ...((c.themes ?? []).some(isFlowTheme) ? ["라벨 붙은 테마"] : []),
+      ...(weekSignals.get(k) ?? []),
+    ];
+  };
+  const isFocus = (c: Candidate) => (c.themes ?? []).length > 0 && reasonsFor(c).length > 0;
+  const focusCount = inMarket.filter(isFocus).length;
   const filtered = candidates.filter((c) => {
+    if (focus && themesKnown && !searchQuery.trim() && !isFocus(c)) return false;   // 검색은 전체에서(아는 종목을 찾는 중)
     if (marketFilter !== "ALL" && c.market !== marketFilter) return false;
     if (themeOnly && !inTheme(c)) return false;
     if (heatingOnly && !heating.has(`${c.market}:${c.symbol}`)) return false;
@@ -1138,6 +1180,9 @@ export default function WatchlistPage() {
           {(inList || isTurnaround(c)) && (
             <TagBadges tags={[...(inList ? ["my"] : []), ...(isTurnaround(c) ? ["turnaround"] : [])]} />
           )}
+          {focus && reasonsFor(c).filter((r) => !["신규 통과", "재진입", "실적 반전"].includes(r)).map((r) => (
+            <span key={r} style={{ fontSize: 10, color: ACCENT, border: `1px solid ${ACCENT}44`, padding: "1px 5px" }}>{r}</span>
+          ))}
           {heating.has(key) && (
             <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(key)}) · 뉴스량 기준 보조 정보`}
               style={{ fontSize: 10, fontWeight: 700, color: BAD, border: `1px solid ${BAD}55`, padding: "1px 5px", verticalAlign: "middle" }}>
@@ -1274,6 +1319,23 @@ export default function WatchlistPage() {
       {/* ── 스크리닝 후보 탭 ── */}
       {tab === "candidates" && (
         <>
+          {themesKnown && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {([[true, `이번 주 볼 후보 (${focusCount})`], [false, `전체 통과 목록 (${inMarket.length})`]] as const).map(([v, label]) => (
+                  <button key={String(v)} onClick={() => setFocus(v)} style={{
+                    background: focus === v ? ACCENT + "20" : "transparent", color: focus === v ? ACCENT : TEXT_MUTED,
+                    border: `1px solid ${focus === v ? ACCENT + "50" : BORDER_CTRL}`, padding: "5px 12px", fontSize: 12.5, fontWeight: focus === v ? 700 : 400, cursor: "pointer",
+                  }}>{label}</button>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 6, lineHeight: 1.5 }}>
+                {focus
+                  ? "재무 필터 통과 종목 중 테마에 소속돼 있고 이번 주 이유(신규 통과·실적 반전·밸류 LOW·성장·관심도 상승·라벨 붙은 테마·내부자 매수·큰 공급계약·8-K 주의)가 하나라도 있는 것만 - 이유는 이름 옆에. 순위가 아니고 기준값은 그대로입니다."
+                  : "재무 필터(F-Score·ROE·이자보상·부채비율)를 통과한 전부 - 순위 없음."}
+              </p>
+            </div>
+          )}
           {/* 검색 - 275종목 중 아는 티커/이름을 바로 찾는다. 다른 필터(신규만/싼 편만
               등)는 "뭘 볼지 모른 채 탐색"이 목적이라 켜고 끄는 토글이지만, 이건 찾는
               대상을 이미 알고 있는 반대 상황이라 텍스트 입력으로 둔다. */}
