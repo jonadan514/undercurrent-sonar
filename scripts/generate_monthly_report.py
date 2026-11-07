@@ -71,7 +71,15 @@ def names() -> dict[str, str]:
     out = {f"{mk}:{sym}": (wb._clean_names([v.get("n") or ""]) or [sym])[0] for mk, d in p.items() for sym, v in d.items()}
     try:  # 프로필이 없는 한국 종목은 유니버스 이름으로
         for i in json.loads(wb.KR_UNIVERSE.read_text(encoding="utf-8")).get("items", []):
-            out.setdefault(f"KR:{i['symbol']}", i.get("name") or i["symbol"])
+            if out.get(f"KR:{i['symbol']}", i["symbol"]) == i["symbol"] and i.get("name"):   # 프로필 이름이 비어 코드가 든 것도
+                out[f"KR:{i['symbol']}"] = i["name"]
+    except Exception:  # noqa: BLE001
+        pass
+    try:  # 그래도 없으면 화면이 쓰는 한국 종목 이름표(frontend/src/lib/krStockNames.ts)
+        ts = (ROOT / "frontend" / "src" / "lib" / "krStockNames.ts").read_text(encoding="utf-8")
+        for code, nm_ in re.findall(r'"(\d{6})":\s*"([^"]+)"', ts):
+            if out.get(f"KR:{code}", code) == code:
+                out[f"KR:{code}"] = nm_
     except Exception:  # noqa: BLE001
         pass
     return out
