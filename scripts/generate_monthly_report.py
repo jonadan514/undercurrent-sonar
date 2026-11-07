@@ -497,7 +497,7 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
               "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
     required = required or []
     if required:
-        prompt += "\n반드시 이름을 넣을 테마: " + ", ".join(required)
+        prompt += "\n반드시 들어갈 말(테마·마감·회사 이름): " + ", ".join(required)
     best, best_key = "", None
     for attempt in range(3):   # 짧거나(MIN_CHARS 미만) 테마가 빠지면 다시 - 실행마다 들쭉날쭉했다
         try:
@@ -600,6 +600,10 @@ def build(month: str, use_gpt: bool = True) -> dict:
     }
     r["summary_facts"] = summary_facts(r)
     req = list(dict.fromkeys(t["theme"] for t in themes["labeled"][:8] + themes["earn_turns"][:6]))
+    # 다음 달 칸도 빠지지 않게(평가 문장을 지우다 마감·내 관심 실적 발표 문장이 같이 빠졌다) - 이름 검사 목록에 같이 넣는다
+    if r["calendar"]["deadlines"]:
+        req.append("마감")
+    req += [x["name"] for x in r["calendar"]["earnings"] if "내 관심" in x["tags"]][:1]
     r["summary"] = gpt_summary(r["summary_facts"], month, req) if use_gpt else ""
     return r
 
