@@ -32,10 +32,10 @@ def pick_columns(columns) -> dict[str, str]:
     return out
 
 
-def fetch() -> list[dict]:
+def fetch(lookback_days: int = LOOKBACK_DAYS) -> list[dict]:
     from pykrx import stock
     end = datetime.utcnow() + timedelta(hours=9)          # KST
-    start = end - timedelta(days=LOOKBACK_DAYS)
+    start = end - timedelta(days=lookback_days)
     rows: list[dict] = []
     for market in MARKETS:
         try:
@@ -61,8 +61,10 @@ def fetch() -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/kr_investor_flows.json")
+    ap.add_argument("--lookback-days", type=int, default=LOOKBACK_DAYS,
+                    help="조회 기간(달력일). 1년치를 처음 채울 때 370(2026-11-07, 시장 환경 외국인 수급 축) - 시장마다 한 번 조회라 길어도 호출 수는 같다")
     args = ap.parse_args()
-    rows = fetch()
+    rows = fetch(args.lookback_days)
     if not rows:
         _log("받은 값이 없음 - 파일을 쓰지 않는다")
         return 1
