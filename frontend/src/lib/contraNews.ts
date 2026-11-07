@@ -73,6 +73,7 @@ const dayDiff = (a: string, b: string) => (a && b ? (Date.parse(a) - Date.parse(
 /** 부정 낱말이 든 제목만. 사업 쪽(하향·소송·중단…)을 먼저, 주가 등락만 걸린 것은 PRICE_MAX건까지. 같은 날 같은 낱말 조합은 같은 사건으로 보고
  *  하나만. 최근 순. */
 const PRICE_MAX = 2;
+const UP_RE = /\b(jumps?|surges?|soars?|rall(y|ies)|rebounds?|gains?|climbs?|rises?|record high)\b|반등|급등|상승|신고가/i;
 export function pickContra(items: { title: string; url: string; source: string; date: string }[], market: string, limit = 6,
                            name = "", symbol = ""): ContraItem[] {
   const seen = new Set<string>();
@@ -89,6 +90,7 @@ export function pickContra(items: { title: string; url: string; source: string; 
     seen.add(key);
     kept.push({ date: it.date, toks });
     const po = isPriceOnly(words, market);
+    if (po && UP_RE.test(it.title)) continue;   // "급락 뒤 반등", "Jump After Selloff" - 오른 기사(2026-11-07 실제 사이트)
     (po ? price : subst).push({ ...it, words, price_only: po });
   }
   return [...subst.slice(0, limit), ...price.slice(0, PRICE_MAX)].slice(0, limit);
