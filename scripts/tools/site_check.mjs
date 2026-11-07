@@ -9,6 +9,7 @@ const STOCKS = ["US:MU", "US:KO", "US:AAPL", "US:NVDA", "US:BA", "US:HON", "US:T
 const THEMES = [["defense", "KR"], ["ai_semiconductor", "US"], ["ai_semiconductor", "KR"], ["travel_airline", "US"], ["battery", "KR"], ["specialty_gas", "KR"]];
 const LINK_PAGES = ["/briefing", "/radar/theme?id=defense&market=KR", "/investors", "/quarterly", "/scorecard", "/notes", "/"];
 const today = new Date().toISOString().slice(0, 10);
+const ONLY = (process.env.ONLY || "1,2,3,4,5").split(",");   // 몇 칸만 다시 돌릴 때(예: ONLY=4,5)
 
 const b = await chromium.launch();
 async function open(path, W = 1280) {
@@ -24,7 +25,7 @@ async function open(path, W = 1280) {
 const qEnd = (q) => { const [y, n] = q.split("-Q").map(Number); return new Date(Date.UTC(y, n * 3, 0)).toISOString().slice(0, 10); };
 
 console.log("\n######## 1. 기업 카드 ########");
-for (const s of STOCKS) {
+for (const s of ONLY.includes("1") ? STOCKS : []) {
   const { p, errs } = await open(`/company?stock=${s}`);
   const info = await p.evaluate(() => {
     const main = document.querySelector("main") || document.body;
@@ -35,7 +36,7 @@ for (const s of STOCKS) {
     const summary = first ? (first.querySelector("p.text-\\[13px\\]")?.innerText ?? "") : "";
     const hasKo = /GPT 번역 요약/.test(text);
     const segs = [...text.matchAll(/가치사슬 ([^\n]+?)구간 전체 보기/g)].map((m) => m[1].trim());
-    const themes = first ? [...first.querySelectorAll("a[href*='/radar/theme']")].map((a) => a.innerText.trim()) : [];
+    const themes = first ? [...first.querySelectorAll("a[href*='/radar/theme']")].map((a) => a.innerText.trim()).filter((t) => t !== "구간 전체 보기") : [];
     const table = [...main.querySelectorAll("table")].find((t) => t.innerText.includes("영업이익률"));
     const rows = table ? [...table.querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.innerText.trim())) : [];
     const caut = sec.find((x) => x.innerText.includes("주의할 사실"));
@@ -62,7 +63,7 @@ for (const s of STOCKS) {
 }
 
 console.log("\n######## 2. 테마 가치사슬 ########");
-for (const [id, m] of THEMES) {
+for (const [id, m] of ONLY.includes("2") ? THEMES : []) {
   const { p, errs } = await open(`/radar/theme?id=${id}&market=${m}`);
   const groups = await p.evaluate(() => {
     const sec = [...document.querySelectorAll("section")].find((s) => s.querySelector("h2")?.innerText === "가치사슬");
@@ -80,7 +81,7 @@ for (const [id, m] of THEMES) {
 }
 
 console.log("\n######## 3. 시장 환경 ########");
-{
+if (ONLY.includes("3")) {
   const { p, errs } = await open("/");
   const t = await p.evaluate(() => [...document.querySelectorAll("section")].find((s) => s.querySelector("h2")?.innerText.includes("시장 환경"))?.innerText ?? null);
   console.log(t ? t.replace(/\n{2,}/g, "\n").slice(0, 1500) : "⚠️ 시장 환경 칸 없음");
@@ -89,7 +90,7 @@ console.log("\n######## 3. 시장 환경 ########");
 }
 
 console.log("\n######## 4. 종목 링크 ########");
-for (const path of LINK_PAGES) {
+for (const path of ONLY.includes("4") ? LINK_PAGES : []) {
   const { p, errs } = await open(path);
   const c = await p.evaluate(() => {
     const hs = [...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href"));
@@ -98,9 +99,9 @@ for (const path of LINK_PAGES) {
   console.log(`  ${path}: 기업 카드 링크 ${c.company} · 예전 워치리스트 링크 ${c.wl}${c.wl ? "  ⚠️" : ""}${errs.length ? "  ⚠️ " + errs[0] : ""}`);
   await p.close();
 }
-{
+if (ONLY.includes("4")) {
   const { p } = await open("/watchlist");
-  const row = p.locator("[role=button]").first();
+  const row = p.locator("[role=button]:visible").first();   // 넓은 화면·휴대폰 행이 둘 다 있고 한쪽은 숨김
   let msg = "후보 행 없음";
   if (await row.count()) {
     await row.click(); await p.waitForTimeout(800);
@@ -112,7 +113,7 @@ for (const path of LINK_PAGES) {
 }
 
 console.log("\n######## 5. 휴대폰(390) ########");
-for (const path of ["/", "/company?stock=KR:005930", "/company?stock=US:MU", "/radar/theme?id=defense&market=KR", "/watchlist", "/briefing"]) {
+for (const path of !ONLY.includes("5") ? [] : ["/", "/company?stock=KR:005930", "/company?stock=US:MU", "/radar/theme?id=defense&market=KR", "/watchlist", "/briefing"]) {
   const { p, errs } = await open(path, 390);
   const o = await p.evaluate(() => {
     const over = document.documentElement.scrollWidth > window.innerWidth + 1;

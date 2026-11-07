@@ -3,6 +3,11 @@ name: Site Check
 # 읽기 전용(2026-11-07) - 새 화면 체크리스트(기업 카드·가치사슬·시장 환경·종목 링크·휴대폰)를 실제 데이터로 자동 확인. GET만.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "몇 칸만(쉼표, 1 기업 카드 · 2 가치사슬 · 3 시장 환경 · 4 링크 · 5 휴대폰). 비우면 전부"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -18,3 +23,5 @@ jobs:
           node-version: "22"
       - run: npm i --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
       - run: node scripts/tools/site_check.mjs
+        env:
+          ONLY: ${{ inputs.only }}
