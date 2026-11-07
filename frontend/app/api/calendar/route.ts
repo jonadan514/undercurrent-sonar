@@ -7,7 +7,7 @@ import PROFILES_RAW from "@/src/data/companyProfiles.json";
 export const dynamic = "force-dynamic";
 
 // 일정(2026-11-07, 마스터 플랜 2단계 '일정 기능'). 한 달치 일정을 한 곳에 - 새로 수집하지 않고 이미 쌓인 표만 읽는다.
-//  · 실적 발표: earnings_calendar(yfinance, 워치리스트 후보·내 관심·관찰 노트 종목, 매주 일요일 수집) + 한국 결산실적 공시예고(DART,
+//  · 실적 발표: earnings_calendar(yfinance, 워치리스트 후보·내 관심·관찰 노트·테마 소속(11/8~) 종목, 매주 일요일 수집) + 한국 결산실적 공시예고(DART,
 //    회사가 정한 날짜라 yfinance보다 우선). 지난 날짜는 '그 날짜가 지나기 전에 마지막으로 받은 값'을 쓴다(아래 pickEarnings).
 //  · 관찰 노트 회고: 작성 주 + 4주·12주가 지나면 그다음 월요일 주간 브리핑에 회고가 붙는다(scripts/review_observations.py).
 //  · 공시 마감(13F·한국 분기보고서)과 도구 일정(주간 브리핑·월간 보고서)은 정해진 날짜라 여기서 만든다.

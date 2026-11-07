@@ -138,7 +138,7 @@ function CalendarView() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="일정" desc="실적 발표 · 공시 마감 · 관찰 노트 회고 · 브리핑 나오는 날을 한 달에. 실적 발표일은 매주 일요일 받는 예정일이라 바뀔 수 있습니다(물음표는 회사가 아직 확정하지 않은 날짜).">
+      <PageHeader title="일정" intro="calendar" desc="실적 발표 · 공시 마감 · 관찰 노트 회고 · 브리핑 나오는 날을 한 달에. 실적 발표일은 매주 일요일 받는 예정일이라 바뀔 수 있습니다(물음표는 회사가 아직 확정하지 않은 날짜).">
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button onClick={() => go(shiftMonth(cur, -1))} className="rounded px-2 py-1 text-[13px]" style={{ border: "1px solid var(--border-ctrl)", color: "var(--text-secondary)" }}>←</button>
           <span className="min-w-[7.5rem] text-center text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>{monthKo(cur)}</span>
@@ -225,7 +225,7 @@ function CalendarView() {
       </div>
 
       <p className="text-[12px]" style={FAINT}>
-        실적 발표일은 워치리스트 후보·내 관심·관찰 노트 종목만 받습니다(테마 소속이라도 후보가 아니면 없을 수 있음). 한국은 회사가 공시로 예고한 날짜를 먼저 씁니다.
+        실적 발표일은 워치리스트 후보·내 관심·관찰 노트·테마 소속 종목을 받습니다(테마 소속은 11/8 수집부터). 한국은 회사가 공시로 예고한 날짜를 먼저 씁니다.
         관찰 노트 회고는 작성 주 + 4주·12주가 지난 다음 월요일 브리핑에 붙습니다. 공시 마감일이 주말이면 실제 마감은 다음 영업일일 수 있습니다.
       </p>
     </div>

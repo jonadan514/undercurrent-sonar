@@ -1,4 +1,4 @@
-"""워치리스트·내 관심·관찰 노트 종목의 다음 실적 발표일을 earnings_calendar에 쌓는다 (2026-10-17).
+"""워치리스트·내 관심·관찰 노트·테마 소속(2026-11-07~) 종목의 다음 실적 발표일을 earnings_calendar에 쌓는다 (2026-10-17).
 
 주간 브리핑 "이번 주 실적 발표"용 - 일요일 밤 브리핑 직전에 돈다. 규칙은 src/collectors/earnings_calendar.py.
 이력 표라 덮어쓰지 않는다(원칙 5): (ticker, market, fetched_on) 하루 한 행, 같은 날 재실행은 무시.
@@ -58,7 +58,12 @@ def targets(conn) -> list[tuple[str, str]]:
     out: set[tuple[str, str]] = set()
     for sql in ("SELECT symbol, market FROM watchlist_candidates",
                 "SELECT symbol, market FROM my_watchlist",
-                "SELECT DISTINCT ticker, market FROM observations WHERE kind = 'stock' AND ticker IS NOT NULL"):
+                "SELECT DISTINCT ticker, market FROM observations WHERE kind = 'stock' AND ticker IS NOT NULL",
+                # 테마 소속(최신 매핑의 직접·부분, 2026-11-07) - 일정 화면·월간 보고서 일정에서 후보가 아닌 테마 기업이 빠졌다
+                "SELECT DISTINCT tm.ticker, tm.market FROM theme_members tm JOIN "
+                "(SELECT theme_id, market, MAX(run_id) AS run_id FROM theme_members WHERE approved = 1 GROUP BY theme_id, market) lr "
+                "ON lr.theme_id = tm.theme_id AND lr.market = tm.market AND lr.run_id = tm.run_id "
+                "WHERE tm.approved = 1 AND tm.linkage IN ('direct', 'partial')"):
         try:
             out.update((r[0], r[1]) for r in conn.execute(sql).fetchall() if r[0] and r[1] in ("US", "KR"))
         except Exception as e:  # noqa: BLE001 - 표가 없으면 그 출처만 건너뛴다

@@ -327,7 +327,7 @@ function ReportView() {
   return (
     <div className="mx-auto max-w-[980px] space-y-4">
       <PageHeader
-        title={`월간 리서치 보고서 · ${monthKo(r.month)}`}
+        title={`월간 리서치 보고서 · ${monthKo(r.month)}`} intro="report"
         desc={`${md(r.weeks[0])}~${md(r.weeks[r.weeks.length - 1])} 주까지 ${r.weeks.length}주 동안의 신호와 주간 브리핑 ${r.briefing_weeks.length}편을 한 달로 묶었습니다. 점수·등급·매수 의견은 넣지 않았습니다.`}
       >
         <div className="print-hidden mt-2 flex flex-wrap items-center gap-2 text-[12.5px]">

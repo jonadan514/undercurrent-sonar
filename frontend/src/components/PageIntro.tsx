@@ -32,7 +32,7 @@ export default function PageIntro({ k }: { k: PageIntroKey }) {
   if (closed) {
     return (
       <button type="button" onClick={toggle}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors hover:brightness-125"
+        className="print-hidden mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors hover:brightness-125"
         style={{ background: "rgba(255,176,32,0.08)", border: "1px solid rgba(255,176,32,0.35)", color: "#ffb020" }}>
         <span aria-hidden>💡</span>이 화면은? <span className="text-[11px]" aria-hidden>▼</span>
       </button>
@@ -40,7 +40,7 @@ export default function PageIntro({ k }: { k: PageIntroKey }) {
   }
   const rows: [string, string, string][] = [["👀", "무엇을", intro.what], ["🕐", "언제", intro.when], ["✅", "할 일", intro.todo]];
   return (
-    <section className="mt-3 w-full rounded-xl px-4 py-3.5 sm:px-5" aria-label="이 화면은?"
+    <section className="print-hidden mt-3 w-full rounded-xl px-4 py-3.5 sm:px-5" aria-label="이 화면은?"
       style={{ background: "rgba(255,176,32,0.07)", border: "1px solid rgba(255,176,32,0.32)", borderLeft: "4px solid #ffb020" }}>
       <div className="flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-[15px] font-bold" style={{ color: "#ffb020" }}>

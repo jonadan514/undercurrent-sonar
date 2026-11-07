@@ -1,6 +1,6 @@
 name: Collect Earnings Calendar
 
-# 워치리스트·내 관심·관찰 노트 종목의 다음 실적 발표일(yfinance, 2026-10-17).
+# 워치리스트·내 관심·관찰 노트·테마 소속(2026-11-07~) 종목의 다음 실적 발표일(yfinance, 2026-10-17).
 # 주간 브리핑 "이번 주 실적 발표"용 - 일요일 22:00 UTC 브리핑 직전에 돈다.
 on:
   schedule:
@@ -18,7 +18,7 @@ permissions:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75   # 테마 소속을 더해 대상이 늘었다(2026-11-07)
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
