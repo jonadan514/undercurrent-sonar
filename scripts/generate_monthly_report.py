@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import os
 import sys
 import urllib.request
@@ -378,6 +379,10 @@ def summary_facts(r: dict) -> list[str]:
         empty = [g["label"] for g in m["groups"] if g["n"] and not g["items"]]
         if empty and segs:
             facts.append(f"{m['theme']}({MK[m['market']]}) 가치사슬에서 소속 기업이 없는 구간: {', '.join(empty)}")
+    other = [x for x in r.get("month_events") or [] if not all(e.startswith("실적 반전") for e in x["events"])]
+    if other:
+        facts.append("이달 공시·내부자 매수 등이 있었던 종목(테마 지도 밖 포함): "
+                     + ", ".join(f"{x['name']}({MK.get(x['market'], x['market'])}) {'·'.join(x['events'])}" for x in other[:10]))
     facts.append("[워치리스트·회고]")
     for key, label in (("watchlist", "트랩 필터 통과 목록"), ("turnaround", "실적 반전 목록")):
         w = (r.get("watchlist") or {}).get(key)
@@ -413,19 +418,48 @@ def gpt_summary(facts: list[str], month: str) -> str:
               "1문단: 시장 환경 흐름과 테마 흐름(라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마, 주요 기사 제목이 다룬 내용).\n"
               "2문단: 기업 지도와 워치리스트(소속 기업에 생긴 일, 비어 있는 구간, 목록에 새로 든 곳·빠진 곳).\n"
               "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정.\n"
-              "문단마다 세~네 문장. 사실을 서로 잇되 원인을 짐작하거나 전망·매수 판단·'주목할 만하다' 같은 평가를 쓰지 말고, 숫자는 쓰지 마세요. "
+              "문단마다 네 문장 이상, 위 사실의 테마·회사 이름을 구체적으로 들어 쓰세요('여러 기업'처럼 뭉뚱그리지 말 것). "
+              "사실을 서로 잇되 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다' 같은 평가를 쓰지 말고, 숫자는 쓰지 마세요. "
               "사실이 없는 내용은 만들지 마세요. '~했다/~이다' 기사체. 라벨·조합·회사 이름은 그대로. "
               "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
-    try:
-        out = call_json(model_for("briefing_comment"), "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=1800, temperature=0.3)
-    except Exception as e:  # noqa: BLE001
-        log(f"요약 실패 {type(e).__name__}")
-        return ""
-    paras = (out or {}).get("paragraphs") or []
-    if isinstance(paras, str):
-        paras = [paras]
-    clean = [wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(p)))) for p in paras]
-    return "\n\n".join(p for p in clean if p)
+    best = ""
+    for attempt in range(2):   # 너무 짧게 나오면(문장 MIN_SENTENCES 미만) 한 번 더 - 길이가 실행마다 들쭉날쭉했다
+        try:
+            out = call_json(model_for("briefing_comment"), "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key,
+                            max_output_tokens=2000, temperature=0.3)
+        except Exception as e:  # noqa: BLE001
+            log(f"요약 실패 {type(e).__name__}")
+            continue
+        paras = (out or {}).get("paragraphs") or []
+        if isinstance(paras, str):
+            paras = [paras]
+        clean = [wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(p)))) for p in paras]
+        text = "\n\n".join(p for p in clean if p)
+        n = sentence_count(text)
+        log(f"요약 {attempt + 1}차: {len(clean)}문단 {n}문장")
+        if n > sentence_count(best):
+            best = text
+        if n >= MIN_SENTENCES:
+            break
+    return best
+
+
+MIN_SENTENCES = 10
+
+
+def sentence_count(text: str) -> int:
+    return len([x for x in re.split(r"(?<=다\.)\s+", text.strip()) if x.strip()]) if text.strip() else 0
+
+
+EVENT_ORDER = ["계약 해지", "8-K 주의 공시", "큰 공급계약", "내부자 여러 명 매수", "내부자 매수", "잠정실적", "실적 반전 목록에 새로 듦"]
+
+
+def event_list(ev: dict[str, list[str]], nm: dict[str, str]) -> list[dict]:
+    """이달 생긴 일이 있는 종목 전체(테마 지도 밖 포함) - 공시·8-K 주의가 먼저, 실적 반전 신규만 있는 곳은 뒤로."""
+    def rank(evs):
+        return min((i for i, k in enumerate(EVENT_ORDER) for e in evs if e.startswith(k)), default=len(EVENT_ORDER))
+    out = [{"market": k.split(":")[0], "symbol": k.split(":")[1], "name": nm.get(k) or k.split(":")[1], "events": v} for k, v in ev.items()]
+    return sorted(out, key=lambda x: (rank(x["events"]), x["market"], x["name"]))[:40]
 
 
 def map_themes(themes: dict) -> list[dict]:
@@ -452,7 +486,7 @@ def build(month: str, use_gpt: bool = True) -> dict:
     themes = theme_section(weeks, tnames)
     ev = month_events(bs)
     have = {k: sum(1 for b in bs if b.get(k)) for k in ("insider_week", "kr_disclosures", "us_8k_week", "turnaround")}
-    log(f"이달 생긴 일 {len(ev)}종목 (브리핑에 칸이 있는 주: {have}) {sorted(ev)[:40]}")
+    log(f"이달 생긴 일 {len(ev)}종목 (브리핑에 칸이 있는 주: {have})")
     r = {
         "month": month, "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "weeks": weeks,
         "briefing_weeks": [b.get("week") for b in bs],
@@ -461,6 +495,7 @@ def build(month: str, use_gpt: bool = True) -> dict:
         "news": news_section(themes["labeled"], weeks, members, nm),
         "company_map": company_map(map_themes(themes), ev, nm, weeks[-1] if weeks else None),
         "watchlist": watchlist_section(start, end, nm),
+        "month_events": event_list(ev, nm),
         "reviews": reviews_section(bs, tnames, nm),
         "calendar": calendar_section(nstart, nend, nm),
     }

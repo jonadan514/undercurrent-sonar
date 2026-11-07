@@ -67,3 +67,10 @@ def test_tidy_name_drops_cut_suffix():
     assert mr.tidy_name("Carpenter Technology Corporatio") == "Carpenter Technology"
     assert mr.tidy_name("Nasdaq, Inc.") == "Nasdaq"
     assert mr.tidy_name("엘리스") == "엘리스"
+
+
+def test_event_list_order_and_sentence_count():
+    ev = {"US:BNY": ["실적 반전 목록에 새로 듦"], "KR:047040": ["큰 공급계약"], "US:GM": ["8-K 주의 공시", "내부자 매수"]}
+    out = mr.event_list(ev, {"US:GM": "General Motors"})
+    assert [x["symbol"] for x in out] == ["GM", "047040", "BNY"] and out[0]["name"] == "General Motors"
+    assert mr.sentence_count("가였다. 나였다. 다였다.") == 3 and mr.sentence_count("") == 0

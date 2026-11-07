@@ -34,6 +34,7 @@ interface Report {
   news: NewsBlock[];
   company_map: MapTheme[];
   watchlist: { watchlist: Change | null; turnaround: Change | null };
+  month_events?: { market: Mk; symbol: string; name: string; events: string[] }[];   // 2026-11-07 둘째 판부터
   reviews: Review[];
   calendar: { earnings: CalItem[]; earnings_total: number; deadlines: { date: string; what: string }[] };
 }
@@ -344,11 +345,26 @@ function ReportView() {
       <Section title="2. 테마 흐름" sub="세 축(뉴스·실적·주가) 라벨과 실적 축 변화"><ThemeFlow t={r.themes} weeks={r.weeks} /></Section>
       <Section title="3. 주시할 뉴스" sub="라벨 붙은 테마별 · 코드가 고른 원문 제목"><NewsBlocks news={r.news} /></Section>
       <Section title="4. 테마별 기업 지도" sub="라벨이 붙었거나 실적 축이 바뀐 테마의 소속 기업 · 가치사슬 구간별"><CompanyMap maps={r.company_map} /></Section>
-      <Section title="5. 워치리스트 한 달 변화" className="print-avoid-break">
-        <div className="grid gap-4 md:grid-cols-2">
+      <Section title="5. 워치리스트 한 달 변화">
+        <div className="mb-3 grid gap-4 md:grid-cols-2">
           <ChangeBlock title="트랩 필터 통과 목록" c={r.watchlist.watchlist} />
           <ChangeBlock title="실적 반전 목록" c={r.watchlist.turnaround} />
         </div>
+        {(r.month_events ?? []).length > 0 && (
+          <div className="text-[13px]">
+            <Sub>이달 공시·내부자 매수 등이 있었던 곳</Sub>
+            <ul className="grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
+              {(r.month_events ?? []).map((x) => (
+                <li key={`${x.market}:${x.symbol}`} className="flex flex-wrap items-baseline gap-x-1.5">
+                  <StockLink market={x.market} symbol={x.symbol} style={{ color: "var(--text-primary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
+                  <span className="text-[11px]" style={FAINT}>{x.market === "KR" ? "한" : "미"}</span>
+                  <span style={{ color: x.events.some((e) => e.startsWith("8-K") || e.startsWith("계약 해지")) ? "var(--orange)" : "var(--text-secondary)" }}>{x.events.join(" · ")}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-[12px]" style={FAINT}>이달 주간 브리핑에 나온 내부자 매수(계획 매수 제외)·큰 공급계약·계약 해지·잠정실적 영업이익 전환·8-K 주의 공시·실적 반전 신규. 테마 지도 밖 종목 포함, 최대 40곳.</p>
+          </div>
+        )}
       </Section>
       <Section title="6. 관찰 노트 회고" sub="적어 둔 기대가 맞았는지" className="print-avoid-break"><Reviews rs={r.reviews} /></Section>
       <Section title={`7. ${nextMonth} 일정`} sub="실적 발표 · 공시 마감"><CalendarBlock c={r.calendar} month={nextMonth} /></Section>
