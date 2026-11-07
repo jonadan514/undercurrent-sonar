@@ -389,8 +389,17 @@ def main() -> int:
     month = args.month or prev_month(kst_today)
     r = build(month, use_gpt=not args.no_gpt)
     if args.dry_run:
-        print(json.dumps({k: v for k, v in r.items() if k not in ("company_map",)}, ensure_ascii=False, indent=1)[:12000])
-        print("\n== 기업 지도(앞부분) ==\n" + json.dumps(r["company_map"][:2], ensure_ascii=False)[:3000])
+        print("== 이달 요약 ==\n" + (r["summary"] or "(없음)"))
+        print("\n== 요약에 넘긴 사실 ==\n" + "\n".join(r["summary_facts"]))
+        print(f"\n== 칸별 ==\n라벨 테마 {len(r['themes']['labeled'])} · 실적 축 바뀜 {len(r['themes']['earn_turns'])} · "
+              f"기사 {sum(len(n['articles']) for n in r['news'])} · 기업 지도 {len(r['company_map'])}테마 · 회고 {len(r['reviews'])} · "
+              f"일정 {len(r['calendar']['earnings'])}/{r['calendar']['earnings_total']} · 마감 {r['calendar']['deadlines']}")
+        ev = [(m['theme'], it['name'], it['events']) for m in r['company_map'] for g in m['groups'] for it in g['items'] if it['events']]
+        print("기업 지도 이달 생긴 일: " + json.dumps(ev[:12], ensure_ascii=False))
+        print("회고: " + json.dumps(r["reviews"], ensure_ascii=False)[:1500])
+        print("일정(앞): " + json.dumps(r["calendar"]["earnings"][:10], ensure_ascii=False))
+        w = r["watchlist"]
+        print("워치리스트: " + json.dumps({k: (v and {x: v[x] for x in v if x not in ("added", "removed")}) for k, v in w.items()}, ensure_ascii=False))
         return 0
     save(r)
     log(f"저장 {month}")
