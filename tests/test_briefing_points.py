@@ -166,3 +166,12 @@ def test_ineun_before_expectation_kept():
     t = "'동반 상승' 라벨이 붙었고, 이는 4주 전 '뉴스가 늘 것'이라고 적어 둔 기대가 맞았다. 이는 업황 회복을 시사한다."
     assert wb.strip_speculation(wb.fix_passive(t)) == "'동반 상승' 라벨이 붙었고, 4주 전 '뉴스가 늘 것'이라고 적어 둔 기대가 맞았다."
     assert wb.strip_speculation("VIX는 크게 올라 시장의 불안감을 드러냈다. 금리는 내렸다.") == "금리는 내렸다."
+
+
+def test_eotgallin_fix():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import generate_weekly_briefing as wb
+    assert wb.fix_passive("두 시장이 엇갈린 흐름을 보였다.") == "두 시장이 엇갈렸다."
+    assert wb.fix_passive("영업이익이 줄어드는 엇갈린 신호를 보였다.") == "영업이익이 줄어드는 엇갈린 신호를 보였다."
