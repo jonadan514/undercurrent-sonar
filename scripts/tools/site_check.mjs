@@ -101,7 +101,7 @@ for (const path of ONLY.includes("4") ? LINK_PAGES : []) {
 }
 if (ONLY.includes("4")) {
   const { p } = await open("/watchlist");
-  const row = p.locator("[role=button]:visible").first();   // 넓은 화면·휴대폰 행이 둘 다 있고 한쪽은 숨김
+  const row = p.locator("tbody tr:visible").first();   // 넓은 화면은 표 행(휴대폰 카드 role=button은 숨김)
   let msg = "후보 행 없음";
   if (await row.count()) {
     await row.click(); await p.waitForTimeout(800);
