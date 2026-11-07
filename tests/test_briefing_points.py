@@ -156,3 +156,13 @@ def test_comment_style_checks():
     assert wb.strip_speculation("Apple 실적 발표도 주목할 일정이다. 조선은 실적이 올랐다.") == "조선은 실적이 올랐다."
     assert wb.strip_speculation("가나테마는 시장의 주목을 받았다. 실적이 늘었다.") == "실적이 늘었다."
     assert wb.verbatim_titles("'패키지도 그대로 베껴… K뷰티 짝퉁' 기사", ["패키지도 그대로 베껴… K뷰티 ‘짝퉁’ 대응 나섰다"]) == 1
+
+
+def test_ineun_before_expectation_kept():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import generate_weekly_briefing as wb
+    t = "'동반 상승' 라벨이 붙었고, 이는 4주 전 '뉴스가 늘 것'이라고 적어 둔 기대가 맞았다. 이는 업황 회복을 시사한다."
+    assert wb.strip_speculation(wb.fix_passive(t)) == "'동반 상승' 라벨이 붙었고, 4주 전 '뉴스가 늘 것'이라고 적어 둔 기대가 맞았다."
+    assert wb.strip_speculation("VIX는 크게 올라 시장의 불안감을 드러냈다. 금리는 내렸다.") == "금리는 내렸다."
