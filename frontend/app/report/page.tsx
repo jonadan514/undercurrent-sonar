@@ -7,6 +7,7 @@ import StockLink from "@/src/components/StockLink";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import { Section } from "@/src/components/Section";
+import { krStockName } from "@/src/lib/krStockNames";
 
 // 월간 리서치 보고서(2026-11-07). scripts/generate_monthly_report.py가 매달 첫 월요일에 지난달 것을 monthly_reports에 쌓는다.
 // 사이트에 이미 있는 것(세 축 신호·시장 환경·테마 뉴스·가치사슬·워치리스트 스냅샷·관찰 노트·실적 일정)을 한 달 단위로 묶은 읽을거리 -
@@ -49,6 +50,8 @@ const EARN_DOT: Record<string, { t: string; c: string }> = {
 const MUTED = { color: "var(--text-muted)" };
 const FAINT = { color: "var(--text-faint)" };
 
+// 보고서를 만들 때 이름을 못 찾은 한국 종목(이름 = 코드)은 화면의 한국 종목 이름표로 한 번 더
+const nameOf = (m: Mk, symbol: string, name: string) => (m === "KR" && (!name || name === symbol) ? krStockName(symbol) : name || symbol);
 const md = (d: string) => { const [, m, dd] = d.split("-"); return `${Number(m)}/${Number(dd)}`; };
 const monthKo = (m: string) => { const [y, mm] = m.split("-"); return `${y}년 ${Number(mm)}월`; };
 
@@ -201,7 +204,7 @@ function CompanyMap({ maps }: { maps: MapTheme[] }) {
                       <span key={it.symbol} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px]"
                         style={{ border: `1px solid ${it.events.length ? "var(--accent)" : "var(--border)"}`, color: "var(--text-secondary)" }}>
                         <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: st.c }} title={st.t} />
-                        <StockLink market={t.market} symbol={it.symbol}>{it.name}</StockLink>
+                        <StockLink market={t.market} symbol={it.symbol}>{nameOf(t.market, it.symbol, it.name)}</StockLink>
                         {it.linkage === "partial" && <span className="text-[10.5px]" style={FAINT}>부분</span>}
                         {it.events.map((e) => <span key={e} className="text-[10.5px]" style={{ color: "var(--accent)" }}>{e}</span>)}
                       </span>
@@ -224,7 +227,7 @@ function ChangeBlock({ title, c }: { title: string; c: Change | null }) {
   if (!c) return <div className="text-[13px]"><Sub>{title}</Sub><p style={MUTED}>비교할 두 주가 없습니다.</p></div>;
   const names = (xs: Ref[], n: number) => (
     <span className="flex flex-wrap gap-x-2 gap-y-0.5">
-      {xs.map((x) => <StockLink key={`${x.market}:${x.symbol}`} market={x.market} symbol={x.symbol} style={{ color: "var(--text-secondary)" }}>{x.name}</StockLink>)}
+      {xs.map((x) => <StockLink key={`${x.market}:${x.symbol}`} market={x.market} symbol={x.symbol} style={{ color: "var(--text-secondary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>)}
       {n > xs.length && <span style={FAINT}>{xs.length ? `외 ${n - xs.length}곳` : `${n}곳(이름 목록 없음)`}</span>}
       {!n && <span style={FAINT}>없음</span>}
     </span>
@@ -278,7 +281,7 @@ function CalendarBlock({ c, month }: { c: Report["calendar"]; month: string }) {
               <span className="flex flex-wrap gap-x-2.5 gap-y-0.5">
                 {xs.map((x) => (
                   <span key={`${x.market}:${x.symbol}`} className="whitespace-nowrap">
-                    <StockLink market={x.market} symbol={x.symbol} style={{ color: x.tags.includes("내 관심") ? "var(--accent)" : "var(--text-secondary)" }}>{x.name}</StockLink>
+                    <StockLink market={x.market} symbol={x.symbol} style={{ color: x.tags.includes("내 관심") ? "var(--accent)" : "var(--text-secondary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
                     <span className="ml-1 text-[11px]" style={FAINT}>{x.market === "KR" ? "한" : "미"}{x.estimate ? " · 예상" : ""}</span>
                   </span>
                 ))}
