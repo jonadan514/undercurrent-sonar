@@ -49,6 +49,8 @@ interface Briefing {
             vix?: MacroItem | null; spread_10y_2y?: MacroItem | null } | null;   // 2026-11-05부터
   // 워치리스트 '실적 반전'(3년 정체·역성장인데 지금 흐름 성장) 주간 변동(2026-10-17부터). 예전 브리핑엔 없다.
   kr_flows?: Record<string, FlowSum> | null;
+  // 시장 환경 축(2026-11-07부터, market_regime_weekly 그 주 값) - 축별 방향 + 정해진 조합 이름. 예전 브리핑엔 없다.
+  regime?: Partial<Record<"US" | "KR", RegimeWeek>> | null;
   turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean;
                  added: TurnaroundItem[]; added_count: number; removed: StockRef[]; removed_count: number } | null;
   earnings_week?: { total: number; by_market: Record<string, number>; tagged_count: number; items: EarningsItem[] } | null;
@@ -173,6 +175,40 @@ interface MacroItem { value: number | null; chg_1w: number | null }
 // 매크로는 줄마다 한 칸씩이면 9줄이 넘어 브리핑이 길어진다 - 작은 칸으로 묶는다(2026-10-20)
 type MacroKey = "us10y" | "real10y" | "hy_spread" | "spread_10y_2y" | "kr3y" | "usdkrw" | "dxy" | "vix" | "wti" | "copper" | "natgas";
 const pp = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%p`;
+// ── 시장 환경 배지(2026-11-07) ─────────────────────────────────────────────
+// 그 주 브리핑에 저장된 축 상태 - 조합 이름(정해진 것만)과 축별 4주 방향. 점수·판단 없음(원칙 1). 자세한 표는 개요 '시장 환경'.
+interface RegimeWeek {
+  week: string; as_of: string;
+  axes: Record<string, { name: string; dir: string | null }>;
+  combos: { id: string; name: string; meaning: string }[];
+}
+const RG_ARROW: Record<string, string> = { up: "↑", flat: "→", down: "↓" };
+function RegimeBadges({ regime }: { regime: Partial<Record<"US" | "KR", RegimeWeek>> }) {
+  const rows = (["US", "KR"] as const).filter((m) => regime[m]);
+  if (!rows.length) return null;
+  return (
+    <div className="mb-2 rounded-lg px-3 py-2 space-y-1" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      {rows.map((m) => {
+        const r = regime[m]!;
+        return (
+          <div key={m} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
+            <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{m === "US" ? "🇺🇸 미국" : "🇰🇷 한국"} 시장 환경</span>
+            {r.combos.length ? r.combos.map((c) => (
+              <span key={c.id} className="rounded px-1.5 py-0.5 text-[12px] font-bold" style={{ background: "#ffb02022", color: "#ffb020" }} title={c.meaning}>{c.name}</span>
+            )) : <span style={{ color: "var(--text-faint)" }}>정해진 조합 없음</span>}
+            <span className="text-[11.5px]" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+              {Object.values(r.axes).map((a) => `${a.name}${a.dir ? RG_ARROW[a.dir] : "·"}`).join(" ")}
+            </span>
+          </div>
+        );
+      })}
+      <p className="text-[11px]" style={{ color: "var(--text-faint)" }}>
+        최근 4주 방향(각 지표의 평소 4주 변화폭 대비) · 이름은 정해진 조합에만 · <a href="/#regime" className="underline">개요에서 자세히</a>
+      </p>
+    </div>
+  );
+}
+
 const MACRO_ROWS: { key: MacroKey; label: string; fmt: (v: number) => string; chg?: (v: number) => string }[] = [
   { key: "us10y", label: "미 10년물", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
   { key: "real10y", label: "미 실질금리", fmt: (v) => `${v.toFixed(2)}%`, chg: pp },
@@ -567,6 +603,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
           <BriefGroup title="시장">
             <Section className={SCROLL_M} id="market" title="지난주 시장">
+              {b.regime && <RegimeBadges regime={b.regime} />}
               <div className="grid grid-cols-2 gap-1.5">
                 <IndexTile label="🇺🇸 S&P 500 주간" m={b.us} />
                 <IndexTile label="🇰🇷 KOSPI 주간" m={b.kr} />
