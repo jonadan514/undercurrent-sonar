@@ -38,9 +38,20 @@ def test_month_events_and_summary_facts_have_no_numbers():
     assert ev["KR:000720"] == ["내부자 여러 명 매수"] and ev["KR:066970"] == ["큰 공급계약"]
     r = {"regime": {"US": [{"combos": ["긴축 압력"]}, {"combos": ["위험 회피"]}], "KR": []},
          "themes": {"labeled": [{"theme": "K-뷰티", "market": "KR", "labels": [{"week": "2026-10-05", "label": "Quiet Strength"}]}], "earn_turns": []},
-         "watchlist": {"watchlist": {"added_count": 3, "removed_count": 0}}, "reviews": []}
+         "watchlist": {"watchlist": {"start_total": 360, "end_total": 380, "added": [{"symbol": "AAPL", "name": "Apple"}],
+                                     "added_count": 3, "removed": [], "removed_count": 0}},
+         "company_map": [{"theme": "AI 반도체", "market": "US", "groups": [
+             {"n": 1, "label": "설계", "items": [{"name": "Broadcom", "events": ["내부자 매수"]}]},
+             {"n": 2, "label": "기판", "items": []}]}],
+         "reviews": [{"target": "K-뷰티", "market": "KR", "results": [{"expect": "뉴스↑", "hit": False}]}],
+         "calendar": {"earnings": [{"name": "Micron", "tags": ["내 관심"]}], "deadlines": []}}
     facts = mr.summary_facts(r)
     assert "미국 시장 환경 흐름: 긴축 압력(첫 주만) → 위험 회피(마지막 주)" in facts
+    assert "AI 반도체(미국) 소속 기업에 이달 생긴 일: Broadcom 내부자 매수" in facts
+    assert "AI 반도체(미국) 가치사슬에서 소속 기업이 없는 구간: 기판" in facts
+    assert any(f.startswith("트랩 필터 통과 목록: 한 달 사이 전체 규모가 늘었다. 새로 든 곳 예: Apple") for f in facts)
+    assert "다음 달 실적 발표 - 내 워치리스트: Micron" in facts
+    assert "관찰 노트 회고 - K-뷰티(한국): 뉴스↑ 빗나감" in facts
     assert not any(re.search(r"\d+\s*(%|개|종목)", f) for f in facts)
 
 

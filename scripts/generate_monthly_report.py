@@ -333,42 +333,87 @@ def regime_flow(seq: list[str]) -> str:
 
 
 def summary_facts(r: dict) -> list[str]:
-    facts = []
+    """요약에 넘길 사실 - 칸 순서대로 [머리]를 붙여 묶는다. 숫자는 넘기지 않는다(기사 제목 속 숫자는 문장째 걸러진다)."""
+    facts: list[str] = []
     weeks = r.get("weeks") or []
+    nm_of = lambda x: x.get("name") or x.get("symbol")  # noqa: E731
+    facts.append("[시장]")
     for mk in ("US", "KR"):
         flow = regime_flow([", ".join(w["combos"]) for w in r["regime"].get(mk) or []])
         if flow:
             facts.append(f"{MK[mk]} 시장 환경 흐름: {flow}")
+    facts.append("[테마]")
     for t in r["themes"]["labeled"][:8]:
         parts = [f"{ordinal_week(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
-        facts.append(f"{t['theme']}({MK[t['market']]}) 라벨이 붙은 주: {', '.join(parts)}")
+        means = sorted({wb.LABEL_MEANING.get(x["label"], "") for x in t["labels"]} - {""})
+        last = t.get("last") or {}
+        facts.append(f"{t['theme']}({MK[t['market']]}) 라벨이 붙은 주: {', '.join(parts)}"
+                     + (f" (라벨 뜻: {' / '.join(means)})" if means else "")
+                     + f" · 마지막 주 뉴스 {ARROW_KO.get(last.get('news') or 'na')}, 실적 {ARROW_KO.get(last.get('earn') or 'na')}, "
+                       f"주가 {ARROW_KO.get(last.get('price') or 'na')}")
     for t in r["themes"]["earn_turns"][:6]:
-        facts.append(f"{t['theme']}({MK[t['market']]}) 실적 축: {ARROW_KO.get(t['from'], t['from'])} → {ARROW_KO.get(t['to'], t['to'])}")
-    w = r["watchlist"].get("watchlist")
-    if w:
-        facts.append(f"워치리스트: 신규 {'있음' if w['added_count'] else '없음'}, 탈락 {'있음' if w['removed_count'] else '없음'}")
-    hits = [x for x in r["reviews"] if any(y["hit"] for y in x["results"])]
-    miss = [x for x in r["reviews"] if any(y["hit"] is False for y in x["results"])]
-    if r["reviews"]:
-        facts.append(f"관찰 노트 회고: 기대가 맞은 것 {', '.join(x['target'] for x in hits[:4]) or '없음'} / 빗나간 것 {', '.join(x['target'] for x in miss[:4]) or '없음'}")
-    return facts
+        facts.append(f"{t['theme']}({MK[t['market']]}) 실적 축: 첫 주 {ARROW_KO.get(t['from'], t['from'])} → 마지막 주 {ARROW_KO.get(t['to'], t['to'])}")
+    for n in (r.get("news") or [])[:6]:
+        titles = [a["title"] for a in n["articles"][:2]]
+        if titles:
+            facts.append(f"{n['theme']}({MK[n['market']]}) 이달 주요 기사 제목: " + " / ".join(f"'{x}'" for x in titles))
+    facts.append("[기업]")
+    for m in r.get("company_map") or []:
+        ev = [f"{it['name']} {'·'.join(it['events'])}" for g in m["groups"] for it in g["items"] if it["events"]]
+        if ev:
+            facts.append(f"{m['theme']}({MK[m['market']]}) 소속 기업에 이달 생긴 일: {', '.join(ev[:6])}")
+        segs = [g["label"] for g in m["groups"] if g["n"] and g["items"]]
+        empty = [g["label"] for g in m["groups"] if g["n"] and not g["items"]]
+        if empty and segs:
+            facts.append(f"{m['theme']}({MK[m['market']]}) 가치사슬에서 소속 기업이 없는 구간: {', '.join(empty)}")
+    facts.append("[워치리스트·회고]")
+    for key, label in (("watchlist", "트랩 필터 통과 목록"), ("turnaround", "실적 반전 목록")):
+        w = (r.get("watchlist") or {}).get(key)
+        if not w:
+            continue
+        grow = "늘었다" if w["end_total"] > w["start_total"] else "줄었다" if w["end_total"] < w["start_total"] else "그대로였다"
+        facts.append(f"{label}: 한 달 사이 전체 규모가 {grow}. 새로 든 곳 예: {', '.join(nm_of(x) for x in w['added'][:6]) or '없음'}"
+                     f" / 빠진 곳 예: {', '.join(nm_of(x) for x in w['removed'][:4]) or '없음'}")
+    for x in r.get("reviews") or []:
+        res = ", ".join(f"{y['expect']} {'맞음' if y['hit'] else '빗나감' if y['hit'] is False else '판단 불가'}" for y in x["results"])
+        facts.append(f"관찰 노트 회고 - {x['target']}({MK.get(x['market'], x['market'])}): {res or '적어 둔 기대 없음'}")
+    facts.append("[다음 달]")
+    cal = r.get("calendar") or {}
+    for d in cal.get("deadlines") or []:
+        facts.append(f"다음 달 마감: {d['what']}")
+    mine = [x["name"] for x in cal.get("earnings") or [] if "내 관심" in x["tags"]]
+    both = [x["name"] for x in cal.get("earnings") or [] if "내 관심" not in x["tags"] and {"후보", "테마"} <= set(x["tags"])]
+    if mine:
+        facts.append(f"다음 달 실적 발표 - 내 워치리스트: {', '.join(mine[:8])}")
+    if both:
+        facts.append(f"다음 달 실적 발표 - 후보이면서 테마 소속: {', '.join(both[:8])}")
+    return [f for i, f in enumerate(facts) if not (f.startswith("[") and (i + 1 == len(facts) or facts[i + 1].startswith("[")))]
 
 
 def gpt_summary(facts: list[str], month: str) -> str:
+    """문단 셋(시장·테마 / 기업·워치리스트 / 회고·다음 달), 문단마다 세 문장 안팎. 문단은 빈 줄로 구분해 저장."""
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key or not facts:
         return ""
     from src.llm.openai_json import call_json, model_for
-    prompt = (f"{month} 한 달 동안 리서치 도구에 쌓인 사실입니다.\n" + "\n".join(f"- {f}" for f in facts) +
-              "\n\n이 사실만으로 이달 요약 3~5문장을 쓰세요. 사실을 서로 잇되 원인을 짐작하거나 전망·매수 판단을 쓰지 말고, 숫자는 쓰지 마세요. "
-              "'~했다/~이다' 기사체. 라벨·조합 이름은 그대로. JSON으로만: {\"summary\": \"...\"}")
+    prompt = (f"{month} 한 달 동안 리서치 도구에 쌓인 사실입니다. [ ]는 묶음 이름입니다.\n" + "\n".join(f if f.startswith("[") else f"- {f}" for f in facts) +
+              "\n\n이 사실만으로 월간 보고서 첫머리 요약을 문단 셋으로 쓰세요.\n"
+              "1문단: 시장 환경 흐름과 테마 흐름(라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마, 주요 기사 제목이 다룬 내용).\n"
+              "2문단: 기업 지도와 워치리스트(소속 기업에 생긴 일, 비어 있는 구간, 목록에 새로 든 곳·빠진 곳).\n"
+              "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정.\n"
+              "문단마다 세~네 문장. 사실을 서로 잇되 원인을 짐작하거나 전망·매수 판단·'주목할 만하다' 같은 평가를 쓰지 말고, 숫자는 쓰지 마세요. "
+              "사실이 없는 내용은 만들지 마세요. '~했다/~이다' 기사체. 라벨·조합·회사 이름은 그대로. "
+              "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
     try:
-        out = call_json(model_for("briefing_comment"), "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=800, temperature=0.3)
+        out = call_json(model_for("briefing_comment"), "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=1800, temperature=0.3)
     except Exception as e:  # noqa: BLE001
         log(f"요약 실패 {type(e).__name__}")
         return ""
-    text = str((out or {}).get("summary") or "")
-    return wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(text)))
+    paras = (out or {}).get("paragraphs") or []
+    if isinstance(paras, str):
+        paras = [paras]
+    clean = [wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(p)))) for p in paras]
+    return "\n\n".join(p for p in clean if p)
 
 
 def map_themes(themes: dict) -> list[dict]:

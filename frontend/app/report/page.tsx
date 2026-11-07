@@ -332,7 +332,11 @@ function ReportView() {
       </PageHeader>
 
       <Section title="이달 요약" sub="아래 칸의 사실만 이어 쓴 글 · GPT · 숫자 없음" tone="warm" className="print-avoid-break">
-        {r.summary ? <p className="text-[14px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{r.summary}</p>
+        {r.summary ? (
+          <div className="space-y-2.5">
+            {r.summary.split(/\n\s*\n/).map((p, i) => <p key={i} className="text-[14px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{p}</p>)}
+          </div>
+        )
           : <p className="text-[13px]" style={MUTED}>이번 달은 요약을 만들지 못했습니다. 아래 칸을 보세요.</p>}
       </Section>
 
