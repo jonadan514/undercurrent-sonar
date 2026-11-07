@@ -51,7 +51,7 @@ def test_month_events_and_summary_facts_have_no_numbers():
     assert "AI 반도체(미국) 가치사슬에서 소속 기업이 없는 구간: 기판" in facts
     assert any(f.startswith("트랩 필터 통과 목록: 한 달 사이 전체 규모가 늘었다. 새로 든 곳 예: Apple") for f in facts)
     assert "다음 달 실적 발표 - 내 워치리스트: Micron" in facts
-    assert "관찰 노트 회고 - K-뷰티(한국): 뉴스↑ 빗나감" in facts
+    assert "관찰 노트 회고 - K-뷰티(한국): 적어 둔 기대 '뉴스↑' 빗나감" in facts
     assert not any(re.search(r"\d+\s*(%|개|종목)", f) for f in facts)
 
 
@@ -60,3 +60,10 @@ def test_regime_flow_and_ordinal():
     assert mr.regime_flow(["", "", ""]) == "뚜렷한 조합 없음(한 달 내내)"
     assert mr.regime_flow([]) == ""
     assert mr.ordinal_week(["2026-10-05", "2026-10-12"], "2026-10-12") == "둘째 주"
+
+
+def test_tidy_name_drops_cut_suffix():
+    assert mr.tidy_name("The Bank of New York Mellon Cor") == "The Bank of New York Mellon"
+    assert mr.tidy_name("Carpenter Technology Corporatio") == "Carpenter Technology"
+    assert mr.tidy_name("Nasdaq, Inc.") == "Nasdaq"
+    assert mr.tidy_name("엘리스") == "엘리스"

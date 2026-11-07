@@ -237,6 +237,17 @@ def company_map(themes: list[dict], ev: dict[str, list[str]], nm: dict[str, str]
     return out
 
 
+_SUFFIXES = ("corporation", "company", "incorporated", "holdings", "limited", "group", "inc", "ltd", "plc", "corp")
+
+
+def tidy_name(name: str | None) -> str:
+    """스냅샷 이름(30자에서 잘림) 정리 - 끝에 잘린 법인 꼬리('Cor'·'Corporatio')와 'Inc.' 같은 꼬리를 뗀다."""
+    words = (name or "").strip().split()
+    if len(words) > 1 and len(name or "") >= 30 and any(sfx.startswith(words[-1].lower().rstrip(".,")) for sfx in _SUFFIXES):
+        words = words[:-1]
+    return (wb._clean_names([" ".join(words)]) or [""])[0]
+
+
 def watchlist_section(start: date, end: date, nm: dict[str, str]) -> dict:
     def snap(table: str, before: str, first: bool):
         op, order = (">=", "ASC") if first else ("<", "DESC")
@@ -253,7 +264,8 @@ def watchlist_section(start: date, end: date, nm: dict[str, str]) -> dict:
             continue
         ka = {f"{x['market']}:{x['symbol']}": x for x in a["_data"]}
         kb = {f"{x['market']}:{x['symbol']}": x for x in b["_data"]}
-        item = lambda k, x: {"market": x["market"], "symbol": x["symbol"], "name": x.get("name") or nm.get(k) or x["symbol"]}  # noqa: E731
+        # 스냅샷의 name은 30자에서 잘려 있어('The Bank of New York Mellon Cor') 프로필 이름을 먼저
+        item = lambda k, x: {"market": x["market"], "symbol": x["symbol"], "name": nm.get(k) or tidy_name(x.get("name")) or x["symbol"]}  # noqa: E731
         added = [item(k, x) for k, x in kb.items() if k not in ka]
         removed = [item(k, x) for k, x in ka.items() if k not in kb]
         out[key] = {"from": a["week"], "to": b["week"], "start_total": len(ka), "end_total": len(kb),
@@ -375,7 +387,7 @@ def summary_facts(r: dict) -> list[str]:
         facts.append(f"{label}: 한 달 사이 전체 규모가 {grow}. 새로 든 곳 예: {', '.join(nm_of(x) for x in w['added'][:6]) or '없음'}"
                      f" / 빠진 곳 예: {', '.join(nm_of(x) for x in w['removed'][:4]) or '없음'}")
     for x in r.get("reviews") or []:
-        res = ", ".join(f"{y['expect']} {'맞음' if y['hit'] else '빗나감' if y['hit'] is False else '판단 불가'}" for y in x["results"])
+        res = ", ".join(f"적어 둔 기대 '{y['expect']}' {'맞음' if y['hit'] else '빗나감' if y['hit'] is False else '판단 불가'}" for y in x["results"])
         facts.append(f"관찰 노트 회고 - {x['target']}({MK.get(x['market'], x['market'])}): {res or '적어 둔 기대 없음'}")
     facts.append("[다음 달]")
     cal = r.get("calendar") or {}
@@ -439,6 +451,8 @@ def build(month: str, use_gpt: bool = True) -> dict:
     members = wb.get_theme_members()
     themes = theme_section(weeks, tnames)
     ev = month_events(bs)
+    have = {k: sum(1 for b in bs if b.get(k)) for k in ("insider_week", "kr_disclosures", "us_8k_week", "turnaround")}
+    log(f"이달 생긴 일 {len(ev)}종목 (브리핑에 칸이 있는 주: {have})")
     r = {
         "month": month, "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "weeks": weeks,
         "briefing_weeks": [b.get("week") for b in bs],
