@@ -225,7 +225,7 @@ function ChangeBlock({ title, c }: { title: string; c: Change | null }) {
   const names = (xs: Ref[], n: number) => (
     <span className="flex flex-wrap gap-x-2 gap-y-0.5">
       {xs.map((x) => <StockLink key={`${x.market}:${x.symbol}`} market={x.market} symbol={x.symbol} style={{ color: "var(--text-secondary)" }}>{x.name}</StockLink>)}
-      {n > xs.length && <span style={FAINT}>외 {n - xs.length}곳</span>}
+      {n > xs.length && <span style={FAINT}>{xs.length ? `외 ${n - xs.length}곳` : `${n}곳(이름 목록 없음)`}</span>}
       {!n && <span style={FAINT}>없음</span>}
     </span>
   );
