@@ -46,7 +46,7 @@ def test_month_events_and_summary_facts_have_no_numbers():
          "reviews": [{"target": "K-뷰티", "market": "KR", "results": [{"expect": "뉴스↑", "hit": False}]}],
          "calendar": {"earnings": [{"name": "Micron", "tags": ["내 관심"]}], "deadlines": []}}
     facts = mr.summary_facts(r)
-    assert "미국 시장 환경 흐름: 긴축 압력(첫 주만) → 위험 회피(마지막 주)" in facts
+    assert "미국 시장 환경: 첫째 주에는 '긴축 압력'이 붙었고, 둘째 주에는 '위험 회피'가 붙었다" in facts
     assert "AI 반도체(미국) 소속 기업에 이달 생긴 일: Broadcom 내부자 매수" in facts
     assert "AI 반도체(미국) 가치사슬에서 소속 기업이 없는 구간: 기판" in facts
     assert any(f.startswith("트랩 필터 통과 목록: 한 달 사이 전체 규모가 늘었다. 새로 든 곳 예: Apple") for f in facts)
@@ -56,8 +56,10 @@ def test_month_events_and_summary_facts_have_no_numbers():
 
 
 def test_regime_flow_and_ordinal():
-    assert mr.regime_flow(["긴축 압력", "위험 회피", "위험 회피", "위험 회피"]) == "긴축 압력(첫 주만) → 위험 회피(이후 계속)"
-    assert mr.regime_flow(["", "", ""]) == "뚜렷한 조합 없음(한 달 내내)"
+    assert mr.regime_flow(["긴축 압력", "위험 회피", "위험 회피", "위험 회피"]) == "첫째 주에는 '긴축 압력'이 붙었고, 둘째 주부터 '위험 회피'가 이어졌다"
+    assert mr.regime_flow(["", "위험 회피", "위험 회피"]) == "첫째 주에는 뚜렷한 조합이 없었고, 둘째 주부터 '위험 회피'가 이어졌다"
+    assert mr.regime_flow(["위험 선호", "위험 선호", "긴축 압력"]) == "첫째 주부터 둘째 주까지 '위험 선호'가 이어졌고, 셋째 주에는 '긴축 압력'이 붙었다"
+    assert mr.regime_flow(["", "", ""]) == "한 달 내내 뚜렷한 조합이 없었다"
     assert mr.regime_flow([]) == ""
     assert mr.ordinal_week(["2026-10-05", "2026-10-12"], "2026-10-12") == "둘째 주"
 
@@ -86,3 +88,8 @@ def test_advice_titles_not_passed_to_summary():
     assert mr._ADVICE_RE.search("Semiconductor Sell-Off: The 1 AI Chip Stock I'd Buy and 1 I'd Avoid")
     assert not mr._ADVICE_RE.search("금호석유화학그룹, R&D 사활…고부가 소재·배터리 만든다")
     assert not mr._ADVICE_RE.search("Consumer AI agents could upend online shopping")
+
+
+def test_drop_eval_and_missing():
+    assert mr._drop_eval("가가 예정돼 있다. 나나도 주목할 일정이다.") == "가가 예정돼 있다."
+    assert mr.missing_names("조선과 방산", ["조선", "방산", "재생에너지"]) == ["재생에너지"]

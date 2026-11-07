@@ -344,24 +344,38 @@ def ordinal_week(weeks: list[str], week: str) -> str:
     return ORD[weeks.index(week)] if week in weeks and weeks.index(week) < len(ORD) else "어느 한 주"
 
 
+def _josa(word: str, pair: str) -> str:
+    """받침 따라 '이/가'·'은/는'·'을/를' - pair는 '이가' 꼴."""
+    ch = (word or " ").rstrip("'\" ")[-1:] or " "
+    has = "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 != 0
+    return pair[0] if has else pair[1]
+
+
 def regime_flow(seq: list[str]) -> str:
-    """주별 조합을 이어진 덩어리로 묶어 말로: '긴축 압력(첫 주만) → 위험 회피(이후 계속)'."""
+    """주별 조합을 말 한 문장으로(GPT가 흐름을 뒤섞지 않게 문장으로 넘긴다 - 11/7 '월초 이후 뚜렷한 조합 없이 위험 회피'로 틀렸다).
+    예: "첫째 주에는 '긴축 압력'이 붙었고, 둘째 주부터 '위험 회피'가 이어졌다"."""
     if not seq:
         return ""
-    runs: list[list] = []
-    for c in seq:
+    runs: list[list] = []   # [조합, 시작 주 번호, 주 수]
+    for i, c in enumerate(seq):
         if runs and runs[-1][0] == c:
-            runs[-1][1] += 1
+            runs[-1][2] += 1
         else:
-            runs.append([c, 1])
+            runs.append([c, i, 1])
+    name = lambda c: f"'{c}'" if c else ""  # noqa: E731
     if len(runs) == 1:
-        return f"{runs[0][0] or '뚜렷한 조합 없음'}(한 달 내내)"
-    out = []
-    for i, (c, n) in enumerate(runs):
-        last = i == len(runs) - 1
-        how = ("첫 주만" if n == 1 else "처음 여러 주") if i == 0 else (("마지막 주" if n == 1 else "이후 계속") if last else ("한 주" if n == 1 else "여러 주"))
-        out.append(f"{c or '뚜렷한 조합 없음'}({how})")
-    return " → ".join(out)
+        c = runs[0][0]
+        return f"한 달 내내 {name(c)}{_josa(c, '이가')} 이어졌다" if c else "한 달 내내 뚜렷한 조합이 없었다"
+    parts = []
+    for k, (c, start, n) in enumerate(runs):
+        when = (f"{ORD[start]}에는" if n == 1 else f"{ORD[start]}부터 {ORD[start + n - 1]}까지") if k == 0 else (f"{ORD[start]}부터" if n > 1 else f"{ORD[start]}에는")
+        last = k == len(runs) - 1
+        if c:
+            verb = "이어졌다" if last and n > 1 else ("붙었다" if last else ("붙었고" if n == 1 else "이어졌고"))
+            parts.append(f"{when} {name(c)}{_josa(c, '이가')} {verb}")
+        else:
+            parts.append(f"{when} 뚜렷한 조합이 {'없었다' if last else '없었고'}")
+    return ", ".join(parts)
 
 
 # 투자 권유·종목 추천 꼴 제목은 요약에 넘기지 않는다(화면 뉴스 칸에는 원문 그대로) - '저가매수 기회'가 요약에 옮겨 왔다(11/7)
@@ -377,11 +391,11 @@ def summary_facts(r: dict) -> list[str]:
     for mk in ("US", "KR"):
         flow = regime_flow([", ".join(w["combos"]) for w in r["regime"].get(mk) or []])
         if flow:
-            facts.append(f"{MK[mk]} 시장 환경 흐름: {flow}")
+            facts.append(f"{MK[mk]} 시장 환경: {flow}")
     facts.append("[테마]")
     for t in r["themes"]["labeled"][:8]:
         parts = [f"{ordinal_week(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
-        means = sorted({wb.LABEL_MEANING.get(x["label"], "") for x in t["labels"]} - {""})
+        means = sorted({wb.LABEL_MEANING.get(x["label"], "").split(" - ")[0] for x in t["labels"]} - {""})   # 뒤 꼬리('시장이 덜 본 개선')는 그대로 옮겨 어색했다
         last = t.get("last") or {}
         facts.append(f"{t['theme']}({MK[t['market']]}) 라벨이 붙은 주: {', '.join(parts)}"
                      + (f" (라벨 뜻: {' / '.join(means)})" if means else "")
@@ -451,10 +465,22 @@ def _clean_paras(out) -> list[str]:
     paras = (out or {}).get("paragraphs") or []
     if isinstance(paras, str):
         paras = [paras]
-    return [p for p in (wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(x)))) for x in paras) if p]
+    return [p for p in (_drop_eval(wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(x))))) for x in paras) if p]
 
 
-def gpt_summary(facts: list[str], month: str) -> str:
+_EVAL_RE = re.compile(r"주목|눈여겨|관심을 끌|기대를 모")
+
+
+def _drop_eval(text: str) -> str:
+    """평가 문장('주목할 일정이다' 등) 빼기 - 브리핑 걸러내기(strip_speculation)가 못 잡은 꼴."""
+    return " ".join(x for x in re.split(r"(?<=다\.)\s+", text.strip()) if x and not _EVAL_RE.search(x)).strip()
+
+
+def missing_names(text: str, names_: list[str]) -> list[str]:
+    return [n for n in names_ if n and n not in text]
+
+
+def gpt_summary(facts: list[str], month: str, required: list[str] | None = None) -> str:
     """문단 셋(시장·테마 / 기업·워치리스트 / 회고·다음 달). 초안 → 다듬기 두 번 호출. 문단은 빈 줄로 구분해 저장."""
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key or not facts:
@@ -469,18 +495,23 @@ def gpt_summary(facts: list[str], month: str) -> str:
               "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정.\n"
               "문단마다 세~다섯 문장, 테마·회사 이름을 구체적으로('여러 기업'처럼 뭉뚱그리지 말 것).\n\n" + STYLE + RULES +
               "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
-    best = ""
-    for attempt in range(2):   # 너무 짧게 나오면(MIN_CHARS 미만) 한 번 더 - 길이가 실행마다 들쭉날쭉했다
+    required = required or []
+    if required:
+        prompt += "\n반드시 이름을 넣을 테마: " + ", ".join(required)
+    best, best_key = "", None
+    for attempt in range(3):   # 짧거나(MIN_CHARS 미만) 테마가 빠지면 다시 - 실행마다 들쭉날쭉했다
         try:
             out = call_json(model, "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=2000, temperature=0.4)
         except Exception as e:  # noqa: BLE001
             log(f"요약 실패 {type(e).__name__}")
             continue
         text = "\n\n".join(_clean_paras(out))
-        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장")
-        if len(text) > len(best):
-            best = text
-        if len(text) >= MIN_CHARS:
+        miss = missing_names(text, required)
+        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장, 빠진 테마 {miss or '없음'}")
+        k = (-len(miss), len(text))
+        if best_key is None or k > best_key:
+            best, best_key = text, k
+        if not miss and len(text) >= MIN_CHARS:
             break
     if not best:
         return ""
@@ -496,8 +527,9 @@ def gpt_summary(facts: list[str], month: str) -> str:
         log(f"다듬기 실패 {type(e).__name__} - 초안 사용")
         return best
     log(f"다듬기: {len(polished)}자 {sentence_count(polished)}문장, 같은 끝맺음 연속 {repeat_endings(polished)}곳 (초안 {repeat_endings(best)}곳)")
-    if polished.count("\n\n") != best.count("\n\n") or len(polished) < len(best) * 0.75:
-        log("다듬기 결과가 초안과 문단 수가 다르거나 많이 줄어 초안 사용")
+    if (polished.count("\n\n") != best.count("\n\n") or len(polished) < len(best) * 0.75
+            or len(missing_names(polished, required)) > len(missing_names(best, required))):
+        log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠져 초안 사용")
         return best
     return polished
 
@@ -567,7 +599,8 @@ def build(month: str, use_gpt: bool = True) -> dict:
         "calendar": calendar_section(nstart, nend, nm),
     }
     r["summary_facts"] = summary_facts(r)
-    r["summary"] = gpt_summary(r["summary_facts"], month) if use_gpt else ""
+    req = list(dict.fromkeys(t["theme"] for t in themes["labeled"][:8] + themes["earn_turns"][:6]))
+    r["summary"] = gpt_summary(r["summary_facts"], month, req) if use_gpt else ""
     return r
 
 
