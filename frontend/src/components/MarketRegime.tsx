@@ -47,7 +47,7 @@ function MarketCol({ m, weeks }: { m: "US" | "KR"; weeks: Week[] }) {
               <th className="py-1 text-right font-normal">4주 변화</th>
               <th className="py-1 pl-2 text-left font-normal">1년 중</th>
               {weeks.map((w, i) => (
-                <th key={w.week} className="py-1 text-center font-normal text-[10px] w-5 whitespace-nowrap" title={`${w.as_of} 기준`}>
+                <th key={w.week} className="hidden md:table-cell py-1 text-center font-normal text-[10px] w-5 whitespace-nowrap" title={`${w.as_of} 기준`}>
                   {i === 0 || w.as_of.slice(5, 7) !== weeks[i - 1].as_of.slice(5, 7) ? `${Number(w.as_of.slice(5, 7))}월` : ""}
                 </th>
               ))}
@@ -60,7 +60,7 @@ function MarketCol({ m, weeks }: { m: "US" | "KR"; weeks: Week[] }) {
                 <tr key={k} style={{ borderTop: "1px solid var(--border-dim, var(--border))" }}>
                   <td className="py-1 pr-2 whitespace-nowrap" title={a.label}>
                     <span style={{ color: "var(--text-secondary)" }}>{a.name}</span>
-                    <span className="ml-1 text-[10.5px]" style={{ color: "var(--text-faint)" }}>{a.label}</span>
+                    <span className="hidden sm:inline ml-1 text-[10.5px]" style={{ color: "var(--text-faint)" }}>{a.label}</span>
                   </td>
                   <td className="py-1 text-right whitespace-nowrap" style={{ color: "var(--text-secondary)" }}>{fmt(a.key, a.value)}</td>
                   <td className="py-1 text-right whitespace-nowrap" style={{ color: a.dir ? DIR_COLOR[a.dir] : "var(--text-faint)" }}>
@@ -71,38 +71,63 @@ function MarketCol({ m, weeks }: { m: "US" | "KR"; weeks: Week[] }) {
                   </td>
                   {weeks.map((w) => {
                     const x = w.axes[k];
-                    return <td key={w.week} className="py-1 text-center" style={{ color: x?.dir ? DIR_COLOR[x.dir] : "var(--text-faint)" }}
+                    return <td key={w.week} className="hidden md:table-cell py-1 text-center" style={{ color: x?.dir ? DIR_COLOR[x.dir] : "var(--text-faint)" }}
                       title={`${w.as_of} ${a.name} ${x?.dir ? ARROW[x.dir] : "데이터 부족"}`}>{x?.dir ? ARROW[x.dir] : "·"}</td>;
                   })}
                 </tr>
               );
             })}
-            <tr style={{ borderTop: "1px solid var(--border)" }}>
-              <td colSpan={4} className="py-1 text-[11px]" style={{ color: "var(--text-faint)" }}>조합 (주별)</td>
-              {weeks.map((w) => (
-                <td key={w.week} className="py-1 text-center text-[10px] font-bold" style={{ color: "#ffb020" }} title={`${w.as_of} ${w.combos.map((c) => c.name).join(", ") || "조합 없음"}`}>
-                  {w.combos.map((c) => c.name.slice(0, 1)).join("") || ""}
-                </td>
-              ))}
-            </tr>
           </tbody>
         </table>
       </div>
+      <ComboRuns weeks={weeks} />
     </div>
+  );
+}
+
+// 지난 12주에 조합 이름이 붙은 기간 - 이어진 주를 한 덩어리로("긴축 압력 9/25~10/9"). 2026-11-07 사용자: 격자 맨 아래 첫 글자(긴·위)가 이상함
+function ComboRuns({ weeks }: { weeks: Week[] }) {
+  const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const runs: { name: string; meaning: string; from: string; to: string; until: boolean }[] = [];
+  const names = Array.from(new Set(weeks.flatMap((w) => w.combos.map((c) => c.name))));
+  for (const name of names) {
+    let start: number | null = null;
+    weeks.forEach((w, i) => {
+      const has = w.combos.some((c) => c.name === name);
+      if (has && start == null) start = i;
+      const endHere = has && (i === weeks.length - 1 || !weeks[i + 1].combos.some((c) => c.name === name));
+      if (endHere && start != null) {
+        const meaning = w.combos.find((c) => c.name === name)?.meaning ?? "";
+        runs.push({ name, meaning, from: weeks[start].as_of, to: w.as_of, until: i === weeks.length - 1 });
+        start = null;
+      }
+    });
+  }
+  runs.sort((a, b) => a.from.localeCompare(b.from));
+  return (
+    <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+      <span style={{ color: "var(--text-faint)" }}>지난 12주 조합 </span>
+      {runs.length === 0 ? <span style={{ color: "var(--text-faint)" }}>없음</span> : runs.map((r, i) => (
+        <span key={`${r.name}-${r.from}`} title={r.meaning}>
+          {i > 0 && <span style={{ color: "var(--text-faint)" }}> → </span>}
+          <b style={{ color: "#ffb020" }}>{r.name}</b> {r.from === r.to ? md(r.from) : `${md(r.from)}~${r.until ? "지금" : md(r.to)}`}
+        </span>
+      ))}
+    </p>
   );
 }
 
 export default function MarketRegime({ data }: { data: RegimeData }) {
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+      <div className="space-y-2">
         <MarketCol m="US" weeks={data.US ?? []} />
         <MarketCol m="KR" weeks={data.KR ?? []} />
       </div>
       <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--text-faint)" }}>
         축마다 그 지표 자신의 지난 1년과 비교합니다: 1년 중 상·하위 20%면 높은/낮은 편, 최근 4주 변화가 평소 4주 변화폭보다 크면 화살표.
         정해진 조합(위험 회피·위험 선호·긴축 압력·완화 기대·원화 약세 압력)에만 이름을 붙이고, 점수나 매수·매도 판단은 없습니다.
-        오른쪽 칸은 지난 12주의 주별 방향, 맨 아래 글자는 그 주의 조합 이름 첫 글자입니다. 신용·변동성은 미국 지표를 두 시장에 같이 씁니다.
+        오른쪽 칸(넓은 화면)은 지난 12주의 주별 방향(그 주 금요일 기준), 아래 줄은 조합 이름이 붙은 기간입니다. 신용·변동성은 미국 지표를 두 시장에 같이 씁니다.
       </p>
     </div>
   );

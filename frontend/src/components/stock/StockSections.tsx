@@ -315,9 +315,10 @@ function PeerBar({ m }: { m: PeerMetric }) {
 function peerWhere(m: PeerMetric): { text: string; color: string } {
   if (m.self == null) return { text: "이 종목 값 없음", color: TEXT_FAINT };
   if (m.q1 == null || m.q3 == null) return { text: `동료 ${m.n}곳 - 비교 안 함`, color: TEXT_FAINT };
-  if (m.self > m.q3) return { text: "가운데 절반보다 위", color: TEXT_BODY };
-  if (m.self < m.q1) return { text: "가운데 절반보다 아래", color: TEXT_BODY };
-  return { text: "가운데 절반 안", color: TEXT_SECONDARY };
+  // 2026-11-07 사용자: "가운데 절반보다 위"가 어색함 - 동료 4곳 중 3곳보다 높으면(상위 25%) '동료보다 높음'
+  if (m.self > m.q3) return { text: "동료보다 높음", color: TEXT_BODY };
+  if (m.self < m.q1) return { text: "동료보다 낮음", color: TEXT_BODY };
+  return { text: "동료와 비슷", color: TEXT_SECONDARY };
 }
 export function ThemePeerSection({ c }: { c: StockRef }) {
   const [themes, setThemes] = useState<PeerTheme[] | null>(null);
@@ -341,11 +342,11 @@ export function ThemePeerSection({ c }: { c: StockRef }) {
             <span className="font-bold">{themeName(t.theme_id).ko}</span>
             <span style={{ color: TEXT_MUTED }}> · 소속 {t.members}개사{t.week ? ` · ${t.week.slice(5).replace("-", "/")} 주` : ""}</span>
           </p>
-          {/* 넓은 화면은 한 줄(지표·이 종목·중앙값·가운데 절반·위치), 휴대폰은 두 줄(아래 줄에 막대·위치) */}
+          {/* 넓은 화면은 한 줄(지표·이 종목·중앙값·보통 범위·비교), 휴대폰은 두 줄(아래 줄에 막대·비교) */}
           <div className="text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
             <div className={`hidden sm:grid ${PEER_GRID} py-1`} style={{ color: TEXT_MUTED }}>
               <span>지표</span><span className="text-right">이 종목</span><span className="text-right">테마 중앙값</span>
-              <span className="pl-2">가운데 절반(25~75%)</span><span>위치</span>
+              <span className="pl-2" title="동료 값을 줄 세웠을 때 가운데 절반(25~75%)">동료 보통 범위</span><span>동료와 비교</span>
             </div>
             {PEER_ROWS.map((row) => {
               const m = t.metrics[row.key];
@@ -377,7 +378,7 @@ export function ThemePeerSection({ c }: { c: StockRef }) {
         </div>
       ))}
       <p className="text-[12px]" style={{ color: TEXT_MUTED }}>
-        숫자는 저장된 재무 그대로(소속 기업 주간 계산·재무 필터) · 동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 가운데 절반, 세로선 = 중앙값, 점 = 이 종목 ·
+        숫자는 저장된 재무 그대로(소속 기업 주간 계산·재무 필터) · 동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 동료 보통 범위(가운데 절반), 세로선 = 중앙값, 점 = 이 종목 · '동료보다 높음/낮음' = 동료 4곳 중 3곳보다 높거나 낮음 ·
         업종이 섞인 테마는 이익률·FCF 정상 범위가 달라 참고로만
       </p>
     </div>
