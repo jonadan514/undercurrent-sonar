@@ -796,7 +796,7 @@ export default function RadarPage() {
                     ? <ChevronRight size={15} style={{ color: MUTED, flexShrink: 0 }} />
                     : <ChevronDown size={15} style={{ color: MUTED, flexShrink: 0 }} />}
                   <span className="flex flex-wrap items-baseline gap-2.5">
-                    <h2 className="text-[16.5px] font-extrabold" style={{ color: stage.color }}>{stage.name}</h2>
+                    <h2 className="text-[19px] sm:text-[20px] font-extrabold" style={{ color: stage.color }}>{stage.name}</h2>
                     <span className="text-[11.5px]" style={{ color: FAINT, fontFamily: MONO }}>{stage.when}</span>
                     <span className="text-[11.5px] font-semibold" style={{ color: items.length > 0 ? stage.color : FAINT, fontFamily: MONO }}>
                       {items.length > 0 ? `${items.length}개` : "해당 없음"}
@@ -823,7 +823,7 @@ export default function RadarPage() {
           {unlabeledMoving.length > 0 && (
             <div className="mt-10">
               <div className="mb-1 flex items-baseline gap-2.5">
-                <h2 className="text-[15px] font-bold">라벨 없음 — 화살표만</h2>
+                <h2 className="h-section">라벨 없음 — 화살표만</h2>
                 <span className="text-[12px]" style={{ color: FAINT, fontFamily: MONO }}>{unlabeledMoving.length}개</span>
               </div>
               <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>
@@ -840,7 +840,7 @@ export default function RadarPage() {
           {quietWithEvents.length > 0 && (
             <div className="mt-10">
               <div className="mb-1 flex items-baseline gap-2.5">
-                <h2 className="text-[15px] font-bold">{hasWeekly ? "세 축은 잠잠한데 소속 기업 공시가 평소보다 많은 테마" : "세 축은 잠잠한데 소속 기업 공시가 있는 테마"}</h2>
+                <h2 className="h-section">{hasWeekly ? "세 축은 잠잠한데 소속 기업 공시가 평소보다 많은 테마" : "세 축은 잠잠한데 소속 기업 공시가 있는 테마"}</h2>
                 <span className="text-[12px]" style={{ color: FAINT, fontFamily: MONO }}>{quietWithEvents.length}개</span>
               </div>
               <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>

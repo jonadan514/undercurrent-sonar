@@ -146,3 +146,17 @@ summary.list-none::-webkit-details-marker { display: none; }
   a { color: inherit !important; text-decoration: none !important; }
   @page { margin: 14mm 12mm; }
 }
+
+
+/* 글자 위계(2026-11-07 사용자: "글자 크기가 거의 같아 항목 구별이 안 되고 주요 내용이 눈에 안 띈다").
+   본문(12~13px)은 그대로 두고 제목·요점만 키우고 앰버 막대·줄로 구별한다. 화면 제목 26 > 칸 제목 18 > 칸 안 소제목 14.5 > 본문 12~13. */
+.h-page    { font-size: 22px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.2; color: var(--text-primary); }
+@media (min-width: 640px) { .h-page { font-size: 26px; } }
+.h-section { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3;
+             padding-left: 10px; border-left: 3px solid var(--accent); }
+@media (min-width: 640px) { .h-section { font-size: 18px; } }
+.h-group   { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent);
+             padding: 18px 4px 6px; border-bottom: 1px solid var(--border); }
+.h-sub     { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
+.t-lead    { font-size: 15.5px; line-height: 1.75; color: var(--text-primary); }
+@media print { .h-section { border-left-color: #8a5a00; } }

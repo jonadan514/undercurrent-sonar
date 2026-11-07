@@ -170,7 +170,7 @@ function CompanyView() {
   const cand = d.candidate;
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-5 max-w-5xl">
       <PageHeader title={`${d.name ?? d.symbol}`} prefix={<span className="text-[12px] mr-2" style={{ color: MUTED }}>{d.market === "KR" ? "🇰🇷" : "🇺🇸"} {d.symbol}</span>}
         desc={[d.profile?.sector, d.profile?.industry].filter(Boolean).join(" · ") || "기업 기초조사 카드"}>
         <div className="flex flex-wrap gap-2 text-[12px] mt-1">

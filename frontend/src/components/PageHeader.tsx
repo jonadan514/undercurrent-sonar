@@ -13,13 +13,13 @@ export default function PageHeader({ title, prefix, asOf, desc, intro, children 
   children?: ReactNode;
 }) {
   return (
-    <div className="mb-4">
+    <div className="mb-5">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         {prefix}
-        <h1 className="text-[20px] sm:text-[22px] font-bold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>{title}</h1>
+        <h1 className="h-page">{title}</h1>
         {asOf}
       </div>
-      {desc && <p className="mt-1 max-w-[68ch] text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{desc}</p>}
+      {desc && <p className="mt-1.5 max-w-[72ch] text-[14px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{desc}</p>}
       {intro && <PageIntro k={intro} />}
       {children}
     </div>

@@ -533,7 +533,7 @@ export default function QuarterlyPage() {
           {visibleClassifications.map((c) => (
             <div key={c} className="mt-7">
               <div className="mb-1 flex flex-wrap items-baseline gap-2.5">
-                <h2 className="text-[16px] font-extrabold" style={{ color: CLASSIFICATION_INFO[c].color }}>{classLabel(c)}</h2>
+                <h2 className="text-[19px] sm:text-[20px] font-extrabold" style={{ color: CLASSIFICATION_INFO[c].color }}>{classLabel(c)}</h2>
                 <span className="text-[11.5px]" style={{ color: FAINT, fontFamily: MONO }}>{counts[c]}개</span>
               </div>
               <p className="mb-3 max-w-[68ch] text-[12.5px]" style={{ color: MUTED }}>{CLASSIFICATION_INFO[c].desc}</p>

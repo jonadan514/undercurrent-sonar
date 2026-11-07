@@ -330,7 +330,7 @@ function ThemeHistory() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <Link href="/radar" className="text-[12px]" style={{ color: MUTED }}>← 테마 레이더</Link>
-          <h1 className="mt-1 text-[20px] sm:text-[22px] font-bold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>{ko}</h1>
+          <h1 className="mt-1 h-page">{ko}</h1>
           <p className="text-[12px]" style={{ color: FAINT }}>{en} · {market === "US" ? "미국" : "한국"} · 흐름 이력 {WEEKS}주</p>
         </div>
       </div>
@@ -357,7 +357,7 @@ function ThemeHistory() {
 
           {/* ① 세 축 타임라인 */}
           <section className={box} style={boxStyle}>
-            <h2 className="mb-3 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>세 축 타임라인</h2>
+            <h2 className="mb-3 h-section" style={{ color: "var(--text-primary)" }}>세 축 타임라인</h2>
             <div ref={scrollRef} className="overflow-x-auto">
               <table className="w-full border-collapse text-center" style={{ minWidth: 640 }}>
                 <thead>
@@ -415,7 +415,7 @@ function ThemeHistory() {
 
           {/* ② 먼저 움직인 축 */}
           <section className={box} style={boxStyle}>
-            <h2 className="mb-3 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>최근 움직임</h2>
+            <h2 className="mb-3 h-section" style={{ color: "var(--text-primary)" }}>최근 움직임</h2>
             <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               {summaries.map((s) => (
                 <div key={s.key} className="rounded-lg px-3 py-2 text-[13px]" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
@@ -430,7 +430,7 @@ function ThemeHistory() {
 
           {/* ③ 숫자 추이 */}
           <section className={box} style={boxStyle}>
-            <h2 className="mb-3 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>숫자 추이</h2>
+            <h2 className="mb-3 h-section" style={{ color: "var(--text-primary)" }}>숫자 추이</h2>
             <div className="space-y-3">
               <div>
                 <p className="mb-1 text-[12px]" style={{ color: MUTED }}>뉴스 건수 (주){switchIdx > 0 && ` - 수집원이 바뀐 ${md(grid[switchIdx])} 주부터만(그 전 건수는 다른 출처라 같은 눈금에 그리지 않음)`}</p>
@@ -450,7 +450,7 @@ function ThemeHistory() {
           {/* 가치사슬 - 구간별 소속 기업(2026-11-05) */}
           {members.some((m) => m.segment != null) && (
             <section className={box} style={boxStyle}>
-              <h2 className="mb-1 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>가치사슬</h2>
+              <h2 className="mb-1 h-section" style={{ color: "var(--text-primary)" }}>가치사슬</h2>
               <p className="mb-3 text-[12px]" style={{ color: FAINT }}>테마 안에서 어느 구간에 실적이 몰리는지 - 사업 소속(직접·부분) {members.length}개사</p>
               <ValueChain themeId={themeId} market={market} members={members} />
             </section>
@@ -458,7 +458,7 @@ function ThemeHistory() {
 
           {/* ④ 이번 흐름을 만든 기업 */}
           <section className={box} style={boxStyle}>
-            <h2 className="mb-1 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>이번 흐름을 만든 기업</h2>
+            <h2 className="mb-1 h-section" style={{ color: "var(--text-primary)" }}>이번 흐름을 만든 기업</h2>
             {members.length === 0 ? (
               <p className="text-[13px]" style={{ color: MUTED }}>
                 기업별 값은 2026-10-05부터 쌓입니다. 다음 주간 계산(주가·실적) 뒤에 채워집니다.
@@ -574,7 +574,7 @@ function ThemeHistory() {
           {/* ⑤ 관찰 노트 */}
           <section className={box} style={boxStyle}>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h2 className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>관찰 노트</h2>
+              <h2 className="h-section" style={{ color: "var(--text-primary)" }}>관찰 노트</h2>
               <Link href="/notes" className="text-[12px]" style={{ color: MUTED }}>전체 노트 →</Link>
               <button onClick={() => setWriting(true)} className="ml-auto rounded-lg px-3 py-1.5 text-[13px] font-bold" style={{ background: ACCENT, color: "#000" }}>
                 관찰 남기기

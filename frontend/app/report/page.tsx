@@ -68,7 +68,7 @@ function Chip({ children, tone }: { children: ReactNode; tone?: "accent" | "warn
   return <span className="inline-block rounded px-1.5 py-px text-[11.5px] whitespace-nowrap" style={{ border: `1px solid ${c}55`, color: c }}>{children}</span>;
 }
 function Sub({ children }: { children: ReactNode }) {
-  return <h3 className="mb-1.5 mt-3 text-[13px] font-bold first:mt-0" style={{ color: "var(--text-primary)" }}>{children}</h3>;
+  return <h3 className="h-sub mb-2 mt-4 first:mt-0">{children}</h3>;
 }
 
 function RegimeBlock({ r, weeks }: { r: Report["regime"]; weeks: string[] }) {
@@ -325,7 +325,7 @@ function ReportView() {
   const nextMonth = (() => { const [y, m] = r.month.split("-").map(Number); return monthKo(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`); })();
 
   return (
-    <div className="mx-auto max-w-[980px] space-y-4">
+    <div className="mx-auto max-w-[980px] space-y-6">
       <PageHeader
         title={`월간 리서치 보고서 · ${monthKo(r.month)}`} intro="report"
         desc={`${md(r.weeks[0])}~${md(r.weeks[r.weeks.length - 1])} 주까지 ${r.weeks.length}주 동안의 신호와 주간 브리핑 ${r.briefing_weeks.length}편을 한 달로 묶었습니다. 점수·등급·매수 의견은 넣지 않았습니다.`}
@@ -346,8 +346,8 @@ function ReportView() {
 
       <Section title="이달 요약" sub="아래 칸의 사실만으로 GPT가 쓴 글 · 숫자는 넣지 않음" tone="warm" className="print-avoid-break">
         {r.summary ? (
-          <div className="space-y-2.5">
-            {r.summary.split(/\n\s*\n/).map((p, i) => <p key={i} className="text-[14px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{p}</p>)}
+          <div className="space-y-3">
+            {r.summary.split(/\n\s*\n/).map((p, i) => <p key={i} className="t-lead">{p}</p>)}
           </div>
         )
           : <p className="text-[13px]" style={MUTED}>이번 달은 요약을 만들지 못했습니다. 아래 칸을 보세요.</p>}

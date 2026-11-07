@@ -26,13 +26,13 @@ export function Section({ id, title, count, info, sub, right, tone, className = 
   children?: ReactNode;
 }) {
   return (
-    <section id={id} className={`rounded-xl p-3 sm:p-4 ${tone ? "" : "bg-card"} ${className}`}
+    <section id={id} className={`rounded-xl p-3.5 sm:p-5 ${tone ? "" : "bg-card"} ${className}`}
       style={tone ? TONE_BOX[tone] : { border: "1px solid var(--border)" }}>
-      <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${children ? "mb-2.5" : ""}`}>
-        <h2 className="text-[15px] font-bold" style={{ color: tone ? TONE_HEAD[tone] : "var(--text-primary)" }}>{title}</h2>
-        {count != null && <span className="text-[13px] font-bold" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{count}</span>}
+      <div className={`flex flex-wrap items-baseline gap-x-2.5 gap-y-1 ${children ? "mb-3.5" : ""}`}>
+        <h2 className="h-section" style={{ color: tone ? TONE_HEAD[tone] : "var(--text-primary)" }}>{title}</h2>
+        {count != null && <span className="text-[14px] font-bold" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{count}</span>}
         {info && <span className="self-center"><InfoTooltip content={info} /></span>}
-        {sub && <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{sub}</span>}
+        {sub && <span className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>{sub}</span>}
         {right && <span className="ml-auto self-center text-[12px]">{right}</span>}
       </div>
       {children}
@@ -46,7 +46,7 @@ export function GroupTitle({ title, children }: { title: string; children: React
   if (kids.length === 0) return null;
   return (
     <div className="space-y-2">
-      <h2 className="stat-label px-1 pt-3">{title}</h2>
+      <h2 className="h-group">{title}</h2>
       {kids}
     </div>
   );
@@ -70,8 +70,8 @@ export function StatTile({ label, value, sub, href, onClick, active, emphasis, h
   };
   const inner = (
     <>
-      <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-[22px] font-bold leading-tight mt-0.5" style={{ color, fontVariantNumeric: "tabular-nums" }}>{value}</p>
+      <p className="text-[12.5px] font-semibold truncate" style={{ color: "var(--text-secondary)" }}>{label}</p>
+      <p className="text-[26px] font-bold leading-tight mt-0.5" style={{ color, fontVariantNumeric: "tabular-nums" }}>{value}</p>
       {sub && <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{sub}</p>}
     </>
   );
