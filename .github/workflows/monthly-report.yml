@@ -1,0 +1,62 @@
+name: Monthly Report
+
+# 월간 리서치 보고서(2026-11-07) - 매달 첫 월요일 아침(한국) 지난달 보고서를 만들어 저장하고 텔레그램에 링크.
+# 새로 수집하지 않고 쌓인 것만 모은다. GPT는 이달 요약 3~5문장 한 번(gpt-4o, 몇 센트).
+on:
+  schedule:
+    - cron: "40 23 * * 0"   # 일요일 23:40 UTC = 월요일 08:40 KST - 스크립트가 그달 첫 7일이 아니면 건너뛴다
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "YYYY-MM (비우면 지난달)"
+        required: false
+        default: ""
+      dry_run:
+        description: "true면 저장·발송 없이 출력만"
+        required: false
+        type: boolean
+        default: true
+      telegram:
+        description: "true면 텔레그램 링크도 보냄(저장할 때만)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Generate
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          ARGS=()
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS+=(--first-week-only)
+          else
+            [ -n "${{ inputs.month }}" ] && ARGS+=(--month "${{ inputs.month }}")
+            [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=(--dry-run)
+            [ "${{ inputs.telegram }}" != "true" ] && ARGS+=(--no-telegram)
+          fi
+          python scripts/generate_monthly_report.py "${ARGS[@]}"
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
