@@ -175,3 +175,14 @@ def test_eotgallin_fix():
     import generate_weekly_briefing as wb
     assert wb.fix_passive("두 시장이 엇갈린 흐름을 보였다.") == "두 시장이 엇갈렸다."
     assert wb.fix_passive("영업이익이 줄어드는 엇갈린 신호를 보였다.") == "영업이익이 줄어드는 엇갈린 신호를 보였다."
+
+
+def test_vague_review_and_honjo():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import generate_weekly_briefing as wb
+    pts = [{"facts": ["한국 관찰 노트(4주 전): '뉴스가 늘 것'이라 봤는데 그렇게 되지 않음"]}, {"facts": ["관심도 상승"]}]
+    assert wb.vague_reviews(pts, [{"body": "뉴스 증가를 기대한 것과는 다르게 전개되었다."}, {"body": "x"}]) == 1
+    assert wb.vague_reviews(pts, [{"body": "'뉴스가 늘 것'이라고 적어 둔 기대가 빗나갔다."}, {"body": "x"}]) == 0
+    assert wb.fix_passive("지수가 하락하며 혼조세를 보였다.") == "지수가 하락하며 엇갈렸다."

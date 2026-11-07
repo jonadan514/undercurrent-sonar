@@ -1168,7 +1168,9 @@ def fix_passive(text: str) -> str:
     text = re.sub(r"(상승|하락)세를 보(였다|인|이며|이고|여)", lambda m: m.group(1) + _SE_BOINDA[m.group(2)], text)
     text = re.sub(r"보합세를 보(였다|인|이며|이고)", lambda m: "보합" + {"였다": "이었다", "인": "인", "이며": "이며", "이고": "이고"}[m.group(1)], text)
     # "시장이 엇갈린 흐름을 보였다" → "시장이 엇갈렸다"(11/7 미리 보기) - 주어 조사 바로 뒤일 때만(앞 말이 꾸미는 꼴은 손대지 않음)
-    text = re.sub(r"([가-힣A-Za-z0-9][이가])\s+엇갈린\s+(?:흐름|신호|모습)(?:을|를)\s+보였다", r"\1 엇갈렸다", text)   # '은/는'은 '줄어드는'과 헷갈려 뺌
+    # 주어 조사 이/가 뒤나 연결 어미(~며·~서·~고) 뒤일 때만 - '줄어드는 엇갈린 신호'처럼 꾸미는 꼴은 손대지 않음
+    text = re.sub(r"((?:며|서|고|[가-힣A-Za-z0-9][이가])\s+)(?:엇갈린\s+(?:흐름|신호|모습)(?:을|를)|혼조세를)\s+(?:보였|나타냈)다",
+                  r"\1엇갈렸다", text)
     # "~붙었고, 이는 4주 전 '…'이라고 적어 둔 기대가 맞았다"(11/7 미리 보기) - '이는'이 짐작 거르기에 걸려 핵심 문장이 통째로 지워졌다.
     # 관찰 노트 결과를 받는 '이는'만 떼어 사실 문장으로 남긴다(다른 '이는 ~을 시사한다' 꼴은 그대로 걸러진다)
     text = re.sub(r",\s*이는\s+(?=[^.]{0,80}기대)", ", ", text)
@@ -1292,13 +1294,28 @@ JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next
             logger.warning("GPT 총평 생성 실패: %s", type(e).__name__)
             continue
         rep, vt = repeat_endings(text), verbatim_titles(text, titles)
-        logger.info("총평 %d차: 같은 끝맺음 연속 %d곳, 기사 제목 그대로 %d곳", attempt + 1, rep, vt)
-        k = (-vt, -rep)
+        vague = vague_reviews(points, list(data.get("points") or []))
+        logger.info("총평 %d차: 같은 끝맺음 연속 %d곳, 기사 제목 그대로 %d곳, 회고 결과가 흐린 문단 %d곳", attempt + 1, rep, vt, vague)
+        k = (-vague, -vt, -rep)
         if best_key is None or k > best_key:
             best, best_key = text, k
-        if vt == 0 and rep <= 1:
+        if vague == 0 and vt == 0 and rep <= 1:
             break
     return best
+
+
+def vague_reviews(points: list[dict], bodies: list) -> int:
+    """관찰 노트 회고가 든 짚을 점인데 본문에 '맞았다/빗나갔다'가 없는 문단 수 - 11/7 미리 보기
+    "뉴스 증가를 기대한 것과는 다르게 전개되었다"처럼 결과가 흐려졌다."""
+    n = 0
+    for i, p in enumerate(points):
+        if not any("관찰 노트" in f for f in p.get("facts") or []):
+            continue
+        item = bodies[i] if i < len(bodies) else ""
+        body = str(item.get("body") or "") if isinstance(item, dict) else str(item)
+        if not re.search(r"맞았|빗나갔|판단(하지|할 수) 못|판단할 데이터", body):
+            n += 1
+    return n
 
 
 def repeat_endings(text: str) -> int:
