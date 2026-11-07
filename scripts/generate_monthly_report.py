@@ -67,7 +67,27 @@ def names() -> dict[str, str]:
         p = json.loads(PROFILES.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return {}
-    return {f"{mk}:{sym}": (wb._clean_names([v.get("n") or ""]) or [sym])[0] for mk, d in p.items() for sym, v in d.items()}
+    out = {f"{mk}:{sym}": (wb._clean_names([v.get("n") or ""]) or [sym])[0] for mk, d in p.items() for sym, v in d.items()}
+    try:  # 프로필이 없는 한국 종목은 유니버스 이름으로
+        for i in json.loads(wb.KR_UNIVERSE.read_text(encoding="utf-8")).get("items", []):
+            out.setdefault(f"KR:{i['symbol']}", i.get("name") or i["symbol"])
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def fill_kr_names(nm: dict[str, str], tickers: list[str]) -> None:
+    """그래도 이름이 없는 한국 종목은 공시에 적힌 회사명으로(유니버스 밖 소형주)."""
+    miss = sorted({t for t in tickers if f"KR:{t}" not in nm})
+    if not miss:
+        return
+    try:
+        rows = wb.turso_exec("SELECT stock_code, corp_name FROM kr_disclosures WHERE stock_code IN (" + ",".join("?" * len(miss)) + ") "
+                             "AND corp_name IS NOT NULL ORDER BY rcept_dt", miss)
+    except Exception:  # noqa: BLE001
+        return
+    for r in rows:
+        nm[f"KR:{r['stock_code']}"] = r["corp_name"]
 
 
 def signal_weeks(start: date, end: date) -> list[str]:
@@ -184,6 +204,8 @@ def company_map(themes: list[dict], ev: dict[str, list[str]], nm: dict[str, str]
             continue
         mem = wb.turso_exec("SELECT ticker, linkage FROM theme_members WHERE theme_id = ? AND market = ? AND run_id = ? AND approved = 1 "
                             "AND linkage IN ('direct','partial')", [tid, mk, run_id])
+        if mk == "KR":
+            fill_kr_names(nm, [m["ticker"] for m in mem])
         seg = {}
         try:
             for r in wb.turso_exec("SELECT ticker, segment FROM theme_member_segments WHERE theme_id = ? AND market = ? AND run_id = ? "
@@ -275,21 +297,51 @@ def calendar_section(next_start: date, next_end: date, nm: dict[str, str]) -> di
             continue
         items.append({"date": r["earnings_date"], "market": r["market"], "symbol": r["ticker"], "name": nm.get(k) or r["ticker"],
                       "estimate": wb.as_bool(r.get("is_estimate")), "tags": tags[k]})
-    mine_first = sorted(items, key=lambda x: (0 if "내 관심" in x["tags"] else 1 if "후보" in x["tags"] else 2, x["date"]))[:40]
+    rank = lambda t: 0 if "내 관심" in t else 1 if {"후보", "테마"} <= set(t) else 2 if "후보" in t else 3  # noqa: E731
+    mine_first = sorted(items, key=lambda x: (rank(x["tags"]), x["date"]))[:40]
     fixed = [{"date": date(next_start.year, m, d).isoformat(), "what": w} for (m, d), w in FIXED_DEADLINES.items()
              if next_start.month == m]
     return {"earnings": sorted(mine_first, key=lambda x: x["date"]), "earnings_total": len(items), "deadlines": fixed}
 
 
+ORD = ["첫째 주", "둘째 주", "셋째 주", "넷째 주", "다섯째 주"]
+
+
+def ordinal_week(weeks: list[str], week: str) -> str:
+    """주 번호를 말로 - GPT가 '1주'를 '한 주 동안'과 헷갈리지 않게."""
+    return ORD[weeks.index(week)] if week in weeks and weeks.index(week) < len(ORD) else "어느 한 주"
+
+
+def regime_flow(seq: list[str]) -> str:
+    """주별 조합을 이어진 덩어리로 묶어 말로: '긴축 압력(첫 주만) → 위험 회피(이후 계속)'."""
+    if not seq:
+        return ""
+    runs: list[list] = []
+    for c in seq:
+        if runs and runs[-1][0] == c:
+            runs[-1][1] += 1
+        else:
+            runs.append([c, 1])
+    if len(runs) == 1:
+        return f"{runs[0][0] or '뚜렷한 조합 없음'}(한 달 내내)"
+    out = []
+    for i, (c, n) in enumerate(runs):
+        last = i == len(runs) - 1
+        how = ("첫 주만" if n == 1 else "처음 여러 주") if i == 0 else (("마지막 주" if n == 1 else "이후 계속") if last else ("한 주" if n == 1 else "여러 주"))
+        out.append(f"{c or '뚜렷한 조합 없음'}({how})")
+    return " → ".join(out)
+
+
 def summary_facts(r: dict) -> list[str]:
     facts = []
+    weeks = r.get("weeks") or []
     for mk in ("US", "KR"):
-        seq = [", ".join(w["combos"]) or "조합 없음" for w in r["regime"].get(mk) or []]
-        if seq:
-            facts.append(f"{MK[mk]} 시장 환경 주별 흐름: " + " → ".join(seq))
+        flow = regime_flow([", ".join(w["combos"]) for w in r["regime"].get(mk) or []])
+        if flow:
+            facts.append(f"{MK[mk]} 시장 환경 흐름: {flow}")
     for t in r["themes"]["labeled"][:8]:
-        labs = sorted({LABEL_KO.get(x["label"], x["label"]) for x in t["labels"]})
-        facts.append(f"{t['theme']}({MK[t['market']]}): 이달 {len(t['labels'])}주 라벨 - {', '.join(labs)}")
+        parts = [f"{ordinal_week(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
+        facts.append(f"{t['theme']}({MK[t['market']]}) 라벨이 붙은 주: {', '.join(parts)}")
     for t in r["themes"]["earn_turns"][:6]:
         facts.append(f"{t['theme']}({MK[t['market']]}) 실적 축: {ARROW_KO.get(t['from'], t['from'])} → {ARROW_KO.get(t['to'], t['to'])}")
     w = r["watchlist"].get("watchlist")
@@ -319,6 +371,17 @@ def gpt_summary(facts: list[str], month: str) -> str:
     return wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(text)))
 
 
+def map_themes(themes: dict) -> list[dict]:
+    """기업 지도에 올릴 테마 - 라벨 붙은 테마 + 실적 축이 바뀐 테마(겹치면 한 번)."""
+    seen, out = set(), []
+    for t in themes["labeled"] + themes["earn_turns"]:
+        k = (t["theme_id"], t["market"])
+        if k not in seen:
+            seen.add(k)
+            out.append(t)
+    return out
+
+
 def build(month: str, use_gpt: bool = True) -> dict:
     start, end = month_range(month)
     nstart, nend = month_range(end.strftime("%Y-%m"))
@@ -337,7 +400,7 @@ def build(month: str, use_gpt: bool = True) -> dict:
         "regime": regime_section(weeks),
         "themes": themes,
         "news": news_section(themes["labeled"], weeks, members, nm),
-        "company_map": company_map(themes["labeled"], ev, nm, weeks[-1] if weeks else None),
+        "company_map": company_map(map_themes(themes), ev, nm, weeks[-1] if weeks else None),
         "watchlist": watchlist_section(start, end, nm),
         "reviews": reviews_section(bs, tnames, nm),
         "calendar": calendar_section(nstart, nend, nm),

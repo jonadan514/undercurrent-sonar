@@ -19,8 +19,9 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "분기",
+    label: "월·분기",
     items: [
+      { href: "/report",    label: "월간 보고서", emoji: "📑", color: "#ffb020" },   // 2026-11-07
       { href: "/quarterly", label: "분기 리서치", emoji: "🗓️", color: "#ffb020" },
     ],
   },
@@ -206,7 +207,7 @@ export default function Navigation() {
     <>
       {/* ── 데스크톱: 고정 사이드바 ── */}
       <aside
-        className="hidden md:flex w-56 shrink-0 flex-col border-r h-full overflow-hidden"
+        className="hidden md:flex print:!hidden w-56 shrink-0 flex-col border-r h-full overflow-hidden"
         style={{ background: "#0a0a08", borderColor: "var(--border)" }}
       >
         <SidebarInner health={health} />
@@ -214,7 +215,7 @@ export default function Navigation() {
 
       {/* ── 모바일: 햄버거 버튼 ── */}
       <button
-        className="md:hidden fixed top-0 left-0 z-[60] flex items-center justify-center w-14 h-14"
+        className="md:hidden print:hidden fixed top-0 left-0 z-[60] flex items-center justify-center w-14 h-14"
         onClick={() => setIsOpen(true)}
         aria-label="메뉴 열기"
       >
@@ -235,7 +236,7 @@ export default function Navigation() {
 
       {/* ── 모바일: 슬라이드 드로어 ── */}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-[55] flex flex-col w-64 border-r overflow-hidden transition-transform duration-200 ${
+        className={`md:hidden print:hidden fixed inset-y-0 left-0 z-[55] flex flex-col w-64 border-r overflow-hidden transition-transform duration-200 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{ background: "#0a0a08", borderColor: "var(--border)" }}

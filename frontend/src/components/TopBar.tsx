@@ -10,10 +10,10 @@ export default function TopBar() {
   if (pathname === "/") {
     return (
       // 명언은 넓은 화면(lg)에서만 보인다 - 그보다 좁으면 휴대폰은 메뉴 버튼 띠(h-14), 태블릿은 띠 없음
-      <header className="flex h-14 md:hidden lg:flex lg:h-20 shrink-0 items-center gap-4 border-b px-4 pl-14 lg:pl-4" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
+      <header className="print:!hidden flex h-14 md:hidden lg:flex lg:h-20 shrink-0 items-center gap-4 border-b px-4 pl-14 lg:pl-4" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
         <DailyQuote />
       </header>
     );
   }
-  return <header className="h-14 shrink-0 border-b md:hidden" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }} />;
+  return <header className="print:hidden h-14 shrink-0 border-b md:hidden" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }} />;
 }

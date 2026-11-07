@@ -37,8 +37,15 @@ def test_month_events_and_summary_facts_have_no_numbers():
     ev = mr.month_events(bs)
     assert ev["KR:000720"] == ["내부자 여러 명 매수"] and ev["KR:066970"] == ["큰 공급계약"]
     r = {"regime": {"US": [{"combos": ["긴축 압력"]}, {"combos": ["위험 회피"]}], "KR": []},
-         "themes": {"labeled": [{"theme": "K-뷰티", "market": "KR", "labels": [{"label": "Quiet Strength"}]}], "earn_turns": []},
+         "themes": {"labeled": [{"theme": "K-뷰티", "market": "KR", "labels": [{"week": "2026-10-05", "label": "Quiet Strength"}]}], "earn_turns": []},
          "watchlist": {"watchlist": {"added_count": 3, "removed_count": 0}}, "reviews": []}
     facts = mr.summary_facts(r)
-    assert "미국 시장 환경 주별 흐름: 긴축 압력 → 위험 회피" in facts
+    assert "미국 시장 환경 흐름: 긴축 압력(첫 주만) → 위험 회피(마지막 주)" in facts
     assert not any(re.search(r"\d+\s*(%|개|종목)", f) for f in facts)
+
+
+def test_regime_flow_and_ordinal():
+    assert mr.regime_flow(["긴축 압력", "위험 회피", "위험 회피", "위험 회피"]) == "긴축 압력(첫 주만) → 위험 회피(이후 계속)"
+    assert mr.regime_flow(["", "", ""]) == "뚜렷한 조합 없음(한 달 내내)"
+    assert mr.regime_flow([]) == ""
+    assert mr.ordinal_week(["2026-10-05", "2026-10-12"], "2026-10-12") == "둘째 주"

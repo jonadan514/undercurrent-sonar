@@ -127,3 +127,22 @@
 
 /* Note(ⓘ 기준) 접기 - 사파리의 기본 삼각형 표시 숨김 */
 summary.list-none::-webkit-details-marker { display: none; }
+
+
+/* 인쇄(2026-11-07 월간 보고서 /report): 사이드바·머리 막대를 빼고, 어두운 화면 색을 종이색으로 바꾼다.
+   화면 틀이 h-screen + 안쪽 스크롤이라 그대로 찍으면 첫 화면만 나와서 layout에 print:h-auto·overflow-visible을 줬다. */
+@media print {
+  :root {
+    --bg-base: #ffffff; --bg-card: #ffffff; --bg-inset: #f6f5f1; --bg-raised: #f0eee8;
+    --border: #d9d5cb; --border-dim: #e6e3dc; --border-ctrl: #bdb7a8;
+    --text-primary: #111111; --text-secondary: #333333; --text-muted: #555555; --text-faint: #6b6b6b;
+    --accent: #8a5a00; --num: #7a4f00; --info: #1f5f66;
+    --good: #15803d; --warn: #a16207; --orange: #c2410c; --danger: #b91c1c;
+  }
+  html { color-scheme: light; font-size: 11px; }
+  body { background: #fff !important; }
+  .print-hidden { display: none !important; }
+  .print-avoid-break { break-inside: avoid; }
+  a { color: inherit !important; text-decoration: none !important; }
+  @page { margin: 14mm 12mm; }
+}
