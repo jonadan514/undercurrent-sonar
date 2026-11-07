@@ -426,49 +426,92 @@ def summary_facts(r: dict) -> list[str]:
     return [f for i, f in enumerate(facts) if not (f.startswith("[") and (i + 1 == len(facts) or facts[i + 1].startswith("[")))]
 
 
+# 문체 지침(2026-11-07 사용자 피드백: "맞았다. 조용했다."처럼 짧은 과거형만 이어져 읽기 어색 - 뉴스처럼 읽히게)
+STYLE = (
+    "[문체]\n"
+    "- 신문 경제면 기사처럼 읽히게. 각 문단 첫 문장은 그 문단의 큰 흐름을 한 문장으로 잡고, 뒤 문장이 그것을 받쳐 준다.\n"
+    "- 관련 사실 두세 개는 '~했고', '~한 반면', '~하면서', '~과 달리', '한편', '이와 함께' 같은 연결어로 한 문장에 엮는다. "
+    "짧은 문장을 끊어서 나열하지 않는다.\n"
+    "- 문장 끝을 다양하게: '~로 돌아섰다', '~가 이어졌다', '~을 보였다', '~에 이름을 올렸다', '~가 예정돼 있다', '~로 나타났다', "
+    "'~이 붙었다', '~에서 빠졌다' 등. 같은 끝맺음('~했다', '~였다', '~맞았다')을 두 문장 연달아 쓰지 않는다.\n"
+    "- '첫 주/마지막 주'를 매번 되풀이하지 말고 '월초', '월말', '달 내내'로 바꿔 쓴다.\n"
+    "- '(한국)', '(미국)' 괄호 대신 '한국의 K-뷰티', '미국 방산'처럼 말 속에 넣는다.\n"
+    "- '뉴스↑', '실적↑ 유지' 같은 기호는 '뉴스가 늘 것이라는 기대', '실적 개선이 이어질 것이라는 기대'처럼 말로 푼다.\n"
+    "- 라벨('숨은 강세' 등)과 시장 환경 조합('위험 회피' 등), 회사·테마 이름은 바꾸지 않는다.\n"
+)
+RULES = ("[지킬 것] 위 사실에 없는 내용은 쓰지 않는다. 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다/눈여겨볼' 같은 평가를 "
+         "쓰지 않는다. 숫자는 쓰지 않는다. 존댓말이 아닌 '~다' 기사체.\n")
+
+
+def _clean_paras(out) -> list[str]:
+    paras = (out or {}).get("paragraphs") or []
+    if isinstance(paras, str):
+        paras = [paras]
+    return [p for p in (wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(x)))) for x in paras) if p]
+
+
 def gpt_summary(facts: list[str], month: str) -> str:
-    """문단 셋(시장·테마 / 기업·워치리스트 / 회고·다음 달), 문단마다 세 문장 안팎. 문단은 빈 줄로 구분해 저장."""
+    """문단 셋(시장·테마 / 기업·워치리스트 / 회고·다음 달). 초안 → 다듬기 두 번 호출. 문단은 빈 줄로 구분해 저장."""
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key or not facts:
         return ""
     from src.llm.openai_json import call_json, model_for
+    model = model_for("briefing_comment")
     prompt = (f"{month} 한 달 동안 리서치 도구에 쌓인 사실입니다. [ ]는 묶음 이름입니다.\n" + "\n".join(f if f.startswith("[") else f"- {f}" for f in facts) +
               "\n\n이 사실만으로 월간 보고서 첫머리 요약을 문단 셋으로 쓰세요.\n"
-              "1문단: 시장 환경 흐름(미국·한국을 한 문장씩 따로)과 테마 흐름(라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 "
-              "테마마다 '보합에서 오름으로'처럼 방향까지, 주요 기사 제목이 다룬 내용).\n"
+              "1문단: 시장 환경 흐름(미국·한국)과 테마 흐름(라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 테마마다 방향까지, "
+              "주요 기사 제목이 다룬 내용).\n"
               "2문단: 기업 지도와 워치리스트(소속 기업에 생긴 일, 비어 있는 구간, 목록에 새로 든 곳·빠진 곳).\n"
               "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정.\n"
-              "문단마다 네 문장 이상, 위 사실의 테마·회사 이름을 구체적으로 들어 쓰세요('여러 기업'처럼 뭉뚱그리지 말 것). "
-              "사실을 서로 잇되 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다' 같은 평가를 쓰지 말고, 숫자는 쓰지 마세요. "
-              "사실이 없는 내용은 만들지 마세요. '~했다/~이다' 기사체. 라벨·조합·회사 이름은 그대로. "
+              "문단마다 세~다섯 문장, 테마·회사 이름을 구체적으로('여러 기업'처럼 뭉뚱그리지 말 것).\n\n" + STYLE + RULES +
               "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
     best = ""
-    for attempt in range(2):   # 너무 짧게 나오면(문장 MIN_SENTENCES 미만) 한 번 더 - 길이가 실행마다 들쭉날쭉했다
+    for attempt in range(2):   # 너무 짧게 나오면(MIN_CHARS 미만) 한 번 더 - 길이가 실행마다 들쭉날쭉했다
         try:
-            out = call_json(model_for("briefing_comment"), "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key,
-                            max_output_tokens=2000, temperature=0.3)
+            out = call_json(model, "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=2000, temperature=0.4)
         except Exception as e:  # noqa: BLE001
             log(f"요약 실패 {type(e).__name__}")
             continue
-        paras = (out or {}).get("paragraphs") or []
-        if isinstance(paras, str):
-            paras = [paras]
-        clean = [wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(p)))) for p in paras]
-        text = "\n\n".join(p for p in clean if p)
-        n = sentence_count(text)
-        log(f"요약 {attempt + 1}차: {len(clean)}문단 {n}문장")
-        if n > sentence_count(best):
+        text = "\n\n".join(_clean_paras(out))
+        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장")
+        if len(text) > len(best):
             best = text
-        if n >= MIN_SENTENCES:
+        if len(text) >= MIN_CHARS:
             break
-    return best
+    if not best:
+        return ""
+    # 다듬기 - 사실은 그대로 두고 문장 흐름만(데스크 교열). 줄거나 깨지면 초안을 쓴다.
+    edit = ("아래는 월간 리서치 보고서 요약 초안입니다. 데스크 기자로서 문장만 다듬으세요. 사실을 더하거나 빼지 말고, "
+            "문단 수와 문단별 내용은 그대로 둡니다. 특히 짧은 문장이 같은 끝맺음으로 이어지는 곳을 연결어로 엮고, 끝맺음을 다양하게 바꾸세요.\n\n"
+            + STYLE + RULES + "\n[초안]\n" + best + "\n\n[참고 - 초안이 근거로 삼은 사실]\n" + "\n".join(f for f in facts if not f.startswith("[")) +
+            "\n\nJSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
+    try:
+        polished = "\n\n".join(_clean_paras(call_json(model, "당신은 경제면 데스크 기자입니다. 사실은 바꾸지 않고 문장만 다듬습니다.", edit,
+                                                       api_key=key, max_output_tokens=2000, temperature=0.3)))
+    except Exception as e:  # noqa: BLE001
+        log(f"다듬기 실패 {type(e).__name__} - 초안 사용")
+        return best
+    log(f"다듬기: {len(polished)}자 {sentence_count(polished)}문장, 같은 끝맺음 연속 {repeat_endings(polished)}곳 (초안 {repeat_endings(best)}곳)")
+    if polished.count("\n\n") != best.count("\n\n") or len(polished) < len(best) * 0.75:
+        log("다듬기 결과가 초안과 문단 수가 다르거나 많이 줄어 초안 사용")
+        return best
+    return polished
 
 
-MIN_SENTENCES = 10
+MIN_CHARS = 700
 
 
 def sentence_count(text: str) -> int:
     return len([x for x in re.split(r"(?<=다\.)\s+", text.strip()) if x.strip()]) if text.strip() else 0
+
+
+def repeat_endings(text: str) -> int:
+    """앞 문장과 끝맺음(마지막 세 글자)이 같은 문장 수 - 다듬기 전후 비교용 로그."""
+    n = 0
+    for para in text.split("\n\n"):
+        ends = [x.strip()[-4:-1] for x in re.split(r"(?<=다\.)\s+", para.strip()) if x.strip()]
+        n += sum(1 for a, b in zip(ends, ends[1:]) if a == b)
+    return n
 
 
 EVENT_ORDER = ["계약 해지", "8-K 주의 공시", "큰 공급계약", "내부자 여러 명 매수", "내부자 매수", "잠정실적", "실적 반전 목록에 새로 듦"]

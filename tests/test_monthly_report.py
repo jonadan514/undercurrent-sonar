@@ -74,3 +74,8 @@ def test_event_list_order_and_sentence_count():
     out = mr.event_list(ev, {"US:GM": "General Motors"})
     assert [x["symbol"] for x in out] == ["GM", "047040", "BNY"] and out[0]["name"] == "General Motors"
     assert mr.sentence_count("가였다. 나였다. 다였다.") == 3 and mr.sentence_count("") == 0
+
+
+def test_repeat_endings():
+    assert mr.repeat_endings("가가 맞았다. 나나 맞았다. 다다로 돌아섰다.") == 1
+    assert mr.repeat_endings("가가 맞았다.\n\n나나 맞았다.") == 0
