@@ -42,3 +42,24 @@ def test_combos_risk_off_and_missing_axis():
 def test_dedupe_only_for_kr_rates():
     pts = [("2026-01-01", 3.0), ("2026-01-02", 3.0), ("2026-01-03", 3.1)]
     assert r._dedupe(pts) == [("2026-01-01", 3.0), ("2026-01-03", 3.1)]
+
+
+def test_describe_and_compact_have_no_numbers():
+    import re
+    up = [10 + (i % 5) * 0.1 for i in range(300)] + [10 + 0.1 * k for k in range(1, 21)]
+    flat = [10 + (i % 5) * 0.1 for i in range(320)]
+    st = r.market_state({"vix": _series(up), "hy_spread": _series(up), "dxy": _series(flat), "us10y": _series(flat)}, "US", "2030-01-01")
+    d = r.describe(st)
+    assert d["미국 시장 환경(최근 4주, 정해진 조합)"].startswith("위험 회피")
+    assert not any(re.search(r"\d+(\.\d+)?\s*(%|%p|bp|포인트|원|달러)|\d\.\d", v) for v in d.values())   # 값·변화 숫자 없음
+    c = r.compact(st)
+    assert c["axes"]["vol"]["dir"] == "up" and "rules" not in c
+
+
+def test_last_friday():
+    import sys as _s
+    from pathlib import Path as _P
+    _s.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
+    from compute_market_regime import last_friday
+    assert last_friday(date(2026, 11, 8)).isoformat() == "2026-11-06"    # 일요일
+    assert last_friday(date(2026, 11, 6)).isoformat() == "2026-10-30"    # 금요일 당일은 그 전 금요일

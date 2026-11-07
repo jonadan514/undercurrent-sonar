@@ -177,6 +177,25 @@ def get_kr_flows_week() -> dict | None:
     return sum_flows(rows)
 
 
+def get_regime_week() -> dict | None:
+    """시장 환경 축(2026-11-07, market_regime_weekly - scripts/compute_market_regime.py가 일요일 브리핑 전에 쌓는다).
+    시장마다 가장 최근 주. 기준 금요일이 10일보다 오래됐으면(정기 계산 실패) 빼고, 표가 없으면 None - 브리핑은 그 줄만 뺀다."""
+    try:
+        rows = turso_exec("SELECT week, market, as_of, payload FROM market_regime_weekly ORDER BY week DESC LIMIT 6")
+    except Exception:
+        return None
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%d")
+    out: dict = {}
+    for r in rows:
+        if r["market"] in out or str(r["as_of"]) < cutoff:
+            continue
+        try:
+            out[r["market"]] = {"week": r["week"], **json.loads(r["payload"])}
+        except Exception:
+            continue
+    return out or None
+
+
 def get_kr_rate_week(key: str) -> dict | None:
     """국고채 금리(kr_rates, scripts/save_kr_treasury.py - pykrx) 최신 값과 5거래일 전 대비 차이(%p).
     macro_snapshot의 chg_1w와 같은 '5거래일 전' 기준. 표가 없거나 비면 None."""
@@ -1010,6 +1029,10 @@ def comment_facts(b: dict) -> dict:
     inst = b.get("inst_13f_week") or {}
     ew = b.get("earnings_week") or {}
     my = b.get("my_stocks_week") or {}
+    # 시장 환경 축(2026-11-07) - 정해진 조합 이름과 축별 방향을 말로. GPT가 지표 숫자를 제멋대로 엮지 않고 같은 틀로 쓰게
+    from src.analyzers.regime import describe as regime_describe
+    for st in (b.get("regime") or {}).values():
+        market.update(regime_describe(st))
     facts = {
         "시장": {k: v for k, v in market.items() if v},
         "내 관심 종목에 생긴 일": [f"{nm(x)}: " + ", ".join(e["kind"] for e in x["events"]) for x in (my.get("items") or [])[:8]],
@@ -1200,7 +1223,7 @@ def gpt_comment(briefing: dict) -> str:
 테마 라벨 뜻: {json.dumps(label_meaning, ensure_ascii=False)}
 
 JSON으로만 답하세요: {{"market": "...", "points": [{{"body": "...", "next": "..."}}, ...]}}
-- market: 시장 분위기 한두 문장. 지수·금리·환율·수급 중 서로 엇갈리거나 같은 방향인 것을 짚기.
+- market: 시장 분위기 한두 문장. '시장 환경(정해진 조합)'에 이름이 있으면 그 이름을 그대로 쓰고(바꾸거나 새 이름을 만들지 말 것) 뜻을 붙인다. 지수·금리·환율·수급 중 서로 엇갈리거나 같은 방향인 것을 짚기.
 - points: 짚을 점과 같은 순서·같은 개수.
   body: 두세 문장. 그 점의 사실들이 서로 어떻게 맞물리는지 - 같은 방향인지, 엇갈리는지, 내 기대(관찰 노트)와 맞았는지.
     라벨은 이름만 대지 말고 뜻을 풀어서. 소속 종목이 있으면 이름을 들어서.
@@ -1595,6 +1618,8 @@ def print_dry_run(b: dict, points: list | None) -> None:
               "sentiment_heating", "catalysts", "observation_reviews", "earnings_week", "my_stocks_week"):
         v = b.get(k)
         print(f"  {k}: {type(v).__name__} {n(v)}" + (f" keys={list(v)[:8]}" if isinstance(v, dict) else ""))
+    for mk, st in (b.get("regime") or {}).items():
+        print(f"  regime {mk} {st.get('week')}: " + (", ".join(c["name"] for c in st.get("combos") or []) or "조합 없음"))
     w = b.get("watchlist") or {}
     print(f"  watchlist: 후보 {w.get('total')} · 신규 {w.get('added_count')} · 탈락 {w.get('removed_count')} (직전 스냅샷 {'있음' if w.get('has_prev') else '없음'})")
     for x in (w.get("added") or [])[:10]:
@@ -1674,6 +1699,7 @@ def main() -> None:
         "kr": get_market_week("KR"),
         "macro": get_macro_week(),
         "kr_flows": get_kr_flows_week(),
+        "regime": get_regime_week(),
         "watchlist": get_watchlist_changes(),
         "turnaround": get_turnaround_changes(week),
         "earnings_week": get_earnings_week(week),

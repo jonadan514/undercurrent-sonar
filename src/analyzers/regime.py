@@ -114,3 +114,39 @@ def market_state(series: dict[str, list[tuple[str, float]]], market: str, as_of:
             combos.append({"id": cid, "name": cname, "meaning": mean})
     context = {k: indicator_state(series.get(k) or [], as_of, dedupe=k in DEDUPE_KEYS) for k in CONTEXT[market]}
     return {"market": market, "as_of": as_of, "axes": axes, "combos": combos, "context": context}
+
+
+DIR_KO = {"up": "오름", "flat": "큰 변화 없음", "down": "내림"}
+AXIS_KO = {"rates": "금리", "credit": "신용 스프레드", "dollar": "달러", "fx": "원/달러 환율", "vol": "변동성(VIX)", "flows": "외국인 수급"}
+
+
+def describe(state: dict) -> dict[str, str]:
+    """브리핑 총평에 넘길 사실(숫자 없음, 원칙 2) - 조합 이름과 축별 방향·수준을 말로."""
+    mk = {"US": "미국", "KR": "한국"}.get(state.get("market"), state.get("market"))
+    out = {}
+    combos = state.get("combos") or []
+    out[f"{mk} 시장 환경(최근 4주, 정해진 조합)"] = (" / ".join(f"{c['name']}: {c['meaning']}" for c in combos)
+                                              if combos else "정해진 조합에 해당 없음")
+    parts = []
+    for axis, a in (state.get("axes") or {}).items():
+        if a.get("dir") is None:
+            continue
+        if axis == "flows":
+            lv = "순매수" if a.get("level") == "high" else "순매도" if a.get("level") == "low" else ""
+            word = {"up": "평소보다 크게 순매수 쪽", "down": "평소보다 크게 순매도 쪽", "flat": "평소 범위"}[a["dir"]]
+            parts.append(f"외국인 20거래일 {lv}, {word}")
+        else:
+            parts.append(f"{AXIS_KO.get(axis, axis)} {DIR_KO[a['dir']]}(1년 중 {LEVEL_KO[a['level']]})")
+    if parts:
+        out[f"{mk} 시장 환경 축(최근 4주)"] = " · ".join(parts)
+    return out
+
+
+def compact(state: dict) -> dict:
+    """저장·화면용으로 줄인 모양 - 값·변화·z·수준·방향만."""
+    keep = ("value", "chg", "level", "dir", "z", "n", "as_of")
+    return {"market": state["market"], "as_of": state["as_of"],
+            "axes": {k: {"name": a["name"], "key": a["key"], "label": a["label"], **{f: a.get(f) for f in keep}}
+                     for k, a in state["axes"].items()},
+            "combos": state["combos"],
+            "context": {k: {"label": LABEL_KO.get(k, k), **{f: c.get(f) for f in keep}} for k, c in state["context"].items()}}

@@ -1,0 +1,39 @@
+name: Compute Market Regime
+
+# 시장 환경 축 주간 저장(2026-11-07, 레짐 모듈 2단계). 일요일 브리핑(22:00 UTC) 전에 방금 끝난 주를 쌓는다. GPT 없음.
+on:
+  schedule:
+    - cron: "35 21 * * 0"   # 일요일 21:35 UTC
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: "지난 몇 주를 채울지(이미 있는 주는 건너뜀). 비우면 1"
+        required: false
+        default: ""
+
+jobs:
+  compute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Compute
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/compute_market_regime.py --weeks ${{ inputs.weeks || 1 }}
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
