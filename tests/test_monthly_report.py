@@ -50,7 +50,7 @@ def test_month_events_and_summary_facts_have_no_numbers():
     assert "AI 반도체(미국) 소속 기업에 이달 생긴 일: Broadcom 내부자 매수" in facts
     assert "AI 반도체(미국) 가치사슬에서 소속 기업이 없는 구간: 기판" in facts
     assert any(f.startswith("트랩 필터 통과 목록: 한 달 사이 전체 규모가 늘었다. 새로 든 곳 예: Apple") for f in facts)
-    assert "다음 달 실적 발표 - 내 워치리스트: Micron" in facts
+    assert "다음 달 실적을 발표하는 내 워치리스트 종목: Micron" in facts
     assert "관찰 노트 회고 - 한국 K-뷰티: '뉴스가 늘 것'이라고 적어 둔 기대가 빗나갔다(뉴스는 늘지 않았다)" in facts
     assert not any(re.search(r"\d+\s*(%|개|종목)", f) for f in facts)
 
@@ -72,7 +72,7 @@ def test_tidy_name_drops_cut_suffix():
 
 
 def test_event_list_order_and_sentence_count():
-    ev = {"US:BNY": ["실적 반전 목록에 새로 듦"], "KR:047040": ["큰 공급계약"], "US:GM": ["8-K 주의 공시", "내부자 매수"]}
+    ev = {"US:BNY": ["실적 반전 목록에 새로 오름"], "KR:047040": ["큰 공급계약"], "US:GM": ["8-K 주의 공시", "내부자 매수"]}
     out = mr.event_list(ev, {"US:GM": "General Motors"})
     assert [x["symbol"] for x in out] == ["GM", "047040", "BNY"] and out[0]["name"] == "General Motors"
     assert mr.sentence_count("가였다. 나였다. 다였다.") == 3 and mr.sentence_count("") == 0
@@ -104,7 +104,7 @@ def test_review_sentence_and_market_split():
          "watchlist": {}, "reviews": [], "calendar": {}}
     f = mr.summary_facts(r)
     kr, us = f.index("[테마 - 한국]"), f.index("[테마 - 미국]")
-    assert kr < f.index("한국 조선 실적 축: 첫 주 보합 → 마지막 주 오름") < us < next(i for i, x in enumerate(f) if x.startswith("미국 AI 소프트웨어"))
+    assert kr < next(i for i, x in enumerate(f) if x.startswith("한국 조선 실적(소속 기업 실적 흐름): 월초 보합 → 월말 오름")) < us < next(i for i, x in enumerate(f) if x.startswith("미국 AI 소프트웨어"))
 
 
 def test_market_lead():

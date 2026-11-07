@@ -207,7 +207,7 @@ def month_events(bs: list[dict]) -> dict[str, list[str]]:
             if x.get("warn"):
                 add("US", x.get("symbol"), "8-K 주의 공시")
         for x in (b.get("turnaround") or {}).get("added") or []:
-            add(x.get("market"), x.get("symbol"), "실적 반전 목록에 새로 듦")
+            add(x.get("market"), x.get("symbol"), "실적 반전 목록에 새로 오름")
     return ev
 
 
@@ -493,10 +493,11 @@ def summary_facts(r: dict) -> list[str]:
             last = t.get("last") or {}
             sub.append(f"{MK[mk]} {t['theme']} 라벨이 붙은 주: {', '.join(parts)}"
                        + (f" (라벨 뜻: {' / '.join(means)})" if means else "")
-                       + f" · 마지막 주 뉴스 {ARROW_KO.get(last.get('news') or 'na')}, 실적 {ARROW_KO.get(last.get('earn') or 'na')}, "
+                       + f" · 월말 기준 뉴스 {ARROW_KO.get(last.get('news') or 'na')}, 실적 {ARROW_KO.get(last.get('earn') or 'na')}, "
                          f"주가 {ARROW_KO.get(last.get('price') or 'na')}")
         for t in [x for x in r["themes"]["earn_turns"][:6] if x["market"] == mk]:
-            sub.append(f"{MK[mk]} {t['theme']} 실적 축: 첫 주 {ARROW_KO.get(t['from'], t['from'])} → 마지막 주 {ARROW_KO.get(t['to'], t['to'])}")
+            sub.append(f"{MK[mk]} {t['theme']} 실적(소속 기업 실적 흐름): 월초 {ARROW_KO.get(t['from'], t['from'])} → 월말 {ARROW_KO.get(t['to'], t['to'])}"
+                       " - 주가가 아니라 실적 이야기")
         for n in [x for x in (r.get("news") or [])[:6] if x["market"] == mk]:
             titles = [a["title"] for a in n["articles"] if not _ADVICE_RE.search(a["title"])][:2]
             if titles:
@@ -536,9 +537,9 @@ def summary_facts(r: dict) -> list[str]:
     mine = [x["name"] for x in cal.get("earnings") or [] if "내 관심" in x["tags"]]
     both = [x["name"] for x in cal.get("earnings") or [] if "내 관심" not in x["tags"] and {"후보", "테마"} <= set(x["tags"])]
     if mine:
-        facts.append(f"다음 달 실적 발표 - 내 워치리스트: {', '.join(mine[:8])}")
+        facts.append(f"다음 달 실적을 발표하는 내 워치리스트 종목: {', '.join(mine[:8])}")
     if both:
-        facts.append(f"다음 달 실적 발표 - 후보이면서 테마 소속: {', '.join(both[:8])}")
+        facts.append(f"다음 달 실적을 발표하는 후보 중 테마 소속 기업: {', '.join(both[:8])}")
     return [f for i, f in enumerate(facts) if not (f.startswith("[") and (i + 1 == len(facts) or facts[i + 1].startswith("[")))]
 
 
@@ -555,6 +556,9 @@ STYLE = (
     "- '뉴스↑', '실적↑ 유지' 같은 기호는 '뉴스가 늘 것이라는 기대', '실적 개선이 이어질 것이라는 기대'처럼 말로 푼다.\n"
     "- 기사 제목은 따옴표로 그대로 옮기지 않는다. 무엇을 다룬 기사인지 짧게 우리말로 풀어 쓴다"
     "(예: '짝퉁 대응과 에이피알의 성장 비결을 다룬 기사가 나왔다', '엔비디아의 중국 시장 상실을 다룬 기사가 있었다'). 영어 제목도 우리말로.\n"
+    "- 실적 축이 바뀐 테마는 '조선은 소속 기업 실적이 월초 보합에서 월말 오름으로 돌아섰다'처럼 '실적'을 꼭 넣는다"
+    "('조선은 오름세로 돌아섰다'만 쓰면 주가 얘기로 읽힌다).\n"
+    "- 한 문장에 주어를 둘 겹치지 않는다('K-뷰티가 실적이 …' 대신 'K-뷰티는 실적이 …').\n"
     "- 라벨('숨은 강세' 등)과 시장 환경 조합('위험 회피' 등), 회사·테마 이름은 바꾸지 않는다.\n"
 )
 RULES = ("[지킬 것] 위 사실에 없는 내용은 쓰지 않는다. 기사 제목 속 매수·매도·투자 기회 같은 표현은 옮기지 않는다. 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다/눈여겨볼' 같은 평가를 "
@@ -667,7 +671,7 @@ def repeat_endings(text: str) -> int:
     return n
 
 
-EVENT_ORDER = ["계약 해지", "8-K 주의 공시", "큰 공급계약", "내부자 여러 명 매수", "내부자 매수", "잠정실적", "실적 반전 목록에 새로 듦"]
+EVENT_ORDER = ["계약 해지", "8-K 주의 공시", "큰 공급계약", "내부자 여러 명 매수", "내부자 매수", "잠정실적", "실적 반전 목록에 새로 오름"]
 
 
 def event_list(ev: dict[str, list[str]], nm: dict[str, str]) -> list[dict]:

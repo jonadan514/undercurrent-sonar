@@ -24,7 +24,7 @@ interface MapItem { symbol: string; name: string; linkage: string; rev_yoy: numb
 interface MapTheme { theme_id: string; theme: string; market: Mk; groups: { n: number; label: string; items: MapItem[] }[] }
 interface Ref { market: Mk; symbol: string; name: string }
 interface Change { from: string; to: string; start_total: number; end_total: number; added: Ref[]; added_count: number; removed: Ref[]; removed_count: number }
-interface Review { kind: string; market: Mk; target: string; checkpoint: string; created_at: string; results: { expect: string; hit: boolean | null }[] }
+interface Review { kind: string; market: Mk; target: string; checkpoint: string; created_at: string; results: { key?: string; expect: string; hit: boolean | null }[] }
 interface CalItem { date: string; market: Mk; symbol: string; name: string; estimate: boolean; tags: string[] }
 interface Report {
   month: string; generated_at: string; weeks: string[]; briefing_weeks: string[];
@@ -120,7 +120,7 @@ function ThemeFlow({ t, weeks }: { t: Report["themes"]; weeks: string[] }) {
               <tr style={MUTED}>
                 <th className="py-1 pr-3 text-left font-normal">테마</th>
                 {weeks.map((w) => <th key={w} className="py-1 pr-3 text-left font-normal whitespace-nowrap">{md(w)} 주</th>)}
-                <th className="py-1 pr-3 text-left font-normal whitespace-nowrap">마지막 주 뉴스 · 실적 · 주가</th>
+                <th className="py-1 pr-3 text-left font-normal whitespace-nowrap">월말 기준 뉴스 · 실적 · 주가</th>
               </tr>
             </thead>
             <tbody>
@@ -147,7 +147,7 @@ function ThemeFlow({ t, weeks }: { t: Report["themes"]; weeks: string[] }) {
           {t.earn_turns.map((x) => (
             <li key={`${x.market}:${x.theme_id}`}>
               <span className="font-bold" style={{ color: "var(--text-primary)" }}>{x.theme}</span> <MkTag m={x.market} />
-              <span className="ml-2" style={MUTED}>첫 주</span> <Arrow a={x.from} /> <span style={MUTED}>→ 마지막 주</span> <Arrow a={x.to} />
+              <span className="ml-2" style={MUTED}>소속 기업 실적: 월초</span> <Arrow a={x.from} /> <span style={MUTED}>→ 월말</span> <Arrow a={x.to} />
             </li>
           ))}
         </ul>
@@ -165,7 +165,7 @@ function NewsBlocks({ news }: { news: NewsBlock[] }) {
         <div key={`${n.market}:${n.theme_id}`} className="print-avoid-break rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border-dim)" }}>
           <div className="mb-1 flex items-baseline gap-2">
             <span className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>{n.theme}</span><MkTag m={n.market} />
-            <span className="ml-auto text-[11.5px]" style={FAINT}>이달 기사 {n.total}건 중</span>
+            <span className="ml-auto text-[11.5px]" style={FAINT}>이달 기사 {n.total.toLocaleString("ko-KR")}건 중</span>
           </div>
           <ul className="space-y-1">
             {n.articles.map((a) => (
@@ -206,7 +206,7 @@ function CompanyMap({ maps }: { maps: MapTheme[] }) {
                         style={{ border: `1px solid ${it.events.length ? "var(--accent)" : "var(--border)"}`, color: "var(--text-secondary)" }}>
                         <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: st.c }} title={st.t} />
                         <StockLink market={t.market} symbol={it.symbol}>{nameOf(t.market, it.symbol, it.name)}</StockLink>
-                        {it.linkage === "partial" && <span className="text-[10.5px]" style={FAINT}>부분</span>}
+                        {it.linkage === "partial" && <span className="text-[10.5px]" style={FAINT} title="사업 일부만 이 테마에 해당">일부</span>}
                         {it.events.map((e) => <span key={e} className="text-[10.5px]" style={{ color: "var(--accent)" }}>{e}</span>)}
                       </span>
                     );
@@ -218,7 +218,7 @@ function CompanyMap({ maps }: { maps: MapTheme[] }) {
         </div>
       ))}
       <p className="text-[12px]" style={FAINT}>
-        구간은 가치사슬 순서(앞 → 뒤). 점 색은 마지막 주 실적 판정(초록 중앙값 초과 · 회색 미달 · 흐림 데이터 부족). 테두리가 밝은 기업은 이달 공시·내부자 매수 같은 일이 있었던 곳.
+        구간은 가치사슬 순서(앞 → 뒤). 점 색은 월말 기준 실적 판정(초록 테마 중앙값보다 좋음 · 회색 못 미침 · 흐림 데이터 부족). &apos;일부&apos;는 사업 일부만 이 테마에 해당하는 기업. 테두리가 밝은 기업은 이달 공시·내부자 매수 같은 일이 있었던 곳.
       </p>
     </div>
   );
@@ -237,13 +237,25 @@ function ChangeBlock({ title, c }: { title: string; c: Change | null }) {
     <div className="text-[13px]">
       <Sub>{title}</Sub>
       <p style={MUTED}>{md(c.from)} 주 {c.start_total}곳 → {md(c.to)} 주 {c.end_total}곳</p>
-      <div className="mt-1 grid gap-1 sm:grid-cols-[5rem_1fr]">
-        <span style={{ color: "var(--good)" }}>새로 듦 {c.added_count}</span>{names(c.added, c.added_count)}
-        <span style={{ color: "var(--text-muted)" }}>빠짐 {c.removed_count}</span>{names(c.removed, c.removed_count)}
+      <div className="mt-1 grid gap-1 sm:grid-cols-[6rem_1fr]">
+        <span style={{ color: "var(--good)" }}>새로 든 곳 {c.added_count}</span>{names(c.added, c.added_count)}
+        <span style={{ color: "var(--text-muted)" }}>빠진 곳 {c.removed_count}</span>{names(c.removed, c.removed_count)}
       </div>
     </div>
   );
 }
+
+// 관찰 노트 기대를 말로('뉴스↑' → '뉴스가 늘 것') - 기호만 있으면 무슨 기대였는지 한눈에 안 읽혔다(11/7)
+const EXPECT_WORDS: Record<string, string> = {
+  news_up: "뉴스가 늘 것", news_down: "뉴스가 줄 것", earn_up: "실적이 좋아질 것", earn_down: "실적이 나빠질 것",
+  price_up: "주가가 오를 것", price_down: "주가가 내릴 것", earn_hold: "실적 개선이 이어질 것",
+};
+const EXPECT_BY_SYMBOL: Record<string, string> = { "뉴스↑": "news_up", "뉴스↓": "news_down", "실적↑": "earn_up", "실적↓": "earn_down",
+  "주가↑": "price_up", "주가↓": "price_down", "실적↑ 유지": "earn_hold" };
+const expectText = (x: { key?: string; expect: string }) => {
+  const w = EXPECT_WORDS[x.key ?? EXPECT_BY_SYMBOL[x.expect] ?? ""];
+  return w ? `'${w}'` : x.expect;
+};
 
 function Reviews({ rs }: { rs: Review[] }) {
   if (!rs.length) return <p className="text-[13px]" style={MUTED}>이달 회고 시점이 온 관찰 노트가 없습니다.</p>;
@@ -252,10 +264,10 @@ function Reviews({ rs }: { rs: Review[] }) {
       {rs.map((r, i) => (
         <li key={i} className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-bold" style={{ color: "var(--text-primary)" }}>{r.target}</span><MkTag m={r.market} />
-          <span style={FAINT}>{md(r.created_at)} 적음 · {r.checkpoint}주 뒤</span>
+          <span style={FAINT}>{md(r.created_at)}에 적은 노트 · {r.checkpoint}주 뒤 확인</span>
           {r.results.length ? r.results.map((x) => (
             <span key={x.expect} style={{ color: x.hit ? "var(--good)" : x.hit === false ? "var(--orange)" : "var(--text-faint)" }}>
-              {x.expect} {x.hit ? "맞음" : x.hit === false ? "빗나감" : "판단 불가"}
+              {expectText(x)} → {x.hit ? "맞음" : x.hit === false ? "빗나감" : "판단 불가"}
             </span>
           )) : <span style={FAINT}>적어 둔 기대 없음</span>}
         </li>
@@ -283,7 +295,7 @@ function CalendarBlock({ c, month }: { c: Report["calendar"]; month: string }) {
                 {xs.map((x) => (
                   <span key={`${x.market}:${x.symbol}`} className="whitespace-nowrap">
                     <StockLink market={x.market} symbol={x.symbol} style={{ color: x.tags.includes("내 관심") ? "var(--accent)" : "var(--text-secondary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
-                    <span className="ml-1 text-[11px]" style={FAINT}>{x.market === "KR" ? "한" : "미"}{x.estimate ? " · 예상" : ""}</span>
+                    <span className="ml-1 text-[11px]" style={FAINT}>{x.market === "KR" ? "한국" : "미국"}{x.estimate ? " · 날짜 미확정" : ""}</span>
                   </span>
                 ))}
               </span>
@@ -292,7 +304,7 @@ function CalendarBlock({ c, month }: { c: Report["calendar"]; month: string }) {
         </div>
       )}
       <p className="mt-1.5 text-[12px]" style={FAINT}>
-        내 워치리스트(주황) → 후보이면서 테마 소속 → 후보 → 테마 소속 순으로 최대 40곳{c.earnings_total > c.earnings.length ? ` (전체 ${c.earnings_total}곳)` : ""}. &apos;예상&apos;은 회사가 날짜를 아직 확정하지 않은 것.
+        내 워치리스트(주황) → 후보이면서 테마 소속 → 후보 → 테마 소속 순으로 최대 40곳{c.earnings_total > c.earnings.length ? ` (전체 ${c.earnings_total}곳)` : ""}. &apos;날짜 미확정&apos;은 회사가 발표일을 아직 확정하지 않아 바뀔 수 있는 것.
       </p>
     </div>
   );
@@ -316,7 +328,7 @@ function ReportView() {
     <div className="mx-auto max-w-[980px] space-y-4">
       <PageHeader
         title={`월간 리서치 보고서 · ${monthKo(r.month)}`}
-        desc={`이달 신호 주 ${r.weeks.map(md).join(" · ")} (주간 브리핑 ${r.briefing_weeks.length}편)을 한 달로 묶었습니다. 점수·등급·매수 의견은 없습니다.`}
+        desc={`${md(r.weeks[0])}~${md(r.weeks[r.weeks.length - 1])} 주까지 ${r.weeks.length}주 동안의 신호와 주간 브리핑 ${r.briefing_weeks.length}편을 한 달로 묶었습니다. 점수·등급·매수 의견은 넣지 않았습니다.`}
       >
         <div className="print-hidden mt-2 flex flex-wrap items-center gap-2 text-[12.5px]">
           {data.months.length > 1 && (
@@ -332,7 +344,7 @@ function ReportView() {
         </div>
       </PageHeader>
 
-      <Section title="이달 요약" sub="아래 칸의 사실만 이어 쓴 글 · GPT · 숫자 없음" tone="warm" className="print-avoid-break">
+      <Section title="이달 요약" sub="아래 칸의 사실만으로 GPT가 쓴 글 · 숫자는 넣지 않음" tone="warm" className="print-avoid-break">
         {r.summary ? (
           <div className="space-y-2.5">
             {r.summary.split(/\n\s*\n/).map((p, i) => <p key={i} className="text-[14px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{p}</p>)}
@@ -343,7 +355,7 @@ function ReportView() {
 
       <Section title="1. 시장 환경" sub="주별 조합 이름" className="print-avoid-break"><RegimeBlock r={r.regime} weeks={r.weeks} /></Section>
       <Section title="2. 테마 흐름" sub="세 축(뉴스·실적·주가) 라벨과 실적 축 변화"><ThemeFlow t={r.themes} weeks={r.weeks} /></Section>
-      <Section title="3. 주시할 뉴스" sub="라벨 붙은 테마별 · 코드가 고른 원문 제목"><NewsBlocks news={r.news} /></Section>
+      <Section title="3. 주시할 뉴스" sub="라벨이 붙은 테마별 · 주마다 한 건씩, 원문 제목 그대로"><NewsBlocks news={r.news} /></Section>
       <Section title="4. 테마별 기업 지도" sub="라벨이 붙었거나 실적 축이 바뀐 테마의 소속 기업 · 가치사슬 구간별"><CompanyMap maps={r.company_map} /></Section>
       <Section title="5. 워치리스트 한 달 변화">
         <div className="mb-3 grid gap-4 md:grid-cols-2">
