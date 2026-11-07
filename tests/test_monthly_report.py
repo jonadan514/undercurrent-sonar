@@ -116,3 +116,10 @@ def test_market_lead():
     assert mr.market_lead({"regime": {"US": K, "KR": K}}).startswith("이달 미국과 한국 시장은 모두 첫째 주에는")
     assert mr.lead_flow(["위험 회피", "위험 회피", "긴축 압력"]) == "첫째 주부터 둘째 주까지 '위험 회피'에서 셋째 주에 '긴축 압력'으로 바뀌었다"
     assert mr.market_lead({"regime": {}}) == ""
+
+
+def test_when_in_month():
+    W = ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]
+    assert mr.when_in_month(W, "2026-10-26") == "월말(넷째 주)"
+    assert mr.when_in_month(W, "2026-10-05") == "월초(첫째 주)"
+    assert mr.when_in_month(W, "2026-10-12") == "월중(둘째 주)"

@@ -351,6 +351,15 @@ def _josa(word: str, pair: str) -> str:
     return pair[0] if has else pair[1]
 
 
+def when_in_month(weeks: list[str], week: str) -> str:
+    """'월말(넷째 주)'처럼 - GPT가 '넷째 주'를 '달 내내'로 늘려 쓰지 않게 때를 같이 준다."""
+    if week not in weeks:
+        return "어느 한 주"
+    i, n = weeks.index(week), len(weeks)
+    part = "월초" if i == 0 else "월말" if i == n - 1 else "월중"
+    return f"{part}({ORD[i] if i < len(ORD) else '어느 주'})"
+
+
 def regime_flow(seq: list[str]) -> str:
     """주별 조합을 말 한 문장으로(GPT가 흐름을 뒤섞지 않게 문장으로 넘긴다 - 11/7 '월초 이후 뚜렷한 조합 없이 위험 회피'로 틀렸다).
     예: "첫째 주에는 '긴축 압력'이 붙었고, 둘째 주부터 '위험 회피'가 이어졌다"."""
@@ -477,7 +486,9 @@ def summary_facts(r: dict) -> list[str]:
     for mk in ("KR", "US"):   # 한국 테마·미국 테마를 따로 묶는다 - 한 문장에 섞어 미국 테마가 '한국의 …'로 읽혔다(11/7)
         sub: list[str] = []
         for t in [x for x in r["themes"]["labeled"][:8] if x["market"] == mk]:
-            parts = [f"{ordinal_week(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
+            parts = [f"{when_in_month(weeks, x['week'])} '{LABEL_KO.get(x['label'], x['label'])}'" for x in t["labels"]]
+            if len(t["labels"]) == 1:
+                parts[0] += "(이 한 주에만)"
             means = sorted({wb.LABEL_MEANING.get(x["label"], "").split(" - ")[0] for x in t["labels"]} - {""})   # 뒤 꼬리('시장이 덜 본 개선')는 그대로 옮겨 어색했다
             last = t.get("last") or {}
             sub.append(f"{MK[mk]} {t['theme']} 라벨이 붙은 주: {', '.join(parts)}"
@@ -539,7 +550,7 @@ STYLE = (
     "짧은 문장을 끊어서 나열하지 않는다.\n"
     "- 문장 끝을 다양하게: '~로 돌아섰다', '~가 이어졌다', '~을 보였다', '~에 이름을 올렸다', '~가 예정돼 있다', '~로 나타났다', "
     "'~이 붙었다', '~에서 빠졌다' 등. 같은 끝맺음('~했다', '~였다', '~맞았다')을 두 문장 연달아 쓰지 않는다.\n"
-    "- '첫 주/마지막 주'를 매번 되풀이하지 말고 '월초', '월말', '달 내내'로 바꿔 쓴다.\n"
+    "- '첫 주/마지막 주'는 '월초', '월말'로 바꿔 쓴다. 한 주에만 붙은 라벨을 '달 내내', '한 달 동안'처럼 늘려 쓰지 않는다.\n"
     "- '(한국)', '(미국)' 괄호 대신 '한국의 K-뷰티', '미국 방산'처럼 말 속에 넣는다.\n"
     "- '뉴스↑', '실적↑ 유지' 같은 기호는 '뉴스가 늘 것이라는 기대', '실적 개선이 이어질 것이라는 기대'처럼 말로 푼다.\n"
     "- 라벨('숨은 강세' 등)과 시장 환경 조합('위험 회피' 등), 회사·테마 이름은 바꾸지 않는다.\n"
@@ -588,9 +599,9 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
     if required:
         prompt += "\n반드시 들어갈 말(테마·마감·회사 이름): " + ", ".join(required)
     best, best_key = "", None
-    for attempt in range(3):   # 짧거나(MIN_CHARS 미만) 테마가 빠지면 다시 - 실행마다 들쭉날쭉했다
+    for attempt in range(4):   # 짧거나(MIN_CHARS 미만) 테마가 빠지면 다시 - 실행마다 들쭉날쭉했다
         try:
-            out = call_json(model, "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=2000, temperature=0.4)
+            out = call_json(model, "당신은 사실만 쓰는 경제 기자입니다.", prompt, api_key=key, max_output_tokens=2000, temperature=0.3)
         except Exception as e:  # noqa: BLE001
             log(f"요약 실패 {type(e).__name__}")
             continue
@@ -607,7 +618,10 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
     # 다듬기 - 사실은 그대로 두고 문장 흐름만(데스크 교열). 줄거나 깨지면 초안을 쓴다.
     edit = ("아래는 월간 리서치 보고서 요약 초안입니다. 데스크 기자로서 문장만 다듬으세요. 사실을 더하거나 빼지 말고, "
             "문단 수와 문단별 내용은 그대로 둡니다. 특히 짧은 문장이 같은 끝맺음으로 이어지는 곳을 연결어로 엮고, 끝맺음을 다양하게 바꾸세요.\n\n"
-            + STYLE + RULES + "\n[초안]\n" + best + "\n\n[참고 - 초안이 근거로 삼은 사실]\n" + "\n".join(f for f in facts if not f.startswith("[")) +
+            + STYLE + RULES
+            + (f"\n초안에 빠진 것: {', '.join(missing_names(best, required))} - 아래 사실에서 찾아 알맞은 문단에 한 문장씩 넣으세요(이것만은 더해도 됩니다).\n"
+               if missing_names(best, required) else "")
+            + "\n[초안]\n" + best + "\n\n[참고 - 초안이 근거로 삼은 사실]\n" + "\n".join(f for f in facts if not f.startswith("[")) +
             "\n\nJSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
     try:
         polished = "\n\n".join(_clean_paras(call_json(model, "당신은 경제면 데스크 기자입니다. 사실은 바꾸지 않고 문장만 다듬습니다.", edit,
@@ -616,6 +630,7 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None)
         log(f"다듬기 실패 {type(e).__name__} - 초안 사용")
         return best
     log(f"다듬기: {len(polished)}자 {sentence_count(polished)}문장, 같은 끝맺음 연속 {repeat_endings(polished)}곳 (초안 {repeat_endings(best)}곳)")
+    log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}")
     if (polished.count("\n\n") != best.count("\n\n") or len(polished) < len(best) * 0.75
             or len(missing_names(polished, required)) > len(missing_names(best, required))):
         log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠져 초안 사용")
