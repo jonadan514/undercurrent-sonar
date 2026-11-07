@@ -21,6 +21,7 @@ const NAV_GROUPS = [
   {
     label: "월·분기",
     items: [
+      { href: "/calendar",  label: "일정",       emoji: "📆", color: "#ffb020" },   // 2026-11-07
       { href: "/report",    label: "월간 보고서", emoji: "📑", color: "#ffb020" },   // 2026-11-07
       { href: "/quarterly", label: "분기 리서치", emoji: "🗓️", color: "#ffb020" },
     ],
