@@ -9,6 +9,7 @@ import StockLink from "@/src/components/StockLink";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { themeName } from "@/src/lib/themeNames";
+import { labelWithKo } from "@/src/lib/labelNames";
 import { krStockName } from "@/src/lib/krStockNames";
 
 const GOOD = "var(--good)";
@@ -178,7 +179,7 @@ function ThemeRows({ cols }: { cols: { head: string; snap: Snap }[] }) {
     { label: "뉴스", render: (s) => <b style={{ color: arrowColor(s?.news_arrow as Arrow) }}>{glyph(s?.news_arrow as Arrow)}</b> },
     { label: "실적", render: (s) => <b style={{ color: arrowColor(s?.earn_arrow as Arrow) }}>{glyph(s?.earn_arrow as Arrow)}</b> },
     { label: "주가", render: (s) => <b style={{ color: arrowColor(s?.price_arrow as Arrow) }}>{glyph(s?.price_arrow as Arrow)}</b> },
-    { label: "라벨", render: (s) => <span style={{ color: s?.label ? ACCENT : FAINT }}>{(s?.label as string) ?? "없음"}</span> },
+    { label: "라벨", render: (s) => <span style={{ color: s?.label ? ACCENT : FAINT }}>{s?.label ? labelWithKo(s.label as string) : "없음"}</span> },
     { label: "지수 대비", render: (s) => <span>{typeof s?.price_excess === "number" ? `${pct(s.price_excess)}p` : "-"}</span> },
   ];
   return <SnapTable cols={cols} rows={rows} />;

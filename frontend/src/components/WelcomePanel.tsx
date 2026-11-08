@@ -7,6 +7,14 @@ import { WELCOME_STORAGE_KEY } from "@/src/lib/pageIntros";
 
 // 첫 방문 안내(2026-10-23). 처음 들어온 사람에게 이 도구가 무엇이고 어디서 시작하는지 3단계로.
 // "다시 보지 않기"를 누르면 이 브라우저에서는 접힌다(가이드의 "안내 다시 보기"로 되살림).
+// '(으)로' - 받침 있으면 '으로'(ㄹ 받침은 '로'). "주간 브리핑로 가기"로 나왔다(2026-11-08 화면 점검)
+function ro(word: string): string {
+  const c = word.charCodeAt(word.length - 1) - 0xac00;
+  if (c < 0 || c > 11171) return "로";
+  const jong = c % 28;
+  return jong === 0 || jong === 8 ? "로" : "으로";
+}
+
 const STEPS: { title: string; body: React.ReactNode; href: string; cta: string }[] = [
   {
     title: "내 종목 소식 확인",
@@ -59,7 +67,7 @@ export default function WelcomePanel() {
             <p className="mt-0.5 text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{s.title}</p>
             <p className="mt-1 flex-1 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{s.body}</p>
             <Link href={s.href} className="mt-2 text-[13px] font-semibold hover:underline" style={{ color: "#ffb020" }}>
-              {s.cta}로 가기 →
+              {s.cta}{ro(s.cta)} 가기 →
             </Link>
           </li>
         ))}

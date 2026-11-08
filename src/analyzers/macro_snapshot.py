@@ -174,6 +174,7 @@ def analyze() -> dict:
 
     keys = list(TICKERS.keys()) + list(FRED_SERIES) + ["spread_10y_2y"]
     items = {key: {**_snapshot(series.get(key)), "label": LABELS[key], "unit": UNITS[key]} for key in keys}
+    _fill_missing_from_history(items)
 
     result = {"date": as_of, "items": items}
     _save(result)
@@ -181,6 +182,28 @@ def analyze() -> dict:
     _save_history(rows, as_of)
     print("[macro] 이력 " + f"{len(rows)}행 · " + ", ".join(f"{k} {len(v)}일" for k, v in series.items()), flush=True)
     return result
+
+
+def _fill_missing_from_history(items: dict) -> None:
+    """이번 수집에서 한 지표만 빠지면(yfinance가 그 종목만 못 받은 날 - 2026-11-07 달러인덱스) 쌓아 둔 이력의 마지막 종가로 채우고
+    그 날짜를 as_of로 붙인다. 값은 실제로 받았던 종가 그대로라 새 숫자를 만들지 않는다. 이력도 없으면 빈 채로(데이터 부족)."""
+    missing = [k for k, v in items.items() if v.get("value") is None]
+    if not missing:
+        return
+    try:
+        with get_db() as con:
+            for k in missing:
+                rows = con.execute("SELECT date, value FROM macro_history WHERE key = ? ORDER BY date DESC LIMIT 6", (k,)).fetchall()
+                if not rows:
+                    continue
+                vals = [float(r[1]) for r in rows]
+                items[k].update({"value": round(vals[0], 4),
+                                 "chg_1d": round(vals[0] - vals[1], 4) if len(vals) > 1 else None,
+                                 "chg_1w": round(vals[0] - vals[5], 4) if len(vals) > 5 else None,
+                                 "as_of": str(rows[0][0])})
+                print(f"[macro] {k}: 이번 수집에 없음 -> 이력 마지막 값({rows[0][0]})", flush=True)
+    except Exception as e:  # noqa: BLE001 - 이력 표가 없으면 빈 채로
+        print(f"[macro] 이력으로 채우기 실패: {type(e).__name__}", flush=True)
 
 
 def _save(data: dict):
