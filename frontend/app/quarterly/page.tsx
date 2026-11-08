@@ -460,6 +460,7 @@ export default function QuarterlyPage() {
   const { market } = useMarket();
   const [fiscalYear, setFiscalYear] = useState<number | null>(null);
   const [fiscalQuarter, setFiscalQuarter] = useState<number | null>(null);
+  const [computedAt, setComputedAt] = useState<string | null>(null);
   const [marketReference, setMarketReference] = useState<MarketReference | null>(null);
   const [themes, setThemes] = useState<ThemeQuarterly[]>([]);
   const [loading, setLoading] = useState(true);
@@ -473,6 +474,7 @@ export default function QuarterlyPage() {
       .then((d) => {
         setFiscalYear(d.fiscal_year ?? null);
         setFiscalQuarter(d.fiscal_quarter ?? null);
+        setComputedAt(d.computed_at ?? null);
         setMarketReference(d.market_reference ?? null);
         setThemes(d.themes ?? []);
       })
@@ -511,7 +513,10 @@ export default function QuarterlyPage() {
 
       {!loading && fiscalYear != null && (
         <p className="mt-3 text-[12px]" style={{ color: FAINT }}>
-          기준 분기 {fiscalYear}Q{fiscalQuarter} · {market === "KR" ? "한국" : "미국"} 시장 · 유니버스
+          기준 분기 {fiscalYear}Q{fiscalQuarter}
+          {computedAt && <> · <span style={{ color: "var(--text-secondary)" }}>{Number(computedAt.slice(5, 7))}/{Number(computedAt.slice(8, 10))} 계산</span>
+            <span title="분기 실적 공시가 다 나온 뒤(분기 끝 + 약 6주) 다시 계산합니다. 3분기 실적은 11/14 마감 뒤 갱신 예정."> (다음 계산: 공시 마감 뒤)</span></>}
+          {" "}· {market === "KR" ? "한국" : "미국"} 시장 · 유니버스
           매출 증가율 중앙값{" "}
           <span title="참고값입니다 - 테마 분류 판정에는 쓰지 않습니다." style={{ borderBottom: "1px dotted var(--border-ctrl)" }}>
             {marketReference ? pctGrowth(marketReference.median_revenue_growth) : "계산불가"}

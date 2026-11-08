@@ -71,26 +71,27 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
   const wl = `/watchlist?market=${m}`;
   const tiles: React.ReactNode[] = [
     <StatTile key="wl" href={cands?.fresh ? `${wl}&new=1` : wl} label="워치리스트 후보" value={cands ? cands.total : "-"}
-      sub={cands?.fresh != null ? `이번 주 신규 ${cands.fresh}` : "재무 필터 통과, 순위 없음"} hint="재무 건전성 필터를 통과한 종목. 매수 신호가 아닙니다." />,
+      sub={cands?.fresh != null ? `이번 주 신규 ${cands.fresh}` : "재무 필터 통과, 순위 없음"} subHot={!!cands?.fresh} hint="재무 건전성 필터를 통과한 종목. 매수 신호가 아닙니다." />,
     (() => {
       if (!ta) return <StatTile key="ta" href={`${wl}&preset=turnaround`} label="실적 반전" value="-" sub="브리핑 전" />;
       const added = ta.added.filter(a => a.market === m).length;
       // 브리핑에는 새로 들어온 종목을 10개까지만 담는다 - 잘렸으면 시장별로 셀 수 없어 미·한 합계를 그대로 쓴다
       return <StatTile key="ta" href={`${wl}&preset=turnaround`} label="실적 반전" value={ta.by_market[m] ?? 0}
         sub={!ta.has_prev ? "비교는 다음 주부터" : ta.added_count > ta.added.length ? `신규 ${ta.added_count} (미·한 합계)` : `신규 ${added}`}
+        subHot={ta.has_prev && (ta.added_count > ta.added.length ? ta.added_count > 0 : added > 0)}
         hint="매출 3년은 정체·역성장인데 최근 1년(없으면 분기)은 성장" />;
     })(),
     (() => {
       const mine = (ew?.items ?? []).filter(x => x.market === m && x.tags.length > 0).length;
       return <StatTile key="ew" href="/briefing#earnings" label="이번 주 실적 발표" value={ew ? ew.by_market[m] ?? 0 : "-"}
-        sub={ew ? `내 관심·노트·실적 반전 ${mine}` : "브리핑 전"} />;
+        sub={ew ? `내 관심·노트·실적 반전 ${mine}` : "브리핑 전"} subHot={mine > 0} />;
     })(),
     ...(m === "KR" ? [(() => {
       const all = kd ? [kd.contract, kd.prelim, kd.termination, kd.amend].filter(Boolean) as { count: number; items: { tags: string[] }[] }[] : [];
       const tagged = all.flatMap(k => k.items).filter(x => x.tags.length > 0).length;
       const term = kd?.termination?.count ?? 0;
       return <StatTile key="kd" href="/briefing#disclosures" label="한국 공시 (7일)" value={kd ? all.reduce((n, k) => n + k.count, 0) : "-"}
-        sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}${term ? ` · 해지 ${term}` : ""}` : "브리핑 전"} />;
+        sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}${term ? ` · 해지 ${term}` : ""}` : "브리핑 전"} subHot={tagged > 0 || term > 0} />;
     })()] : []),
     (() => {
       // 목록은 30개에서 잘린다 - 시장별 전체 수가 있으면 그것을(10/21 리뷰)
@@ -99,6 +100,7 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
       const fresh = sp ? sp.discovery : (ins?.discovery ?? []).filter(x => x.market === m).length;
       return <StatTile key="ins" href="/briefing#insider" label="내부자 장내 매수 (7일)" value={ins ? ins.by_market[m] ?? 0 : "-"}
         sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 외 ${fresh}` : `종목 ${ins.by_market[m] ?? 0}`) : "브리핑 전"}
+        subHot={!!ins && mine > 0}
         hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 외는 관심 표시가 없는 유니버스 종목입니다(새 종목 발견용)." />;
     })(),
     // 유명 투자자 13F - 카드 두 칸 폭에 '여러 곳이 함께 산 종목' 상위 5개(2026-10-26 사용자 결정 - 새로 산 개수보다 겹친 이름이 의미 있다).

@@ -1,5 +1,6 @@
 "use client";
 
+import { sectorKo } from "@/src/lib/sectorNames";
 import { tierLabel } from "@/src/lib/valuation";
 import { classLabel } from "@/src/lib/quarterlyNames";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -504,7 +505,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
               )}
             </div>
             {c.name && <p className="text-[13px] mt-0.5" style={{ color: TEXT_SECONDARY }}>{c.name}</p>}
-            {c.sector && c.sector !== "Unknown" && <p className="text-[12px] mt-0.5" style={{ color: TEXT_SECONDARY }}>{c.sector} · {formatCap(c.market, c.market_cap)}</p>}
+            {c.sector && c.sector !== "Unknown" && <p className="text-[12px] mt-0.5" style={{ color: TEXT_SECONDARY }}>{sectorKo(c.sector)} · {formatCap(c.market, c.market_cap)}</p>}
             {/* 목록을 훑을 때는 이 팝업, 한 종목을 조사할 때는 기업 카드(2026-11-07 - 팝업에서 카드로 가는 길이 없었다) */}
             <a href={stockHref(c.market, c.symbol)} className="inline-block mt-1.5 text-[12.5px] font-semibold hover:underline" style={{ color: ACCENT }}>
               기업 카드 전체 보기 →</a>
@@ -648,7 +649,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
                 <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>
                   {peer.psr != null || peer.per != null ? (
                     <>
-                      같은 업종({peer.sector}) 후보 중앙값: PSR {fmtPsr(peer.psr)}
+                      같은 업종({sectorKo(peer.sector)}) 후보 중앙값: PSR {fmtPsr(peer.psr)}
                       <span style={{ color: TEXT_MUTED }}> ({peer.nPsr}곳)</span>
                       <span style={{ color: TEXT_MUTED }}> · </span>
                       PER {fmtPer(peer.per)}
@@ -656,7 +657,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
                       <span style={{ color: TEXT_MUTED }}> - 업종 전체가 아니라 필터 통과 후보 중</span>
                     </>
                   ) : (
-                    <span style={{ color: TEXT_MUTED }}>같은 업종({peer.sector}) 후보가 {PEER_MIN}곳 미만이라 업종 비교를 하지 않습니다.</span>
+                    <span style={{ color: TEXT_MUTED }}>같은 업종({sectorKo(peer.sector)}) 후보가 {PEER_MIN}곳 미만이라 업종 비교를 하지 않습니다.</span>
                   )}
                 </p>
               )}
@@ -1200,7 +1201,7 @@ export default function WatchlistPage() {
           )}
         </div>
         <div style={{ color: TEXT_SECONDARY, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {c.name ?? "-"}{c.sector && c.sector !== "Unknown" ? <span style={{ color: TEXT_MUTED }}> · {c.sector}</span> : null}
+          {c.name ?? "-"}{c.sector && c.sector !== "Unknown" ? <span style={{ color: TEXT_MUTED }}> · {sectorKo(c.sector)}</span> : null}
         </div>
         {(c.themes ?? []).length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>

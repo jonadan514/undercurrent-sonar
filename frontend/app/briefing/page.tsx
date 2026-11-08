@@ -441,7 +441,7 @@ function NewsLinks({ items }: { items: NewsItem[] }) {
 function CommentBody({ text, collapsed, news }: { text: string; collapsed: boolean; news?: Record<string, NewsItem[]> }) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   if (!lines.some((l) => l.startsWith("■"))) {
-    return <p className={`text-[13px] leading-relaxed whitespace-pre-line ${collapsed ? "line-clamp-4" : ""}`} style={{ color: "#bdb5a0" }}>{text}</p>;
+    return <p className={`text-[14px] leading-relaxed whitespace-pre-line ${collapsed ? "line-clamp-4" : ""}`} style={{ color: "var(--text-body, #d6d0c0)" }}>{text}</p>;
   }
   const blocks: { head: string; body: string[] }[] = [];
   for (const l of lines) {
@@ -450,26 +450,26 @@ function CommentBody({ text, collapsed, news }: { text: string; collapsed: boole
     else blocks.push({ head: "", body: [l] });
   }
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-4">
       {(collapsed ? blocks.slice(0, 2) : blocks).map((blk, i) => {
         // 소제목 "이름 · 종류"(2026-11-02 짚을 점) - 종류는 작은 꼬리표로
         const [name, ...tags] = blk.head.split(" · ");
         return (
           <div key={i}>
             {blk.head && (
-              <p className="text-[12.5px] font-bold mb-0.5 flex flex-wrap items-center gap-1.5" style={{ color: "#ffb020" }}>
+              <p className="h-sub mb-1 flex flex-wrap items-center gap-1.5" style={{ color: "#ffb020", fontSize: 15.5 }}>
                 <span>{name}</span>
                 {tags.map((t) => (
-                  <span key={t} className="text-[10.5px] font-medium px-1.5 py-[1px] rounded border whitespace-nowrap"
+                  <span key={t} className="text-[11.5px] font-medium px-1.5 py-[1px] rounded border whitespace-nowrap"
                         style={{ color: t.includes("엇갈림") || t.includes("주의") ? "#ff8a7a" : "#c9b98a", borderColor: "#3a3426" }}>{t}</span>
                 ))}
               </p>
             )}
             {blk.body.map((t, k) => t.startsWith("→") ? (
-              <p key={k} className="text-[12px] leading-relaxed mt-0.5" style={{ color: "#7fb8a4" }}>
+              <p key={k} className="text-[13px] leading-relaxed mt-1" style={{ color: "#7fb8a4" }}>
                 {t}
               </p>
-            ) : <p key={k} className="text-[13px] leading-relaxed" style={{ color: "#bdb5a0" }}>{t}</p>)}
+            ) : <p key={k} className="text-[14.5px] leading-[1.75]" style={{ color: "#d6d0c0" }}>{t}</p>)}
             {!collapsed && news?.[blk.head]?.length ? <NewsLinks items={news[blk.head]} /> : null}
           </div>
         );

@@ -1,5 +1,21 @@
 import { NextResponse } from "next/server";
 import { getClient } from "@/src/lib/db";
+import PROFILES_RAW from "@/src/data/companyProfiles.json";
+
+const PROFILES = PROFILES_RAW as Record<string, Record<string, { n?: string }>>;
+const KEEP_UPPER = new Set(["AI", "AG", "SA", "NV", "SE", "PLC", "LP", "ETF", "REIT", "USA", "US", "II", "III", "ADR", "ASA", "AB", "LLC"]);
+const CUT_SUFFIX = /\s+(INC|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|PLC|HOLDINGS?|GROUP|NV|SA|AG|LP|CL\s*[A-C]|CLASS\s*[A-C]|COM|NEW|DEL)\.?$/i;
+// 13F 종목 이름(2026-11-08 화면 점검): SEC 원문은 대문자에 잘려 있다('TAIWAN SEMICONDUCTOR MANUFAC'). 회사 정보(companyProfiles)에
+// 이름이 있으면 그걸, 없으면 원문을 첫 글자만 대문자로 바꾸고 끝의 법인 꼬리를 뗀다. 원문(issuer)은 title로 남긴다.
+function niceName(ticker: string | null, issuer: string | null): string | null {
+  const prof = ticker ? PROFILES.US?.[ticker]?.n : undefined;
+  if (prof) return prof.replace(/,?\s+(Inc\.?|Corp\.?|Corporation|Co\.?|Ltd\.?|plc|PLC|N\.V\.|S\.A\.)$/i, "");
+  if (!issuer) return null;
+  let t = issuer.trim();
+  for (let i = 0; i < 3 && CUT_SUFFIX.test(t); i++) t = t.replace(CUT_SUFFIX, "").trim();
+  if (t !== t.toUpperCase()) return t;   // 이미 대소문자가 섞인 이름은 그대로
+  return t.split(/\s+/).map((w) => KEEP_UPPER.has(w) || /\d/.test(w) || w.length <= 3 ? w : w[0] + w.slice(1).toLowerCase()).join(" ");
+}
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +41,7 @@ async function latestRows(symbol?: string | null): Promise<Row[]> {
     WHERE p.put_call = ''${symbol ? " AND p.ticker = ?" : ""}`, args: symbol ? [symbol] : [] });
   return rs.rows.map((r) => ({
     manager_id: String(r.manager_id), period: String(r.period), ticker: r.ticker == null ? null : String(r.ticker),
-    issuer: r.issuer == null ? null : String(r.issuer), cusip: String(r.cusip), shares: num(r.shares) ?? 0, value: num(r.value) ?? 0,
+    issuer: niceName(r.ticker == null ? null : String(r.ticker), r.issuer == null ? null : String(r.issuer)), cusip: String(r.cusip), shares: num(r.shares) ?? 0, value: num(r.value) ?? 0,
     weight: num(r.weight), status: r.status == null ? null : String(r.status), prev_shares: num(r.prev_shares),
     prev_value: num(r.prev_value), share_chg: num(r.share_chg), filed_on: r.filed_on == null ? null : String(r.filed_on),
   }));

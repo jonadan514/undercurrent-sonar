@@ -1,5 +1,6 @@
 "use client";
 
+import { sectorKo } from "@/src/lib/sectorNames";
 import { useEffect, useState } from "react";
 import InfoTooltip from "@/src/components/InfoTooltip";
 import { useMarket } from "@/src/contexts/MarketContext";
@@ -68,7 +69,7 @@ export default function SectorPage() {
 
   function rowKey(row: any) { return isKR ? row.sector : row.ticker; }
   function rowLabel(row: any) { return isKR ? row.sector : row.ticker; }
-  function rowSubLabel(row: any) { return isKR ? "" : row.name; }
+  function rowSubLabel(row: any) { return isKR ? "" : sectorKo(row.name); }
 
   // 전환 중인 섹터 - 3달 상대강도와 1달 상대강도의 부호가 다른 섹터. 주간 추이에서 최근 2주가 같은 방향이면 함께 표시.
   const histByKey: Record<string, any> = Object.fromEntries(rsHistory.map((h: any) => [isKR ? h.sector : h.ticker, h]));
@@ -150,7 +151,7 @@ export default function SectorPage() {
               {leading.map((l: any, i: number) => (
                 <span key={isKR ? (l.sector ?? i) : (l.ticker ?? i)} className="text-[12px] font-bold px-2 py-0.5 rounded-lg"
                   style={{ background: "#ffb02018", color: "#ffb020", border: "1px solid #ffb02033" }}>
-                  {isKR ? l.sector : `${l.ticker} · ${l.name}`}
+                  {isKR ? l.sector : `${sectorKo(l.name)} · ${l.ticker}`}
                 </span>
               ))}
               {leading.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>없음</p>}
@@ -165,7 +166,7 @@ export default function SectorPage() {
               {lagging.map((l: any, i: number) => (
                 <span key={isKR ? (l.sector ?? i) : (l.ticker ?? i)} className="text-[12px] font-bold px-2 py-0.5 rounded-lg"
                   style={{ background: "#f8717118", color: "#f87171", border: "1px solid #f8717133" }}>
-                  {isKR ? l.sector : `${l.ticker} · ${l.name}`}
+                  {isKR ? l.sector : `${sectorKo(l.name)} · ${l.ticker}`}
                 </span>
               ))}
               {lagging.length === 0 && <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>없음</p>}
@@ -196,7 +197,7 @@ export default function SectorPage() {
                   ) : (
                     <>
                       <span className="font-bold text-white">{row.ticker}</span>
-                      <span className="ml-1 text-[11px]" style={{ color: "var(--text-muted)" }}>{row.name}</span>
+                      <span className="ml-1 text-[11px]" style={{ color: "var(--text-muted)" }}>{sectorKo(row.name)}</span>
                     </>
                   )}
                 </td>

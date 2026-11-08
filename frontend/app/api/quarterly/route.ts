@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     const themesRes = await client.execute({
       sql: `
         SELECT theme_id, classification, financial_on, financial_changed, financial_judged,
-               financial_ratio, news_high, news_ratio, news_this_quarter
+               financial_ratio, news_high, news_ratio, news_this_quarter, computed_at
         FROM quarterly_theme_classification
         WHERE market = ? AND fiscal_year = ? AND fiscal_quarter = ?
       `,
@@ -99,9 +99,12 @@ export async function GET(request: Request) {
       previous_classification: prevByTheme[r[0] as string] ?? null,
     }));
 
+    // 계산한 날(2026-11-08 화면 점검) - '기준 분기 2026Q3'만 보면 언제 값인지 몰랐다(9/23 계산)
+    const computedAt = themesRes.rows.map((r) => String(r[9] ?? "")).filter(Boolean).sort().pop() ?? null;
     return NextResponse.json({
       fiscal_year: fiscalYear,
       fiscal_quarter: fiscalQuarter,
+      computed_at: computedAt,
       market_reference: marketReference,
       themes,
     });

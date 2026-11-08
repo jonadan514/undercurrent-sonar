@@ -53,10 +53,11 @@ export function GroupTitle({ title, children }: { title: string; children: React
 }
 
 // 요약 숫자 칸. href가 있으면 누르면 그 목록으로, onClick이 있으면 버튼(필터 등), 없으면 표시만.
-export function StatTile({ label, value, sub, href, onClick, active, emphasis, hint }: {
+export function StatTile({ label, value, sub, subHot, href, onClick, active, emphasis, hint }: {
   label: ReactNode;
   value: ReactNode;
   sub?: ReactNode;
+  subHot?: boolean;       // 보조 줄이 이번 주 새로 생긴 일(신규·내 관심 등)이면 앰버 굵게 - 먼저 볼 줄(2026-11-08 화면 점검)
   href?: string;
   onClick?: () => void;
   active?: boolean;       // 지금 켜진 필터
@@ -72,7 +73,8 @@ export function StatTile({ label, value, sub, href, onClick, active, emphasis, h
     <>
       <p className="text-[12.5px] font-semibold truncate" style={{ color: "var(--text-secondary)" }}>{label}</p>
       <p className="text-[26px] font-bold leading-tight mt-0.5" style={{ color, fontVariantNumeric: "tabular-nums" }}>{value}</p>
-      {sub && <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{sub}</p>}
+      {sub && <p className={`mt-0.5 truncate ${subHot ? "text-[13px] font-bold" : "text-[12px]"}`}
+        style={{ color: subHot ? "var(--accent, #ffb020)" : "var(--text-secondary)" }}>{subHot ? "● " : ""}{sub}</p>}
     </>
   );
   const cls = "rounded-lg px-3 py-2.5 block text-left w-full";

@@ -4,6 +4,7 @@
 // 리서치 실행 가이드 2단계(기업 하나를 보는 순서)를 그대로 따라간다: 무엇을 하는 회사인가 → 숫자 확인 → 최근 일 → 주의할 사실 → 내 기록.
 // 워치리스트 후보가 아니어도 열린다. 종합 점수·매수 판단 없음(원칙 1), 숫자는 저장된 값 그대로(원칙 2), 없으면 "데이터 부족"(원칙 4).
 
+import { sectorKo } from "@/src/lib/sectorNames";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -172,7 +173,7 @@ function CompanyView() {
   return (
     <div className="space-y-5 max-w-5xl">
       <PageHeader title={`${d.name ?? d.symbol}`} prefix={<span className="text-[12px] mr-2" style={{ color: MUTED }}>{d.market === "KR" ? "🇰🇷" : "🇺🇸"} {d.symbol}</span>}
-        desc={[d.profile?.sector, d.profile?.industry].filter(Boolean).join(" · ") || "기업 기초조사 카드"}>
+        desc={[sectorKo(d.profile?.sector), d.profile?.industry].filter(Boolean).join(" · ") || "기업 기초조사 카드"}>
         <div className="flex flex-wrap gap-2 text-[12px] mt-1">
           {d.mine && <span className="px-2 py-0.5 rounded" style={{ background: "#ffb02022", color: ACCENT }}>⭐ 내 워치리스트</span>}
           {cand && <Link href={`/watchlist?stock=${encodeURIComponent(`${d.market}:${d.symbol}`)}`} className="px-2 py-0.5 rounded underline" style={{ color: GOOD }}>이번 주 워치리스트 후보</Link>}
