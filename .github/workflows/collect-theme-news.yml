@@ -22,6 +22,11 @@ on:
         required: false
         default: ""
 
+# 한국 하루 세 번 수집(collect-kr-news-intraday)과 같은 상태 표를 쓴다 - 동시에 돌지 않게.
+concurrency:
+  group: kr-news-state
+  cancel-in-progress: false
+
 jobs:
   collect:
     name: Collect theme news

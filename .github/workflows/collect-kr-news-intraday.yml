@@ -1,0 +1,43 @@
+name: Collect KR News Intraday
+
+# 한국 테마 뉴스를 하루 세 번 나눠 쌓는다(2026-11-10). 네이버는 키워드당 최신 약 1000건까지만 읽혀서
+# 주 1회로는 기사가 많은 테마를 다 못 셌다 - src/collectors/kr_news_intraday.py.
+# 주간 뉴스 계산(collect-theme-news)과 같은 상태 표를 쓰므로 동시에 돌지 않게 묶는다.
+on:
+  schedule:
+    - cron: "20 1,9,17 * * *"   # 한국 시간 10:20 · 18:20 · 02:20
+  workflow_dispatch:
+
+concurrency:
+  group: kr-news-state
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/collect_kr_news_intraday.py
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py

@@ -36,7 +36,8 @@ from src.db.data_store import get_db
 from src.db.theme_signals import (ensure_schema, signal_week_monday, insert_theme_news_bulk, get_prior_news_counts,
                                   upsert_news_signal, news_history_since, get_approved_theme_members,
                                   news_arrow_from_ratio, apply_market_relative_news, NEWS_MARKET_RELATIVE)
-from collectors.theme_news_collector import collect_theme_news, collect_member_news, finnhub_key
+from collectors.theme_news_collector import collect_theme_news, collect_member_news, finnhub_key, naver_credentials
+from collectors.kr_news_intraday import run_intraday, weekly_count
 
 THEMES_YAML = ROOT / "config" / "themes.yaml"
 
@@ -86,6 +87,9 @@ def member_news_count(articles: list[dict], stats: dict) -> int | None:
     일부만 빠진 건수를 저장하면 기준선 대비 가짜 '감소'가 된다 - 계산 불가는 데이터부족이다(원칙 4)."""
     return None if stats.get("failed_members") else len(articles)
 
+
+# 한국 하루 세 번 수집을 시작한 주(2026-11-10 화요일 시작 -> 11/9 주는 중간부터). 이보다 이른 주는 다시 세지 않는다.
+KR_ACCUMULATE_FROM = date(2026, 11, 9)
 
 BASELINE_WEEKS = 8      # 기준선을 만들 때 참고하는 직전 주 수
 BASELINE_MIN_WEEKS = 4  # 이만큼도 없으면 판정 보류
@@ -189,6 +193,13 @@ def main() -> None:
                 collectible.append(theme)
             else:
                 _log(f"{theme['id']}({market}): {keyword_field} 없음 - 건너뜀")
+        # 한국은 네이버 키가 있으면 하루 세 번 쌓아 둔 기사를 센다(2026-11-10, kr_news_intraday.py) - 여기서는
+        # 마지막으로 한 번 더 이어 받아 주 끝까지 채운 뒤 센다. 키워드를 주 단위로 다시 검색하지 않는다.
+        accumulate_mode = market == "KR" and naver_credentials() is not None
+        if accumulate_mode:
+            creds = naver_credentials()
+            run_intraday(conn, [{"id": t["id"], "keywords_ko": t["keywords_ko"]} for t in collectible],
+                         {"X-Naver-Client-Id": creds[0], "X-Naver-Client-Secret": creds[1]}, log=_log)
         if member_mode:
             _log(f"{market}: Finnhub 소속 기업 뉴스 모드, 종목 "
                  f"{len({t for v in members_by_theme.values() for t in v})}개")
@@ -219,6 +230,17 @@ def main() -> None:
                     # 소속 중 하나라도 조회에 실패하면 그 주 건수는 실제보다 작게 세어진 것이라 비율이
                     # 가짜 '감소'로 나온다 - 원칙 4(계산 불가는 데이터부족)대로 None -> NULL 저장.
                     count = member_news_count(articles, stats)
+                    fetched.append((theme, count))
+                    continue
+                if accumulate_mode:
+                    if week_start < KR_ACCUMULATE_FROM:
+                        # 쌓기 전 주는 예전 방식(주 1회) 기사만 있다 - 다시 세면 기록이 새 방식 숫자로 덮인다(원칙 5).
+                        _log(f"{theme_id}({market}) {week_start.isoformat()}: 하루 세 번 수집 이전 주 - 건드리지 않음")
+                        continue
+                    count, gaps = weekly_count(conn, theme_id, theme[keyword_field], week_start.isoformat())
+                    _log(f"{theme_id}({market}) {week_start.isoformat()}: 쌓인 기사 "
+                         f"{'-' if count is None else count}건"
+                         f"{' - 빈틈 키워드 ' + str(gaps) + ' 때문에 데이터부족' if gaps else ''}")
                     fetched.append((theme, count))
                     continue
                 articles, stats = collect_theme_news(

@@ -276,6 +276,33 @@ def _collect_by_day(search_fn, keyword: str, after: date, before: date
     return articles, saturated_days, failed_days
 
 
+def dedupe_articles(raw: list[dict]) -> tuple[list[dict], list[dict]]:
+    """URL 해시 중복 제거 -> 제목 정규화·유사도(90%+) 중복 제거. 반환: (URL 중복만 뺀 목록, 최종 목록).
+    각 항목에 '_url_hash'를 붙인다. 한국 하루 세 번 수집(collect_kr_news_intraday.py)도 같은 규칙을 쓴다."""
+    seen_hashes: set[str] = set()
+    by_url: list[dict] = []
+    for a in raw:
+        h = hash_url(a["url"])
+        if h in seen_hashes:
+            continue
+        seen_hashes.add(h)
+        a["_url_hash"] = h
+        by_url.append(a)
+
+    deduped: list[dict] = []
+    seen_norm_titles: list[str] = []
+    for a in by_url:
+        norm = normalize_title(a["title"])
+        is_dup = norm in seen_norm_titles or any(
+            _title_similarity(norm, s) >= TITLE_SIMILARITY_THRESHOLD for s in seen_norm_titles
+        )
+        if is_dup:
+            continue
+        seen_norm_titles.append(norm)
+        deduped.append(a)
+    return by_url, deduped
+
+
 def collect_theme_news(keywords: list[str], after: date, before: date, market: str = "US",
                         expand_saturated: bool = True) -> tuple[list[dict], dict]:
     """키워드별로 따로 검색 -> 합치기 -> URL 해시 중복 제거 -> 제목 정규화/유사도
@@ -329,27 +356,7 @@ def collect_theme_news(keywords: list[str], after: date, before: date, market: s
         raw.extend(articles)
         time.sleep(KEYWORD_SLEEP_SEC)
 
-    seen_hashes: set[str] = set()
-    by_url: list[dict] = []
-    for a in raw:
-        h = hash_url(a["url"])
-        if h in seen_hashes:
-            continue
-        seen_hashes.add(h)
-        a["_url_hash"] = h
-        by_url.append(a)
-
-    deduped: list[dict] = []
-    seen_norm_titles: list[str] = []
-    for a in by_url:
-        norm = normalize_title(a["title"])
-        is_dup = norm in seen_norm_titles or any(
-            _title_similarity(norm, s) >= TITLE_SIMILARITY_THRESHOLD for s in seen_norm_titles
-        )
-        if is_dup:
-            continue
-        seen_norm_titles.append(norm)
-        deduped.append(a)
+    by_url, deduped = dedupe_articles(raw)
 
     stats = {
         "per_keyword": per_keyword_counts,

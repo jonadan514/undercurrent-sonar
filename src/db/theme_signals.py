@@ -293,7 +293,9 @@ def _insert_news_chunk(conn, theme_id: str, market: str, week_start: str, chunk:
 # na(데이터부족)로 남는다 - 탈락이 아니다.
 # US: 같은 날 구글이 막혔고, 2026-10-04부터 Finnhub 기업 뉴스(소속 기업 뉴스 건수)로 바꿨다 - 정의 자체가
 # 키워드 기사 수와 달라서 이전 이력과 잇지 않는다.
-NEWS_SOURCE_SWITCH_WEEK = {"KR": "2026-09-28", "US": "2026-09-28"}
+# KR 2026-11-16: 하루 세 번 나눠 쌓아 세는 방식으로 바꿈(kr_news_intraday.py) - 예전 주 1회 수집은 키워드 51개가
+# 상한(약 1000건)에 눌려 건수 규모가 달라 잇지 않는다. 11/9 주는 중간부터 쌓기 시작해 첫 온전한 주가 11/16.
+NEWS_SOURCE_SWITCH_WEEK = {"KR": "2026-11-16", "US": "2026-09-28"}
 
 
 def news_history_since(theme: dict, market: str) -> str | None:

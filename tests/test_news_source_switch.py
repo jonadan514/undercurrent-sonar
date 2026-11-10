@@ -14,7 +14,8 @@ from src.db.theme_signals import (ensure_schema, get_prior_news_counts, news_his
 
 
 def test_KR은_수집원_전환_주부터():
-    assert news_history_since({}, "KR") == "2026-09-28"
+    """2026-11-16: 하루 세 번 쌓아 세는 방식으로 바뀌어 다시 끊었다(그 전 9/28은 구글 -> 네이버)."""
+    assert news_history_since({}, "KR") == "2026-11-16"
 
 
 def test_US도_수집원_전환_주부터():
@@ -23,13 +24,13 @@ def test_US도_수집원_전환_주부터():
 
 
 def test_키워드_변경이_더_늦으면_그쪽을_따른다():
-    theme = {"keywords_changed_at": date(2026, 10, 14)}  # 수요일
-    assert news_history_since(theme, "KR") == "2026-10-12"  # 그 주 월요일
+    theme = {"keywords_changed_at": date(2026, 12, 2)}  # 수요일
+    assert news_history_since(theme, "KR") == "2026-11-30"  # 그 주 월요일
 
 
 def test_키워드_변경이_더_이르면_수집원_전환이_이긴다():
     theme = {"keywords_changed_at": date(2026, 9, 15)}
-    assert news_history_since(theme, "KR") == "2026-09-28"
+    assert news_history_since(theme, "KR") == "2026-11-16"
 
 
 def test_US도_더_늦은_쪽을_따른다():
@@ -45,10 +46,10 @@ def _seed(conn, market, weeks_counts):
 def test_KR_기준선에_구글_시절_주는_들어가지_않는다():
     conn = sqlite3.connect(":memory:")
     ensure_schema(conn)
-    # 구글 시절 3주 + 네이버 첫 주(9/28)
-    _seed(conn, "KR", [("2026-09-07", 300), ("2026-09-14", 310), ("2026-09-21", 330), ("2026-09-28", 721)])
+    # 예전 방식(상한에 눌린 주 1회 수집) 3주 + 새 방식 첫 주(11/16)
+    _seed(conn, "KR", [("2026-10-26", 340), ("2026-11-02", 330), ("2026-11-09", 600), ("2026-11-16", 9800)])
     since = news_history_since({}, "KR")
-    # 다음 주(10/5) 기준선: 네이버 이력은 9/28 한 주뿐 - 구글 주가 섞이면 안 된다
-    assert get_prior_news_counts(conn, "ai_semiconductor", "KR", "2026-10-05", weeks=8, since=since) == [721]
-    # since를 안 주면 옛 동작 - 이게 가짜 급증의 원인이었다
-    assert len(get_prior_news_counts(conn, "ai_semiconductor", "KR", "2026-10-05", weeks=8)) == 4
+    # 다음 주(11/23) 기준선: 새 방식 이력은 11/16 한 주뿐 - 눌린 옛 주가 섞이면 가짜 급증이 된다
+    assert get_prior_news_counts(conn, "ai_semiconductor", "KR", "2026-11-23", weeks=8, since=since) == [9800]
+    # since를 안 주면 옛 주까지 섞인다
+    assert len(get_prior_news_counts(conn, "ai_semiconductor", "KR", "2026-11-23", weeks=8)) == 4
