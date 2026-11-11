@@ -58,6 +58,7 @@ jobs:
           if [ "$BUDGET" = "0" ] || [ "${{ inputs.peer_metrics_only }}" = "true" ]; then echo "수집 건너뜀"; exit 0; fi
           python scripts/collect_earnings_surprise.py ${BUDGET:+--budget "$BUDGET"}
 
+      # boolean 입력은 문자열 'true'와 비교하면 늘 거짓이다(2026-11-11 peer_metrics_only가 안 넘어가 테마 계산까지 돌았다) - 값 그대로 쓴다
       - name: Compute
         env:
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
@@ -65,8 +66,8 @@ jobs:
         run: >
           python scripts/compute_theme_earnings.py --week-start "${{ inputs.week_start }}"
           --theme-id ${{ inputs.theme_id }}
-          ${{ inputs.include_peripheral == 'true' && '--include-peripheral' || '' }}
-          ${{ inputs.peer_metrics_only == 'true' && '--peer-metrics-only' || '' }}
+          ${{ inputs.include_peripheral && '--include-peripheral' || '' }}
+          ${{ inputs.peer_metrics_only && '--peer-metrics-only' || '' }}
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'
