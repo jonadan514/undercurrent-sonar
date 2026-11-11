@@ -574,7 +574,7 @@ def _clean_paras(out) -> list[str]:
     return [p for p in (_drop_eval(wb.strip_numeric_sentences(wb.strip_speculation(wb.fix_passive(str(x))))) for x in paras) if p]
 
 
-_EVAL_RE = re.compile(r"주목|눈여겨|관심을 끌|기대를 모")
+_EVAL_RE = re.compile(r"주목|눈여겨|관심을 끌|기대를 모|중요한 (일정|대목|변수)|가늠할 수 있")
 
 
 def _drop_eval(text: str) -> str:
