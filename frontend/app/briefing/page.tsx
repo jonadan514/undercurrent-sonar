@@ -22,7 +22,6 @@ interface StockRef {
   name?: string | null;
   fit_score?: number | null;
   path?: string;
-  catalysts?: string[];
 }
 interface MarketWeek {
   index_chg_1w: number | null;
@@ -37,7 +36,6 @@ interface Briefing {
   // added_count/removed_count: 자르기 전 전체 건수(2026-10-05부터). 예전 브리핑에는 없어 목록 길이로 대신한다.
   watchlist: { total: number; added: StockRef[]; removed: StockRef[]; top: StockRef[]; has_prev: boolean; added_count?: number; removed_count?: number };
   sentiment_heating: StockRef[];
-  catalysts: StockRef[];
   gpt_comment: string;
   // 짚을 점 소제목 -> 관련 기사(2026-11-03). 코드가 고른 원문 제목·링크 - GPT를 거치지 않는다
   comment_news?: Record<string, { title: string; url: string; source: string; published_at: string }[]>;
@@ -375,20 +373,6 @@ const rowMark = (tagged: boolean, warn = false): CSSProperties =>
 const ROW = "flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[12px] px-3 py-1.5";
 const dayLabel = (d?: string | null) => (d ? d.slice(5).replace("-", "/") : "-");
 
-// 긴 목록은 처음 몇 줄만, 나머지는 "더 보기"로(브리핑 한 주 분량이 공시·내부자만 100줄 넘게 나온다)
-function More<T>({ items, n = 5, render, className = "space-y-1" }: { items: T[]; n?: number; render: (x: T) => ReactNode; className?: string }) {
-  const [all, setAll] = useState(false);
-  return (
-    <>
-      <div className={className}>{(all ? items : items.slice(0, n)).map(render)}</div>
-      {items.length > n && (
-        <button onClick={() => setAll(!all)} className="mt-1.5 text-[12px] hover:underline" style={{ color: "#ffb020" }}>
-          {all ? "접기" : `더 보기 (+${items.length - n})`}
-        </button>
-      )}
-    </>
-  );
-}
 const byMarket = (m: Record<string, number>, unit = "") =>
   Object.entries(m).sort(([a], [c]) => c.localeCompare(a)).map(([k, n]) => `${k === "KR" ? "한국" : "미국"} ${n}${unit}`).join(" · ");
 
@@ -400,7 +384,7 @@ const GROUP_META: Record<string, { emoji: string; color: string; desc: string }>
   "종목 변화": { emoji: "🔖", color: "#ffb020", desc: "워치리스트에 들어오고 나간 종목, 실적 반전, 관심도" },
   "테마": { emoji: "📡", color: "#6fb3b8", desc: "테마 레이더 라벨이 새로 붙거나 사라진 테마" },
   "시장": { emoji: "🌐", color: "#a78bfa", desc: "지수·수급·금리·환율 등 지난주 시장 배경" },
-  "이번 주 일정": { emoji: "📅", color: "#60a5fa", desc: "이번 주 실적 발표와 다가오는 촉매" },
+  "이번 주 일정": { emoji: "📅", color: "#60a5fa", desc: "이번 주 실적을 발표하는 종목" },
   "공시 · 내부자": { emoji: "📄", color: "#fb923c", desc: "지난 7일 공시·내부자 매수·13F - 중요한 줄만 먼저" },
 };
 function BriefGroup({ title, children }: { title: string; children: ReactNode }) {
@@ -490,7 +474,6 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
     comment: !!b.gpt_comment,
     labels: !!b.theme_labels && (b.theme_labels.new_labels.length > 0 || b.theme_labels.dropped_labels.length > 0),
     earnings: (b.earnings_week?.total ?? 0) > 0,
-    catalysts: (b.catalysts?.length ?? 0) > 0,
     disclosures: !!b.kr_disclosures && discTotal(b) > 0,
     us8k: (b.us_8k_week?.total ?? 0) > 0,
     insider: (b.insider_week?.total ?? 0) > 0,
@@ -510,7 +493,6 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
     ...(has.labels ? [{ id: "labels", label: "테마 라벨",
       count: `${b.theme_labels!.new_labels.length + b.theme_labels!.dropped_labels.length}`, group: "테마" }] : []),
     ...(has.earnings ? [{ id: "earnings", label: "실적 발표", count: `${b.earnings_week!.total}`, group: "이번 주 일정" }] : []),
-    ...(has.catalysts ? [{ id: "catalysts", label: "촉매", count: `${b.catalysts.length}`, group: "이번 주 일정" }] : []),
     ...(has.disclosures ? [{ id: "disclosures", label: "한국 공시", count: `${discTotal(b)}`, group: "공시 · 내부자" }] : []),
     ...(has.us8k ? [{ id: "us8k", label: "미국 8-K", count: `${b.us_8k_week!.total}`, group: "공시 · 내부자" }] : []),
     ...(has.insider ? [{ id: "insider", label: "내부자 매수", count: `${b.insider_week!.total}`, group: "공시 · 내부자" }] : []),
@@ -749,18 +731,6 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                   ))}
                 </div>
                 <Note>워치리스트 후보·내 관심·관찰 노트 종목 · 날짜는 yfinance(회사 공지 전이면 &quot;예상&quot;), 한국은 결산실적 공시예고가 있으면 그 날짜 · 노란색은 내 관심·노트·실적 반전 종목</Note>
-              </Section>
-            )}
-            {has.catalysts && (
-              <Section className={SCROLL_M} id="catalysts" title="다가오는 촉매" count={b.catalysts.length} sub="내 워치리스트">
-                <More items={b.catalysts} render={(s) => (
-                  <div key={`${s.market}:${s.symbol}`} className="rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                    <StockLabel s={s} />
-                    {(s.catalysts ?? []).map((c, i) => (
-                      <p key={i} className="text-[12px] mt-0.5 pl-1" style={{ color: "var(--text-muted)" }}>▲ {c}</p>
-                    ))}
-                  </div>
-                )} />
               </Section>
             )}
           </BriefGroup>

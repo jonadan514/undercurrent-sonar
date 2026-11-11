@@ -8,7 +8,6 @@
   - 지난주 시장 궤적 (US/KR 지수 주간 등락)
   - 워치리스트 변동 (신규 진입/탈락 — watchlist_weekly_snapshots 비교)
   - 관심도 흐름 (한 주간 sentiment 상승 종목)
-  - 다가오는 촉매 (내 워치리스트 종목의 네러티브 촉매 모음)
   - 이번 주 실적 발표 (워치리스트·내 관심·관찰 노트 종목, earnings_calendar + 한국 결산실적 공시예고 - 2026-10-17)
   - 한국 공시 지난 7일 (공급계약·잠정실적, kr_disclosures - 2026-10-17)
   - GPT 총평 · 다음 주 관전 포인트 (웹에만 - 텔레그램은 DB·시세 숫자만, 2026-10-05)
@@ -828,29 +827,6 @@ def get_observation_reviews() -> list[dict]:
             results = {}
         out.append({**r, "expect_results": results})
     return out
-
-
-def get_upcoming_catalysts() -> list[dict]:
-    """내 워치리스트 종목의 네러티브 촉매 모음."""
-    my = turso_exec("SELECT market, symbol, name FROM my_watchlist")
-    if not my:
-        return []
-    out = []
-    for m in my:
-        rows = _payload(turso_exec(
-            "SELECT payload FROM narrative_briefs WHERE market = ? AND symbol = ?",
-            [m["market"], m["symbol"]],
-        ))
-        if not rows:
-            continue
-        cats = rows[0]["_data"].get("catalysts") or []
-        if cats:
-            out.append({
-                "market": m["market"], "symbol": m["symbol"],
-                "name": m.get("name") or rows[0]["_data"].get("name"),
-                "catalysts": cats[:3],
-            })
-    return out[:10]
 
 
 # ── GPT 총평 ─────────────────────────────────────────────────────────────────
@@ -1699,7 +1675,7 @@ def print_dry_run(b: dict, points: list | None) -> None:
         return len(v) if isinstance(v, (list, dict)) else ("-" if v is None else v)
     print(f"== 브리핑 미리 보기 (week={b['week']}, 저장·발송 안 함) ==")
     for k in ("us", "kr", "macro", "kr_flows", "kr_disclosures", "insider_week", "us_8k_week", "inst_13f_week",
-              "sentiment_heating", "catalysts", "observation_reviews", "earnings_week", "my_stocks_week"):
+              "sentiment_heating", "observation_reviews", "earnings_week", "my_stocks_week"):
         v = b.get(k)
         print(f"  {k}: {type(v).__name__} {n(v)}" + (f" keys={list(v)[:8]}" if isinstance(v, dict) else ""))
     for mk, st in (b.get("regime") or {}).items():
@@ -1792,7 +1768,6 @@ def main() -> None:
         "us_8k_week": get_us_8k_week(),
         "inst_13f_week": get_inst_13f_week(),
         "sentiment_heating": get_sentiment_week(week),
-        "catalysts": get_upcoming_catalysts(),
         "theme_labels": get_theme_label_changes(),
         "observation_reviews": get_observation_reviews(),
     }
@@ -1814,9 +1789,9 @@ def main() -> None:
         "ON CONFLICT(week) DO UPDATE SET payload=excluded.payload, created_at=datetime('now')",
         [week, json.dumps(briefing, ensure_ascii=False)],
     )
-    logger.info("저장 완료 — 워치리스트 신규 %d·탈락 %d, 관심도 상승 %d, 촉매 %d종목, 테마 라벨 신규 %d·소멸 %d",
+    logger.info("저장 완료 — 워치리스트 신규 %d·탈락 %d, 관심도 상승 %d, 테마 라벨 신규 %d·소멸 %d",
                 briefing["watchlist"]["added_count"], briefing["watchlist"]["removed_count"],
-                len(briefing["sentiment_heating"]), len(briefing["catalysts"]),
+                len(briefing["sentiment_heating"]),
                 len(briefing["theme_labels"]["new_labels"]), len(briefing["theme_labels"]["dropped_labels"]))
 
     if not args.no_telegram:
