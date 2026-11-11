@@ -135,3 +135,26 @@ def test_missing_names_same_sentence():
     t = "AI 반도체는 실적이 올랐다. 방산에서는 탄약 구간이 비어 있다."
     assert mr.missing_names(t, ["방산|실적", "AI 반도체|실적"]) == ["방산"]
     assert mr.missing_names("방산은 소속 기업 실적이 월초 오름에서 월말 보합으로 돌아섰다.", ["방산|실적"]) == []
+
+
+SEPT_FACTS = ["[워치리스트·회고]", "트랩 필터 통과 목록: 한 달 사이 전체 규모가 늘었다. 새로 든 곳 예: 유한양행, KCC / 빠진 곳 예: 없음",
+              "[다음 달]", "다음 달 실적을 발표하는 후보 중 테마 소속 기업: Mueller Industries, 현대로템"]
+
+
+def test_ungrounded_catches_invented_themes_and_reviews():
+    """9월 소급 미리보기(2026-11-11)에서 지어낸 테마·회고 문장을 잡는다 - 사실 본문에 있는 이름은 통과."""
+    from generate_monthly_report import drop_ungrounded, ungrounded
+    text = ("한국의 K-뷰티와 바이오테크 분야에서는 실적 개선 기대가 있었다. 유한양행과 KCC가 새로 목록에 올랐다.\n\n"
+            "관찰 노트 회고 결과 기대가 맞았다. 다음 달에는 현대로템의 실적 발표가 예정돼 있다.")
+    assert ungrounded(text, SEPT_FACTS) == ["K-뷰티", "관찰 노트", "기대가 맞", "바이오", "뷰티", "회고"]
+    out = drop_ungrounded(text, SEPT_FACTS)
+    assert out == "유한양행과 KCC가 새로 목록에 올랐다.\n\n다음 달에는 현대로템의 실적 발표가 예정돼 있다."
+    facts = SEPT_FACTS + ["[테마 - 한국]", "한국 K-뷰티 실적(소속 기업 실적 흐름): 월초 보합 → 월말 오름 - 주가가 아니라 실적 이야기"]
+    assert ungrounded("한국의 K-뷰티는 소속 기업 실적이 오름으로 돌아섰다.", facts) == []
+
+
+def test_paragraph_specs_only_for_present_groups():
+    from generate_monthly_report import paragraph_specs
+    specs = paragraph_specs(SEPT_FACTS)
+    assert len(specs) == 2 and "워치리스트" in specs[0] and "기업 지도" not in specs[0]
+    assert "다음 달" in specs[1] and "회고" not in specs[1]

@@ -25,6 +25,7 @@ import urllib.request
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -552,13 +553,14 @@ STYLE = (
     "- 문장 끝을 다양하게: '~로 돌아섰다', '~가 이어졌다', '~을 보였다', '~에 이름을 올렸다', '~가 예정돼 있다', '~로 나타났다', "
     "'~이 붙었다', '~에서 빠졌다' 등. 같은 끝맺음('~했다', '~였다', '~맞았다')을 두 문장 연달아 쓰지 않는다.\n"
     "- '첫 주/마지막 주'는 '월초', '월말'로 바꿔 쓴다. 한 주에만 붙은 라벨을 '달 내내', '한 달 동안'처럼 늘려 쓰지 않는다.\n"
-    "- '(한국)', '(미국)' 괄호 대신 '한국의 K-뷰티', '미국 방산'처럼 말 속에 넣는다.\n"
+    "- '(한국)', '(미국)' 괄호 대신 '한국의 ○○', '미국 ○○'처럼 말 속에 넣는다(○○ 자리는 사실에 있는 테마 이름).\n"
     "- '뉴스↑', '실적↑ 유지' 같은 기호는 '뉴스가 늘 것이라는 기대', '실적 개선이 이어질 것이라는 기대'처럼 말로 푼다.\n"
     "- 기사 제목은 따옴표로 그대로 옮기지 않는다. 무엇을 다룬 기사인지 짧게 우리말로 풀어 쓴다"
     "(예: '짝퉁 대응과 에이피알의 성장 비결을 다룬 기사가 나왔다', '엔비디아의 중국 시장 상실을 다룬 기사가 있었다'). 영어 제목도 우리말로.\n"
-    "- 실적 축이 바뀐 테마는 '조선은 소속 기업 실적이 월초 보합에서 월말 오름으로 돌아섰다'처럼 '실적'을 꼭 넣는다"
-    "('조선은 오름세로 돌아섰다'만 쓰면 주가 얘기로 읽힌다).\n"
-    "- 한 문장에 주어를 둘 겹치지 않는다('K-뷰티가 실적이 …' 대신 'K-뷰티는 실적이 …').\n"
+    "- 실적 축이 바뀐 테마는 '○○은 소속 기업 실적이 월초 보합에서 월말 오름으로 돌아섰다'처럼 '실적'을 꼭 넣는다"
+    "('○○은 오름세로 돌아섰다'만 쓰면 주가 얘기로 읽힌다).\n"
+    "- 한 문장에 주어를 둘 겹치지 않는다('○○가 실적이 …' 대신 '○○는 실적이 …').\n"
+    "- 예시 속 ○○·회사 이름은 자리표시일 뿐 - 사실에 없는 테마·회사·회고·기사는 절대 쓰지 않는다.\n"
     "- 라벨('숨은 강세' 등)과 시장 환경 조합('위험 회피' 등), 회사·테마 이름은 바꾸지 않는다.\n"
 )
 RULES = ("[지킬 것] 위 사실에 없는 내용은 쓰지 않는다. 기사 제목 속 매수·매도·투자 기회 같은 표현은 옮기지 않는다. 원인을 짐작하거나 전망·매수 판단·'주목받았다/주목할 만하다/눈여겨볼' 같은 평가를 "
@@ -598,6 +600,64 @@ def verbatim_titles(text: str, titles: list[str]) -> int:
     return sum(1 for t in titles if len(t) >= 12 and t[:12] in text)
 
 
+def paragraph_specs(facts: list[str]) -> list[str]:
+    """있는 사실 묶음만 문단 지시로(2026-11-11) - 9월처럼 테마·기업 지도·회고가 비면 그 문단을 시키지 않는다(시키니 지어냈다)."""
+    body = [f for f in facts if not f.startswith("[")]
+    has_theme = any(f.startswith("[테마") for f in facts)
+    has_map = any("소속 기업에 이달 생긴 일" in f or "가치사슬에서" in f or f.startswith("이달 공시·내부자") for f in body)
+    has_list = any(f.startswith(("트랩 필터 통과 목록", "실적 반전 목록")) for f in body)
+    has_review = any(f.startswith("관찰 노트 회고") for f in body)
+    has_next = any(f.startswith("다음 달") for f in body)
+    specs = []
+    if has_theme:
+        specs.append("테마 흐름(시장 환경 문장은 코드가 문단 맨 앞에 따로 붙이니 쓰지 말고, '테마별로는'이나 '한국에서는'처럼 테마부터 시작한다. "
+                     "라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 테마마다 방향까지, 주요 기사 제목이 다룬 내용). "
+                     "테마는 [테마 - 한국]과 [테마 - 미국]을 따로 문장으로 쓰고, 한 문장에 두 나라 테마를 섞지 않는다('한국에서는 …', '미국에서는 …'처럼).")
+    if has_map or has_list:
+        specs.append(" · ".join(x for x in ("기업 지도(소속 기업에 생긴 일, 비어 있는 구간)" if has_map else "",
+                                           "워치리스트(목록에 새로 든 곳·빠진 곳)" if has_list else "") if x) + ".")
+    if has_review or has_next:
+        specs.append(" · ".join(x for x in ("관찰 노트 회고 결과. 사실에 적힌 '~이라고 적어 둔 기대가 맞았다/빗나갔다'와 괄호 속 실제 결과를 살려 쓰고, "
+                                           "'기대가 유지되었다'처럼 결과가 흐려지는 말로 바꾸지 않는다" if has_review else "",
+                                           "다음 달에 볼 일정" if has_next else "") if x) + ".")
+    return specs or ["이달 사실 요약."]
+
+
+# 사실 근거 검사(2026-11-11) - 9월 소급 미리보기에서 사실에 없는 'K-뷰티·바이오테크 실적 개선 기대', '방산·반도체 실적 오름',
+# '관찰 노트 회고 결과 기대가 맞았다'를 지어냈다(문체 예시를 사실처럼 옮김). 요약에 나온 테마 이름·회고·기사 말이 사실 본문에 없으면 걸린다.
+_GENERIC_PARTS = {"AI", "소재", "건설", "생산", "업황", "산업", "에너지", "장비", "인프라"}
+_EXTRA_TERMS = ("바이오", "반도체", "뷰티", "배터리", "로봇", "관찰 노트", "회고", "기업 지도", "기대가 맞", "기대가 빗나", "라벨", "기사")
+
+
+def ground_terms() -> list[str]:
+    try:
+        themes = yaml.safe_load((ROOT / "config" / "themes.yaml").read_text(encoding="utf-8"))["themes"]
+        names_ = [t["name_ko"] for t in themes if t.get("name_ko")]
+    except Exception:  # noqa: BLE001
+        names_ = []
+    parts = {p.strip() for n in names_ for p in re.split(r"[·(),\s]+", n) if len(p.strip()) >= 2} - _GENERIC_PARTS
+    return sorted(set(names_) | parts | set(_EXTRA_TERMS), key=len, reverse=True)
+
+
+def ungrounded(text: str, facts: list[str]) -> list[str]:
+    """요약에 나왔는데 사실 본문([머리] 줄 빼고)에는 없는 테마 이름·회고·기사 말."""
+    body = " ".join(f for f in facts if not f.startswith("["))
+    return sorted({t for t in ground_terms() if t in text and t not in body})
+
+
+def drop_ungrounded(text: str, facts: list[str]) -> str:
+    """끝까지 남은 근거 없는 문장은 뺀다 - 문단 구분은 그대로."""
+    if not ungrounded(text, facts):
+        return text
+    paras = []
+    for para in text.split("\n\n"):
+        kept = [x for x in re.split(r"(?<=다\.)\s+", para.strip()) if x and not ungrounded(x, facts)]
+        if kept:
+            paras.append(" ".join(kept))
+    log(f"사실에 없는 말이 든 문장 뺌: {ungrounded(text, facts)}")
+    return "\n\n".join(paras)
+
+
 def gpt_summary(facts: list[str], month: str, required: list[str] | None = None, titles: list[str] | None = None) -> str:
     """문단 셋(시장·테마 / 기업·워치리스트 / 회고·다음 달). 초안 → 다듬기 두 번 호출. 문단은 빈 줄로 구분해 저장."""
     key = os.environ.get("OPENAI_API_KEY", "")
@@ -605,16 +665,15 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None,
         return ""
     from src.llm.openai_json import call_json, model_for
     model = model_for("briefing_comment")
+    specs = paragraph_specs(facts)
+    body_chars = len(" ".join(f for f in facts if not f.startswith("[")))
+    min_chars = min(MIN_CHARS, int(body_chars * 0.9))   # 사실이 적은 달(2026-09 소급)에 700자를 채우려고 지어냈다 - 사실 양에 맞춘다
     prompt = (f"{month} 한 달 동안 리서치 도구에 쌓인 사실입니다. [ ]는 묶음 이름입니다.\n" + "\n".join(f if f.startswith("[") else f"- {f}" for f in facts) +
-              "\n\n이 사실만으로 월간 보고서 첫머리 요약을 문단 셋으로 쓰세요.\n"
-              "1문단: 테마 흐름(시장 환경 문장은 코드가 문단 맨 앞에 따로 붙이니 쓰지 말고, '테마별로는'이나 '한국에서는'처럼 테마부터 시작한다. 라벨이 붙은 테마는 라벨 뜻을 풀어서, 실적 축이 바뀐 테마는 테마마다 방향까지, "
-              "주요 기사 제목이 다룬 내용). 테마는 [테마 - 한국]과 [테마 - 미국]을 따로 문장으로 쓰고, 한 문장에 두 나라 테마를 섞지 않는다"
-              "('한국에서는 …', '미국에서는 …'처럼).\n"
-              "2문단: 기업 지도와 워치리스트(소속 기업에 생긴 일, 비어 있는 구간, 목록에 새로 든 곳·빠진 곳).\n"
-              "3문단: 관찰 노트 회고 결과와 다음 달에 볼 일정. 회고는 사실에 적힌 '~이라고 적어 둔 기대가 맞았다/빗나갔다'와 괄호 속 실제 결과를 "
-              "살려 쓰고, '기대가 유지되었다'처럼 결과가 흐려지는 말로 바꾸지 않는다.\n"
-              "문단마다 세~다섯 문장, 테마·회사 이름을 구체적으로('여러 기업'처럼 뭉뚱그리지 말 것).\n\n" + STYLE + RULES +
-              "JSON으로만: {\"paragraphs\": [\"...\", \"...\", \"...\"]}")
+              f"\n\n이 사실만으로 월간 보고서 첫머리 요약을 문단 {len(specs)}개로 쓰세요.\n" + "\n".join(f"{i + 1}문단: {x}" for i, x in enumerate(specs)) +
+              "\n사실이 없는 주제(위 문단 목록에 없는 테마 흐름·기업 지도·관찰 노트 회고·기사)는 쓰지 않는다. 사실이 적으면 문장 수를 줄인다 - "
+              "길이를 채우려고 사실에 없는 말을 더하지 않는다.\n"
+              "문단마다 사실이 허락하는 만큼(많아야 다섯 문장), 테마·회사 이름을 구체적으로('여러 기업'처럼 뭉뚱그리지 말 것).\n\n" + STYLE + RULES +
+              "JSON으로만: {\"paragraphs\": [" + ", ".join(['\"...\"'] * len(specs)) + "]}")
     required = required or []
     if required:
         prompt += "\n반드시 들어갈 말(테마·마감·회사 이름): " + ", ".join(x.split("|")[0] for x in required)
@@ -628,11 +687,13 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None,
         text = "\n\n".join(_clean_paras(out))
         miss = missing_names(text, required)
         vt = verbatim_titles(text, titles or [])
-        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장, 빠진 테마 {miss or '없음'}, 제목 그대로 {vt}곳")
-        k = (-len(miss), -vt, len(text))
+        ug = ungrounded(text, facts)
+        log(f"요약 초안 {attempt + 1}차: {len(text)}자 {sentence_count(text)}문장, 빠진 테마 {miss or '없음'}, 제목 그대로 {vt}곳, "
+            f"사실에 없는 말 {ug or '없음'}")
+        k = (-len(ug), -len(miss), -vt, len(text))
         if best_key is None or k > best_key:
             best, best_key = text, k
-        if not miss and not vt and len(text) >= MIN_CHARS:
+        if not ug and not miss and not vt and len(text) >= min_chars:
             break
     if not best:
         return ""
@@ -651,17 +712,18 @@ def gpt_summary(facts: list[str], month: str, required: list[str] | None = None,
                                                        api_key=key, max_output_tokens=2000, temperature=0.3)))
     except Exception as e:  # noqa: BLE001
         log(f"다듬기 실패 {type(e).__name__} - 초안 사용")
-        return best
+        return drop_ungrounded(best, facts)
     log(f"다듬기: {len(polished)}자 {sentence_count(polished)}문장, 같은 끝맺음 연속 {repeat_endings(polished)}곳 (초안 {repeat_endings(best)}곳)")
     np_, nb = len(polished.split("\n\n")), len(best.split("\n\n"))
     log(f"다듬기 뒤 빠진 것: {missing_names(polished, required) or '없음'}, 제목 그대로 {verbatim_titles(polished, titles or [])}곳, "
         f"문단 {np_}(초안 {nb})")
     if (np_ not in (nb, nb + 1) or len(polished) < len(best) * 0.75   # 긴 1문단을 한국·미국으로 나눠 한 문단 늘리는 건 받는다
+            or len(ungrounded(polished, facts)) > len(ungrounded(best, facts))
             or len(missing_names(polished, required)) > len(missing_names(best, required))
             or verbatim_titles(polished, titles or []) > verbatim_titles(best, titles or [])):
-        log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠져 초안 사용")
-        return best
-    return polished
+        log("다듬기 결과가 초안과 문단 수가 다르거나, 많이 줄거나, 테마가 빠지거나, 사실에 없는 말이 늘어 초안 사용")
+        return drop_ungrounded(best, facts)
+    return drop_ungrounded(polished, facts)
 
 
 MIN_CHARS = 700
