@@ -207,8 +207,14 @@ def parse_amend(rows: list[str]) -> dict:
     cur = parse_contract(rows[body_from:]) if body_from < len(rows) else {}
     out.update({k: cur.get(k) for k in ("title", "amount", "pct_of_revenue", "counterparty", "end", "withheld")})
     b, a = out["amount_before"], out["amount_after"]
-    out["amount_changed"] = b is not None and a is not None and abs(a - b) > 0.5
+    # 억 단위로 찍었을 때 달라 보여야 바뀐 것(2026-11-11) - 2,645억→2,645억처럼 끝자리만 바뀐 정정은 뺀다
+    out["amount_changed"] = b is not None and a is not None and fmt_eok(a) != fmt_eok(b)
     return out
+
+
+def amount_changed(p: dict) -> bool:
+    """정정 공시의 계약금액이 화면에서 달라 보이게 바뀌었나 - 예전에 쌓인 payload(원 단위 차이로 판정)도 다시 본다."""
+    return bool(p.get("amount_changed")) and fmt_eok(p.get("amount_before")) != fmt_eok(p.get("amount_after"))
 
 
 PARSERS = {"contract": parse_contract, "prelim": parse_prelim, "notice": parse_notice,
@@ -272,7 +278,7 @@ def summary(kind: str, p: dict) -> str:
         reason = f" · {p['reason'][:30]}" if p.get("reason") else ""
         return f"계약 해지 {fmt_eok(p.get('amount'))}{pct}{reason}"
     if kind == "amend":
-        if p.get("amount_changed"):
+        if amount_changed(p):
             pct = (f" (매출 대비 {p['pct_before']:.1f}→{p['pct_after']:.1f}%)"
                    if p.get("pct_before") is not None and p.get("pct_after") is not None else "")
             return f"계약금액 정정 {fmt_eok(p['amount_before'])}→{fmt_eok(p['amount_after'])}{pct}"

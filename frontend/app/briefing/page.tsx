@@ -12,6 +12,7 @@ import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
 import { ObservationForm } from "@/src/components/Observation";
 import { Section } from "@/src/components/Section";
+import { krStockName } from "@/src/lib/krStockNames";
 import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
 import { STYLE_META, type InvestorStyle } from "@/src/lib/institutions";
 
@@ -270,7 +271,7 @@ function StockLabel({ s }: { s: StockRef }) {
   return (
     <StockLink market={s.market} symbol={s.symbol} className="inline-flex items-center gap-1">
       <FlagIcon market={s.market as "US" | "KR"} size={11} />
-      <span className="font-bold text-white">{s.market === "KR" ? (s.name || s.symbol) : s.symbol}</span>
+      <span className="font-bold text-white">{s.market === "KR" ? (s.name && s.name !== s.symbol ? s.name : krStockName(s.symbol)) : s.symbol}</span>
     </StockLink>
   );
 }

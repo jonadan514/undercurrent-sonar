@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from src.db.turso_http import as_bool
+from src.collectors.kr_disclosures import amount_changed
 
 from datetime import date, timedelta
 
@@ -29,7 +30,7 @@ def _since(today: date, days: int) -> str:
 def kr_event(row: dict, summary: str) -> dict | None:
     """kr_disclosures 한 줄 -> 이벤트. 보는 종류가 아니거나 금액이 그대로인 정정은 None."""
     kind, p = row["kind"], row["payload"]
-    if kind not in KR_KINDS or (kind == "amend" and not p.get("amount_changed")):
+    if kind not in KR_KINDS or (kind == "amend" and not amount_changed(p)):
         return None
     label = KR_KINDS[kind]
     text = summary[len(label):].strip() if summary.startswith(label) else summary   # 종류 이름이 요약 앞에도 있어 겹치지 않게

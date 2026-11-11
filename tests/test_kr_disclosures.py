@@ -158,3 +158,11 @@ def test_termination_and_amend_parse():
     assert summary("amend", a) == "계약금액 정정 86억→92억 (매출 대비 17.4→18.5%)"
     d = parse_amend(AMEND_DATE_ONLY)
     assert not d["amount_changed"] and d["amount"] == 33_254_100_000 and summary("amend", d) == "계약 정정 · 계약기간 변경"
+
+
+def test_amount_changed_needs_visible_difference():
+    from src.collectors.kr_disclosures import amount_changed
+    # 억 단위로 같아 보이는 정정(2,645억→2,645억)은 바뀐 것으로 치지 않는다 - 예전 payload의 True도 다시 본다
+    assert not amount_changed({"amount_changed": True, "amount_before": 2645.2e8, "amount_after": 2645.4e8})
+    assert amount_changed({"amount_changed": True, "amount_before": 3724e8, "amount_after": 3766e8})
+    assert not amount_changed({"amount_changed": False, "amount_before": 3724e8, "amount_after": 3766e8})

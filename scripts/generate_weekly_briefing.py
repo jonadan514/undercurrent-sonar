@@ -38,7 +38,7 @@ sys.path.insert(0, str(ROOT))
 from src.db.turso_http import as_bool, get_credentials, query as _turso_query
 from src.analyzers.signal_check import sentiment_window
 from src.analyzers.theme_labels import label_display
-from src.collectors.kr_disclosures import prelim_has_values, quarter_label, summary as disclosure_summary
+from src.collectors.kr_disclosures import amount_changed, prelim_has_values, quarter_label, summary as disclosure_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -364,6 +364,23 @@ def earnings_week_items(rows: list[dict], week: str, tags: dict[str, list[str]],
             "items": items}
 
 
+def kr_name_table() -> dict[str, str]:
+    """한국 종목코드 -> 이름(2026-11-11). 유니버스 파일, 그다음 화면이 쓰는 이름표(frontend/src/lib/krStockNames.ts).
+    둘 다 없으면 빈 표 - 그 종목은 코드로 나온다."""
+    out: dict[str, str] = {}
+    try:
+        ts = (ROOT / "frontend" / "src" / "lib" / "krStockNames.ts").read_text(encoding="utf-8")
+        out.update({f"KR:{c}": n for c, n in re.findall(r'"(\d{6})":\s*"([^"]+)"', ts)})
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        out.update({f"KR:{i['symbol']}": i["name"] for i in json.loads(KR_UNIVERSE.read_text(encoding="utf-8")).get("items", [])
+                    if i.get("name")})
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def get_earnings_week(week: str) -> dict | None:
     """이번 주 실적 발표 예정(2026-10-17) - earnings_calendar(scripts/collect_earnings_calendar.py)의 종목별 최근 수집 행.
     2주 넘게 갱신 안 된 행은 쓰지 않는다. 표가 없거나 비면 None - 브리핑은 그 칸만 뺀다."""
@@ -413,6 +430,8 @@ def get_earnings_week(week: str) -> dict | None:
             names.setdefault(key, c["name"])
         if is_turnaround(c):
             tag(key, "turnaround")
+    for k, v in kr_name_table().items():   # 테마 소속 종목(2026-11-08부터 수집)은 위 표에 이름이 없다
+        names.setdefault(k, v)
     # 공시예고는 전체 상장사라 워치리스트 후보·내 관심·노트 종목만 남긴다(yfinance 대상과 같은 범위)
     targets = {f"{c['market']}:{c['symbol']}" for c in cands} | set(tags)
     notices = [n for n in notices if f"KR:{n['ticker']}" in targets]
@@ -440,7 +459,7 @@ def kr_disclosures_week(rows: list[dict], universe: set[str], tags: dict[str, li
             p = r["payload"] if isinstance(r["payload"], dict) else json.loads(r["payload"] or "{}")
             if kind == "prelim" and not prelim_has_values(p):
                 continue
-            if kind == "amend" and not p.get("amount_changed"):
+            if kind == "amend" and not amount_changed(p):
                 continue
             items.append({"symbol": r["stock_code"], "name": r.get("corp_name"), "date": r["rcept_dt"],
                           "rcept_no": r["rcept_no"], "tags": tags.get(r["stock_code"], []), "summary": disclosure_summary(kind, p),
