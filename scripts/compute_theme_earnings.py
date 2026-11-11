@@ -33,7 +33,7 @@ from src.db.data_store import get_db
 from src.db.fundamentals_cache import ensure_schema as ensure_fundamentals_schema, get_cached_financials_bulk
 from src.db.theme_signals import (ensure_schema, signal_week_monday, get_approved_theme_members, get_surprises,
                                    upsert_earn_prelim, upsert_earn_signal, upsert_member_earnings, upsert_member_fcf,
-                                   upsert_member_prelim)
+                                   upsert_member_prelim, upsert_universe_peer_metrics)
 from analyzers.theme_earnings import (classify_company_earnings, compute_earn_signal, compute_prelim_preview,
                                       dart_revenue_series, latest_prelims, pick_revenue, prelim_market_median,
                                       prelim_quarter_end, reference_growth_for_market, yoy_growth)
@@ -99,6 +99,21 @@ def member_fcf(data: dict | None, universe_cap: float | None) -> dict:
     return {"yield_3y": r["yield_3y"], "negative_years": r["negative_years"]}
 
 
+def universe_peer_rows(universe_by_market: dict[str, list[str]], week_start: str, now: str, revenue_by_ticker: dict,
+                       margin_by_ticker: dict, fcf_of) -> list[tuple]:
+    """업종 동료 비교용 유니버스 전체 값(2026-11-11). 세 값이 다 없는 종목은 줄을 만들지 않는다(데이터부족 - 화면에서 빠진다)."""
+    rows = []
+    for market, syms in universe_by_market.items():
+        for t in syms:
+            y = yoy_growth(revenue_by_ticker.get(t))
+            om = (margin_by_ticker.get(t) or {}).get("now")
+            f = fcf_of(t)
+            if y is None and om is None and f is None:
+                continue
+            rows.append((market, t, week_start, y, om, f, now))
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--theme-id", nargs="*", default=None, help="특정 테마만 (비우면 전체)")
@@ -109,6 +124,8 @@ def main() -> None:
                               "평시 크론(일요일 밤)은 방금 끝난 주를 잡지만, 주 초에 "
                               "수동 실행하면 아직 데이터가 없는 새 주를 잡게 되므로 "
                               "그때 명시적으로 지정하기 위한 옵션.")
+    parser.add_argument("--peer-metrics-only", action="store_true",
+                         help="업종 동료 비교용 유니버스 값(universe_peer_metrics)만 쓰고 끝낸다 - 테마 실적 축·소속 기업 값은 건드리지 않는다")
     args = parser.parse_args()
 
     themes, config = load_active_themes(args.theme_id)
@@ -251,6 +268,20 @@ def main() -> None:
          + ("표본 부족" if prelim_median is None else f"{prelim_median * 100:+.1f}%"))
 
     now = datetime.utcnow().isoformat()
+    # 업종 동료 비교(기업 카드) - 실적 축과 별개라 실패해도 아래 테마 계산은 그대로 간다
+    try:
+        uni_rows = universe_peer_rows(
+            universe_by_market, week_start, now, revenue_by_ticker, margin_by_ticker,
+            lambda t: (fcf_by_ticker.get(t) or member_fcf(financials.get(t), universe_cap.get(t)))["yield_3y"])
+        upsert_universe_peer_metrics(conn, uni_rows)
+        conn.commit()
+        _log(f"업종 동료 비교용 유니버스 값 {len(uni_rows)}종목 저장")
+    except Exception as e:  # noqa: BLE001
+        _log(f"업종 동료 비교용 값 저장 실패 {type(e).__name__}: {str(e)[:80]} - 테마 계산은 계속")
+    if args.peer_metrics_only:
+        conn.close()
+        _log("완료(업종 동료 비교용 값만)")
+        return
     for (theme_id, market), members in members_by_theme_market.items():
         result = compute_earn_signal(members, revenue_by_ticker, thresholds,
                                       reference_by_market.get(market))

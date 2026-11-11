@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: false
+      peer_metrics_only:
+        description: "업종 동료 비교용 유니버스 값만 쓰기(테마 실적 축은 그대로) - 서프라이즈 수집도 건너뜀"
+        required: false
+        type: boolean
+        default: false
       surprise_budget:
         description: "실적 서프라이즈를 새로 조회할 종목 수 (비우면 150, 0이면 수집 건너뜀)"
         required: false
@@ -50,7 +55,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           BUDGET="${{ inputs.surprise_budget }}"
-          if [ "$BUDGET" = "0" ]; then echo "수집 건너뜀"; exit 0; fi
+          if [ "$BUDGET" = "0" ] || [ "${{ inputs.peer_metrics_only }}" = "true" ]; then echo "수집 건너뜀"; exit 0; fi
           python scripts/collect_earnings_surprise.py ${BUDGET:+--budget "$BUDGET"}
 
       - name: Compute
@@ -61,6 +66,7 @@ jobs:
           python scripts/compute_theme_earnings.py --week-start "${{ inputs.week_start }}"
           --theme-id ${{ inputs.theme_id }}
           ${{ inputs.include_peripheral == 'true' && '--include-peripheral' || '' }}
+          ${{ inputs.peer_metrics_only == 'true' && '--peer-metrics-only' || '' }}
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'

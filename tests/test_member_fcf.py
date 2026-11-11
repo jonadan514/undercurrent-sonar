@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -33,3 +34,13 @@ def test_financials_skipped():
 def test_missing_data_is_none():
     assert member_fcf(None, 1000) == {"yield_3y": None, "negative_years": None}
     assert member_fcf({"info": {}, "cashflow": _cf([30, 20, 10])}, None)["yield_3y"] is None   # 시가총액 없음
+
+
+def test_universe_peer_rows_skips_all_missing():
+    """업종 동료 비교용 유니버스 값(2026-11-11) - 세 값이 다 없으면 줄을 만들지 않고, 하나라도 있으면 나머지는 None으로."""
+    import pandas as pd
+    from compute_theme_earnings import universe_peer_rows
+    rev = pd.Series([120.0, 110, 105, 100, 100.0])   # 최신이 앞 - 1년 전 대비 +20%
+    rows = universe_peer_rows({"US": ["AAA", "BBB", "CCC"]}, "2026-11-09", "t", {"AAA": rev},
+                              {"BBB": {"now": 0.25}}, lambda t: None)
+    assert [(r[1], r[3], r[4], r[5]) for r in rows] == [("AAA", pytest.approx(0.2), None, None), ("BBB", None, 0.25, None)]

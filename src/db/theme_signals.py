@@ -209,7 +209,39 @@ MEMBER_LATE_COLUMNS = [("om_now", "REAL"), ("om_change", "REAL"), ("om_status", 
                        ("prelim_rev_yoy", "REAL"), ("prelim_quarter", "TEXT")]
 
 
+# 업종 동료 비교(2026-11-11) - 기업 카드에서 테마 소속이 없는 종목도 같은 업종(yfinance industry) 동료와 견준다.
+# 실적 축 계산이 기준 성장률 표본으로 이미 읽는 시장 유니버스 전체의 매출 YoY·영업이익률·FCF 수익률을 같은 주 키로 남긴다.
+# 값은 theme_member_signals와 같은 함수·단위(yoy_growth·quarterly_margin_change·member_fcf). 주마다 새 줄 - 지난 주는 덮지 않는다.
+UNIVERSE_PEER_METRICS_DDL = """
+CREATE TABLE IF NOT EXISTS universe_peer_metrics (
+  market       TEXT NOT NULL,
+  symbol       TEXT NOT NULL,
+  week_start   TEXT NOT NULL,
+  rev_yoy      REAL,
+  om_now       REAL,
+  fcf_yield_3y REAL,
+  computed_at  TEXT NOT NULL,
+  PRIMARY KEY (market, symbol, week_start)
+)
+"""
+
+
+def upsert_universe_peer_metrics(conn, rows: list[tuple], chunk_size: int = 100) -> None:
+    """rows: (market, symbol, week_start, rev_yoy, om_now, fcf_yield_3y, computed_at). 같은 주를 다시 돌리면 그 주 줄만 고친다."""
+    cols = ("market", "symbol", "week_start", "rev_yoy", "om_now", "fcf_yield_3y", "computed_at")
+    one = "(" + ", ".join("?" * len(cols)) + ")"
+    for i in range(0, len(rows), chunk_size):
+        chunk = rows[i:i + chunk_size]
+        conn.execute(
+            f"INSERT INTO universe_peer_metrics ({', '.join(cols)}) VALUES {', '.join([one] * len(chunk))} "
+            "ON CONFLICT(market, symbol, week_start) DO UPDATE SET rev_yoy = excluded.rev_yoy, om_now = excluded.om_now, "
+            "fcf_yield_3y = excluded.fcf_yield_3y, computed_at = excluded.computed_at",
+            tuple(v for r in chunk for v in r),
+        )
+
+
 def ensure_schema(conn) -> None:
+    conn.execute(UNIVERSE_PEER_METRICS_DDL)
     conn.execute(THEME_NEWS_DDL)
     conn.execute(THEME_SIGNALS_DDL)
     conn.execute(EARNINGS_SURPRISE_DDL)

@@ -2,9 +2,11 @@
 
 // 종목 하나에 대한 섹션(2026-11-05 워치리스트 상세 팝업에서 떼어 냄) - 워치리스트 팝업과 기업 카드(/company)가 같이 쓴다.
 // 모두 시장·종목코드만으로 자기 API를 불러 그린다. 색은 워치리스트 화면과 같은 값.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { INVESTOR_BY_ID, STYLE_META, investorFull, quarterLabel as q13f, usd } from "@/src/lib/institutions";
 import { themeName } from "@/src/lib/themeNames";
+import { sectorKo } from "@/src/lib/sectorNames";
+import { krStockName } from "@/src/lib/krStockNames";
 
 export type StockRef = { market: string; symbol: string };
 
@@ -70,7 +72,7 @@ export function NarrativeSection({ c }: { c: StockRef }) {
     return () => { cancelled = true; };
   }, [c.market, c.symbol]);
 
-  const sent = brief ? (SENTIMENT_STYLE[brief.sentiment] ?? SENTIMENT_STYLE.WARM) : null;
+  const sent = brief?.sentiment ? SENTIMENT_STYLE[brief.sentiment] ?? null : null;
 
   return (
     <div className="p-3 space-y-2" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
@@ -82,6 +84,7 @@ export function NarrativeSection({ c }: { c: StockRef }) {
         </p>
       )}
       {error && !loading && <p className="text-[12px]" style={{ color: BAD }}>{error}</p>}
+      {brief && !sent && !loading && <p className="text-[12px]" style={{ color: TEXT_SECONDARY }}>관심도 값 없음</p>}
       {brief && sent && !loading && (
         <>
           <div className="flex items-center gap-2 flex-wrap">
@@ -100,8 +103,8 @@ export function NarrativeSection({ c }: { c: StockRef }) {
             )}
           </div>
           <p className="text-[12px] flex flex-wrap gap-x-1.5" style={{ color: TEXT_MUTED }}>
-            <span>최근 1주 뉴스 헤드라인을 GPT가 세 단계로 나눈 것 · 판정 아님 · {brief.cached_at.slice(0, 10)} 갱신</span>
-            {brief.sources.slice(0, 3).map((url, i) => (
+            <span>최근 1주 뉴스 헤드라인을 GPT가 세 단계로 나눈 것 · 판정 아님{brief.cached_at ? ` · ${brief.cached_at.slice(0, 10)} 갱신` : ""}</span>
+            {(brief.sources ?? []).slice(0, 3).map((url, i) => (
               <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="underline">기사{i + 1}</a>
             ))}
           </p>
@@ -246,11 +249,15 @@ export function InstitutionSection({ c }: { c: StockRef }) {
   );
 }
 
-// ── 테마 동료 비교 (2026-10-25) ───────────────────────────────────────────────
+// ── 동료 비교 (2026-10-25 테마, 2026-11-11 업종·동료 줄) ───────────────────────────────────────────────
 // 이 종목이 사업 소속인 테마마다, 소속 기업들의 중앙값·가운데 절반(25~75%) 옆에 이 종목 값을 둔다(/api/radar/peers).
 // 지표마다 따로 보여 줄 뿐 합치지 않고 순위도 매기지 않는다(원칙 1). 동료 값이 5곳 미만이면 비교하지 않는다(데이터 부족).
 type PeerMetric = { self: number | null; n: number; median: number | null; q1: number | null; q3: number | null };
-type PeerTheme = { theme_id: string; week: string | null; members: number; metrics: Record<string, PeerMetric> };
+// 2026-11-11: 동료 줄(peers, 이름순)과 업종 동료(industry - 테마 소속이 없어도 같은 시장·같은 업종 유니버스 종목)
+type PeerRow = { symbol: string; name: string | null } & Record<string, number | string | null>;
+type PeerGroupData = { week: string | null; members: number; metrics: Record<string, PeerMetric>; peers?: PeerRow[] };
+type PeerTheme = PeerGroupData & { theme_id: string };
+type PeerIndustry = PeerGroupData & { sector: string | null; industry: string };
 const PEER_ROWS: { key: string; label: string; fmt: (v: number) => string; hint: string }[] = [
   { key: "rev_yoy", label: "매출 YoY", fmt: (v) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}%`, hint: "최근 분기 매출, 1년 전 같은 분기 대비" },
   { key: "om_now", label: "영업이익률", fmt: (v) => `${(v * 100).toFixed(1)}%`, hint: "최근 분기" },
@@ -279,65 +286,122 @@ function peerWhere(m: PeerMetric): { text: string; color: string } {
   if (m.self < m.q1) return { text: "동료보다 낮음", color: TEXT_BODY };
   return { text: "동료와 비슷", color: TEXT_SECONDARY };
 }
+function PeerList({ c, peers }: { c: StockRef; peers: PeerRow[] }) {
+  const [open, setOpen] = useState(false);
+  const label = (p: PeerRow) => (c.market === "KR" ? (p.name && p.name !== p.symbol ? p.name : krStockName(p.symbol)) : p.symbol);
+  return (
+    <div className="mt-1">
+      <button onClick={() => setOpen(!open)} className="text-[12px] hover:underline" style={{ color: ACCENT }}>
+        {open ? "동료 값 접기 ▴" : `동료 ${peers.length}곳 값 보기 ▾`}
+      </button>
+      {open && (
+        <div className="mt-1 overflow-x-auto">
+          <table className="w-full text-[11.5px] sm:text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <thead>
+              <tr style={{ color: TEXT_MUTED }}>
+                <th className="text-left font-normal py-1 pr-1">종목 <span className="hidden sm:inline" style={{ color: TEXT_FAINT }}>(이름순)</span></th>
+                {PEER_ROWS.map((r) => <th key={r.key} className="text-right font-normal py-1 px-1 sm:px-1.5 whitespace-nowrap" title={r.hint}>{r.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {peers.map((p) => {
+                const me = p.symbol === c.symbol;
+                return (
+                  <tr key={p.symbol} style={{ borderTop: `1px solid ${BORDER}`, background: me ? "#ffb02014" : undefined }}>
+                    <td className="py-1 pr-1 whitespace-nowrap">
+                      {me ? <span className="font-bold" style={{ color: ACCENT }}>{label(p)}<span className="hidden sm:inline"> (이 종목)</span></span>
+                        : <a href={`/company?stock=${c.market}:${encodeURIComponent(p.symbol)}`} className="hover:underline" style={{ color: TEXT_BODY }}
+                             title={p.name ?? undefined}>{label(p)}</a>}
+                    </td>
+                    {PEER_ROWS.map((r) => {
+                      const v = p[r.key];
+                      return <td key={r.key} className="text-right py-1 px-1 sm:px-1.5" style={{ color: typeof v === "number" ? (me ? ACCENT : TEXT_SECONDARY) : TEXT_FAINT }}>
+                        {typeof v === "number" ? r.fmt(v) : "-"}</td>;
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PeerGroup({ c, title, g }: { c: StockRef; title: ReactNode; g: PeerGroupData }) {
+  return (
+    <div>
+      <p className="text-[12px] mb-1" style={{ color: TEXT_BODY }}>
+        {title}
+        <span style={{ color: TEXT_MUTED }}> · {g.members}개사{g.week ? ` · ${g.week.slice(5).replace("-", "/")} 주` : ""}</span>
+      </p>
+      {/* 넓은 화면은 한 줄(지표·이 종목·중앙값·보통 범위·비교), 휴대폰은 두 줄(아래 줄에 막대·비교) */}
+      <div className="text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div className={`hidden sm:grid ${PEER_GRID} py-1`} style={{ color: TEXT_MUTED }}>
+          <span>지표</span><span className="text-right">이 종목</span><span className="text-right">동료 중앙값</span>
+          <span className="pl-2" title="동료 값을 줄 세웠을 때 가운데 절반(25~75%)">동료 보통 범위</span><span>동료와 비교</span>
+        </div>
+        {PEER_ROWS.map((row) => {
+          const m = g.metrics[row.key];
+          if (!m) return null;
+          const w = peerWhere(m);
+          return (
+            <div key={row.key} className={`grid grid-cols-[5.5rem_auto_1fr] ${PEER_GRID} items-center gap-y-1 py-1.5`} style={{ borderTop: `1px solid ${BORDER}` }}>
+              <span style={{ color: TEXT_SECONDARY }} title={row.hint}>{row.label}</span>
+              <span className="text-right font-bold" style={{ color: m.self == null ? TEXT_FAINT : ACCENT }}>{m.self == null ? "-" : row.fmt(m.self)}</span>
+              <span className="text-right" style={{ color: TEXT_BODY }}>
+                <span className="sm:hidden" style={{ color: TEXT_MUTED }}>중앙값 </span>
+                {m.median == null ? <span style={{ color: TEXT_FAINT }}>-</span> : row.fmt(m.median)}
+                <span className="ml-1 text-[11px]" style={{ color: TEXT_FAINT }}>({m.n}곳)</span>
+              </span>
+              <div className="col-span-3 sm:col-span-1 flex items-center gap-2 sm:pl-2">
+                {m.q1 != null && m.q3 != null ? (
+                  <div className="flex-1 space-y-0.5">
+                    <PeerBar m={m} />
+                    <p className="text-[11px]" style={{ color: TEXT_FAINT }}>{row.fmt(m.q1)} ~ {row.fmt(m.q3)}</p>
+                  </div>
+                ) : <span className="flex-1" style={{ color: TEXT_FAINT }}>-</span>}
+                <span className="sm:hidden whitespace-nowrap" style={{ color: w.color }}>{w.text}</span>
+              </div>
+              <span className="hidden sm:block whitespace-nowrap" style={{ color: w.color }}>{w.text}</span>
+            </div>
+          );
+        })}
+      </div>
+      {g.peers && g.peers.length > 0 && <PeerList c={c} peers={g.peers} />}
+    </div>
+  );
+}
+
 export function ThemePeerSection({ c }: { c: StockRef }) {
-  const [themes, setThemes] = useState<PeerTheme[] | null>(null);
+  const [d, setD] = useState<{ themes: PeerTheme[]; industry: PeerIndustry | null } | null>(null);
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/radar/peers?market=${c.market}&symbol=${encodeURIComponent(c.symbol)}`)
       .then((r) => r.json())
-      .then((d) => { if (!cancelled) setThemes(Array.isArray(d.themes) ? d.themes : []); })
-      .catch(() => { if (!cancelled) setThemes([]); });
+      .then((x) => { if (!cancelled) setD({ themes: Array.isArray(x.themes) ? x.themes : [], industry: x.industry ?? null }); })
+      .catch(() => { if (!cancelled) setD({ themes: [], industry: null }); });
     return () => { cancelled = true; };
   }, [c.market, c.symbol]);
-  if (!themes || themes.length === 0) return null;
+  if (!d || (d.themes.length === 0 && !d.industry)) return null;
   return (
     <div className="p-3 space-y-3" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
       <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>
-        테마 동료 비교 <span className="font-normal" style={{ color: TEXT_MUTED }}>— 같은 테마 사업 소속 기업들 사이에서 이 종목 값 (순위 아님)</span>
+        동료 비교 <span className="font-normal" style={{ color: TEXT_MUTED }}>— 같은 테마·같은 업종 기업들 사이에서 이 종목 값 (순위 아님)</span>
       </p>
-      {themes.map((t) => (
-        <div key={t.theme_id}>
-          <p className="text-[12px] mb-1" style={{ color: TEXT_BODY }}>
-            <span className="font-bold">{themeName(t.theme_id).ko}</span>
-            <span style={{ color: TEXT_MUTED }}> · 소속 {t.members}개사{t.week ? ` · ${t.week.slice(5).replace("-", "/")} 주` : ""}</span>
-          </p>
-          {/* 넓은 화면은 한 줄(지표·이 종목·중앙값·보통 범위·비교), 휴대폰은 두 줄(아래 줄에 막대·비교) */}
-          <div className="text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-            <div className={`hidden sm:grid ${PEER_GRID} py-1`} style={{ color: TEXT_MUTED }}>
-              <span>지표</span><span className="text-right">이 종목</span><span className="text-right">테마 중앙값</span>
-              <span className="pl-2" title="동료 값을 줄 세웠을 때 가운데 절반(25~75%)">동료 보통 범위</span><span>동료와 비교</span>
-            </div>
-            {PEER_ROWS.map((row) => {
-              const m = t.metrics[row.key];
-              if (!m) return null;
-              const w = peerWhere(m);
-              return (
-                <div key={row.key} className={`grid grid-cols-[5.5rem_auto_1fr] ${PEER_GRID} items-center gap-y-1 py-1.5`} style={{ borderTop: `1px solid ${BORDER}` }}>
-                  <span style={{ color: TEXT_SECONDARY }} title={row.hint}>{row.label}</span>
-                  <span className="text-right font-bold" style={{ color: m.self == null ? TEXT_FAINT : ACCENT }}>{m.self == null ? "-" : row.fmt(m.self)}</span>
-                  <span className="text-right" style={{ color: TEXT_BODY }}>
-                    <span className="sm:hidden" style={{ color: TEXT_MUTED }}>중앙값 </span>
-                    {m.median == null ? <span style={{ color: TEXT_FAINT }}>-</span> : row.fmt(m.median)}
-                    <span className="ml-1 text-[11px]" style={{ color: TEXT_FAINT }}>({m.n}곳)</span>
-                  </span>
-                  <div className="col-span-3 sm:col-span-1 flex items-center gap-2 sm:pl-2">
-                    {m.q1 != null && m.q3 != null ? (
-                      <div className="flex-1 space-y-0.5">
-                        <PeerBar m={m} />
-                        <p className="text-[11px]" style={{ color: TEXT_FAINT }}>{row.fmt(m.q1)} ~ {row.fmt(m.q3)}</p>
-                      </div>
-                    ) : <span className="flex-1" style={{ color: TEXT_FAINT }}>-</span>}
-                    <span className="sm:hidden whitespace-nowrap" style={{ color: w.color }}>{w.text}</span>
-                  </div>
-                  <span className="hidden sm:block whitespace-nowrap" style={{ color: w.color }}>{w.text}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {d.themes.map((t) => (
+        <PeerGroup key={t.theme_id} c={c} g={t} title={<><span style={{ color: TEXT_MUTED }}>테마 </span><span className="font-bold">{themeName(t.theme_id).ko}</span></>} />
       ))}
+      {d.industry && (
+        <PeerGroup c={c} g={d.industry} title={<>
+          <span style={{ color: TEXT_MUTED }}>업종 </span>
+          <span className="font-bold">{d.industry.sector ? `${sectorKo(d.industry.sector)} · ` : ""}{d.industry.industry}</span>
+        </>} />
+      )}
       <p className="text-[12px]" style={{ color: TEXT_MUTED }}>
-        숫자는 저장된 재무 그대로(소속 기업 주간 계산·재무 필터) · 동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 동료 보통 범위(가운데 절반), 세로선 = 중앙값, 점 = 이 종목 · '동료보다 높음/낮음' = 동료 4곳 중 3곳보다 높거나 낮음 ·
+        숫자는 저장된 재무 그대로(주간 계산·재무 필터) · 테마는 사업 소속 기업, 업종은 같은 시장 유니버스(미국 S&amp;P 500·400, 한국 시총 상위)에서 회사 정보의 업종이 같은 기업 ·
+        동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 동료 보통 범위(가운데 절반), 세로선 = 중앙값, 점 = 이 종목 · &apos;동료보다 높음/낮음&apos; = 동료 4곳 중 3곳보다 높거나 낮음 ·
         업종이 섞인 테마는 이익률·FCF 정상 범위가 달라 참고로만
       </p>
     </div>

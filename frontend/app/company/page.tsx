@@ -235,7 +235,7 @@ function CompanyView() {
       </Section>
 
       {/* ② 숫자 확인 */}
-      <Section title={<><Step n="2-3">{null}</Step>숫자 확인</>} sub="재무 필터 판정 · 최근 8분기 · 같은 테마 동료 대비">
+      <Section title={<><Step n="2-3">{null}</Step>숫자 확인</>} sub="재무 필터 판정 · 최근 8분기 · 같은 테마·업종 동료 대비">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12.5px]">
           <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
             <p style={{ color: MUTED }}>재무 필터</p>
