@@ -559,7 +559,7 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
             </div>
           )}
 
-          {/* 2단: 투자 논리(내러티브) | 기술적 타이밍(차트) */}
+          {/* 2단: 뉴스 관심도 | 기술적 타이밍(차트) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <NarrativeSection c={c} />
             <div>
@@ -1293,7 +1293,7 @@ export default function WatchlistPage() {
       {/* 헤더 */}
       <PageHeader title="워치리스트" intro="watchlist"
         asOf={!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
-        desc="재무 필터(재무 건전성 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·내러티브를 한 화면에." />
+        desc="재무 필터(재무 건전성 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·뉴스 관심도를 한 화면에." />
 
       {/* 통계 - 공용 요약 칸(2026-10-25 화면 통일) */}
       <div style={{ marginBottom: 24 }}>

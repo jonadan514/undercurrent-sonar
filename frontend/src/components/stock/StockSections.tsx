@@ -23,18 +23,18 @@ const BAD     = "#f87171";
 const INFO    = "#6fb3b8";
 
 interface NarrativeBrief {
-  story: string;
-  catalysts: string[];
-  risks: string[];
   sentiment: "HOT" | "WARM" | "COLD";
-  sentiment_reason: string;
   sources: string[];
   cached_at: string;
   prev_sentiment?: "HOT" | "WARM" | "COLD" | null;
   trend?: "up" | "down" | "flat" | null;
 }
 
-// ── 내러티브 브리프 (Perplexity 실시간 검색) ─────────────────────────────────
+// ── 뉴스 관심도 (2026-11-11) ────────────────────────────────────────────────
+// 주간 파이프라인(generate_narratives.py)이 최근 1주 뉴스 헤드라인을 GPT로 HOT/WARM/COLD로 나눈 것만 보여 준다.
+// 같은 결과에 있던 스토리·촉매·리스크 문장은 회사가 달라도 거의 같은 상투적 문장(경쟁 심화·규제 강화·…)과
+// 앞날 짐작('지속될 가능성이 높다')이라 뺐다 - 회사 소개·테마 근거·숫자·반대 의견 기사가 같은 화면에 있다.
+// 관심도는 브리핑 '관심도 상승'·신호 기록(sentiment_heating)이 쓰고 있어 남긴다. 판정 아님.
 const SENTIMENT_STYLE: Record<string, { label: string; color: string; emoji: string }> = {
   HOT:  { label: "시장 관심 높음", color: BAD, emoji: "🔥" },
   WARM: { label: "꾸준한 관심",    color: WARN, emoji: "🌤" },
@@ -62,7 +62,7 @@ export function NarrativeSection({ c }: { c: StockRef }) {
         if (!res.ok) throw new Error(data.error ?? "요청 실패");
         setBrief(data);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "내러티브를 불러오지 못했습니다");
+        if (!cancelled) setError(e instanceof Error ? e.message : "관심도를 불러오지 못했습니다");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,81 +73,40 @@ export function NarrativeSection({ c }: { c: StockRef }) {
   const sent = brief ? (SENTIMENT_STYLE[brief.sentiment] ?? SENTIMENT_STYLE.WARM) : null;
 
   return (
-    <div>
-      <div className="p-3 space-y-2.5" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
-        <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>내러티브 브리프 — 투자 논리</p>
-
-        {loading && (
-          <p className="text-[12px] animate-pulse" style={{ color: TEXT_SECONDARY }}>불러오는 중...</p>
-        )}
-        {pending && !loading && (
-          <p className="text-[12px]" style={{ color: TEXT_SECONDARY }}>
-            아직 내러티브가 없습니다. 워치리스트 후보·내 워치리스트 종목만 주 1회(일요일 밤) 만듭니다.
-          </p>
-        )}
-        {error && !loading && (
-          <p className="text-[12px]" style={{ color: BAD }}>{error}</p>
-        )}
-
-        {brief && !loading && (
-          <>
-            {sent && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[12px] font-bold px-2 py-0.5" style={{ background: sent.color + "20", color: sent.color, border: `1px solid ${sent.color}40` }}>
-                  {sent.emoji} {sent.label}
-                </span>
-                {brief.trend === "up" && brief.prev_sentiment && (
-                  <span className="text-[12px] font-bold px-2 py-0.5" style={{ background: BAD + "20", color: BAD, border: `1px solid ${BAD}40` }}>
-                    ▲ 관심도 상승 ({brief.prev_sentiment}→{brief.sentiment})
-                  </span>
-                )}
-                {brief.trend === "down" && brief.prev_sentiment && (
-                  <span className="text-[12px] font-bold px-2 py-0.5" style={{ background: INFO + "20", color: INFO, border: `1px solid ${INFO}40` }}>
-                    ▼ 관심도 하락 ({brief.prev_sentiment}→{brief.sentiment})
-                  </span>
-                )}
-                {brief.sentiment_reason && (
-                  <span className="text-[12px]" style={{ color: TEXT_SECONDARY }}>{brief.sentiment_reason}</span>
-                )}
-              </div>
-            )}
-
-            <p className="text-[12px] leading-relaxed" style={{ color: TEXT_BODY }}>{brief.story}</p>
-
-            {brief.catalysts.length > 0 && (
-              <div>
-                <p className="text-[12px] font-bold mb-1" style={{ color: GOOD }}>▲ 다가오는 촉매</p>
-                {brief.catalysts.map((t, i) => (
-                  <p key={i} className="text-[12px] leading-relaxed pl-2" style={{ color: TEXT_SECONDARY }}>· {t}</p>
-                ))}
-              </div>
-            )}
-            {brief.risks.length > 0 && (
-              <div>
-                <p className="text-[12px] font-bold mb-1" style={{ color: BAD }}>▼ 스토리가 깨지는 경우</p>
-                {brief.risks.map((t, i) => (
-                  <p key={i} className="text-[12px] leading-relaxed pl-2" style={{ color: TEXT_SECONDARY }}>· {t}</p>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-1" style={{ borderTop: `1px solid ${BORDER}` }}>
-              <span className="text-[12px]" style={{ color: TEXT_MUTED }}>
-                최근 1주 뉴스 기반 GPT 분석 · 참고용 · {brief.cached_at.slice(0, 10)} 갱신
+    <div className="p-3 space-y-2" style={{ background: INSET_BG, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
+      <p className="text-[12px] font-semibold" style={{ color: TEXT_SECONDARY }}>뉴스 관심도</p>
+      {loading && <p className="text-[12px] animate-pulse" style={{ color: TEXT_SECONDARY }}>불러오는 중...</p>}
+      {pending && !loading && (
+        <p className="text-[12px]" style={{ color: TEXT_SECONDARY }}>
+          아직 없습니다. 워치리스트 후보·내 워치리스트 종목만 주 1회(일요일 밤) 셉니다.
+        </p>
+      )}
+      {error && !loading && <p className="text-[12px]" style={{ color: BAD }}>{error}</p>}
+      {brief && sent && !loading && (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[12px] font-bold px-2 py-0.5" style={{ background: sent.color + "20", color: sent.color, border: `1px solid ${sent.color}40` }}>
+              {sent.emoji} {sent.label}
+            </span>
+            {brief.trend === "up" && brief.prev_sentiment && (
+              <span className="text-[12px] font-bold px-2 py-0.5" style={{ background: BAD + "20", color: BAD, border: `1px solid ${BAD}40` }}>
+                ▲ 관심도 상승 ({brief.prev_sentiment}→{brief.sentiment})
               </span>
-              {brief.sources.length > 0 && (
-                <span className="flex gap-1.5">
-                  {brief.sources.slice(0, 3).map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-[12px] underline" style={{ color: TEXT_MUTED }}>
-                      출처{i + 1}
-                    </a>
-                  ))}
-                </span>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+            )}
+            {brief.trend === "down" && brief.prev_sentiment && (
+              <span className="text-[12px] font-bold px-2 py-0.5" style={{ background: INFO + "20", color: INFO, border: `1px solid ${INFO}40` }}>
+                ▼ 관심도 하락 ({brief.prev_sentiment}→{brief.sentiment})
+              </span>
+            )}
+          </div>
+          <p className="text-[12px] flex flex-wrap gap-x-1.5" style={{ color: TEXT_MUTED }}>
+            <span>최근 1주 뉴스 헤드라인을 GPT가 세 단계로 나눈 것 · 판정 아님 · {brief.cached_at.slice(0, 10)} 갱신</span>
+            {brief.sources.slice(0, 3).map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="underline">기사{i + 1}</a>
+            ))}
+          </p>
+        </>
+      )}
     </div>
   );
 }

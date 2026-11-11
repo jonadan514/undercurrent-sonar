@@ -5,6 +5,10 @@
   2. GPT-4o mini가 투자 스토리·촉매·리스크·시장 관심도를 JSON으로 요약
   3. Turso narrative_briefs 테이블에 upsert (프론트엔드가 읽음)
 
+2026-11-11부터 화면은 관심도(HOT/WARM/COLD)와 그 전환만 보여 준다 - 스토리·촉매·리스크 문장은 회사가 달라도
+거의 같은 상투적 문장이라 뺐다. 생성 지침은 그대로 둔다: 관심도 상승이 신호 기록(sentiment_heating)으로
+4주·12주 결과를 재는 중이라, 지침을 바꾸면 그 앞뒤 값이 다른 잣대가 된다.
+
 사용:
   python scripts/generate_narratives.py                  # 기본 (7일 내 갱신분은 건너뜀)
   python scripts/generate_narratives.py --force          # 전부 재생성

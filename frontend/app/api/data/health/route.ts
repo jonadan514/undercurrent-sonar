@@ -18,7 +18,7 @@ const SOURCES: Source[] = [
   { key: "us_8k", label: "미국 8-K", group: "매일", cadence: "매일 밤", okDays: 4, sql: "SELECT MAX(fetched_at) FROM us_8k_filings", note: "새 8-K가 있을 때만 시각이 바뀐다" },
   { key: "theme_events", label: "테마 이벤트(공시·내부자)", group: "매일", cadence: "매일 밤", okDays: 3, sql: "SELECT MAX(computed_at) FROM theme_events" },
   { key: "watchlist", label: "워치리스트 스크리닝", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(screened_at) FROM watchlist_screening_results" },
-  { key: "narratives", label: "내러티브 브리프", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(updated_at) FROM narrative_briefs" },
+  { key: "narratives", label: "뉴스 관심도", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(updated_at) FROM narrative_briefs" },
   { key: "briefing", label: "주간 브리핑", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(created_at) FROM weekly_briefings" },
   // theme_news_weekly는 과거 백필(건수만) 표라 정기 수집이 쓰지 않는다 - 정기 수집이 채우는 theme_signals 뉴스 칸으로 본다(2026-10-25)
   { key: "theme_news", label: "테마 뉴스", group: "매주", cadence: "월요일 아침", okDays: 15, sql: "SELECT MAX(week_start) FROM theme_signals WHERE news_count IS NOT NULL", note: "측정한 주의 월요일 날짜 - 실행은 그 주 일요일 밤이라 다음 실행 직전엔 13일쯤" },
