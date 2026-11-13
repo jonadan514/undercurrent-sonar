@@ -9,6 +9,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PageHeader from "@/src/components/PageHeader";
+import PageIntro from "@/src/components/PageIntro";
 import { Section } from "@/src/components/Section";
 import EmptyState from "@/src/components/EmptyState";
 import { externalQuoteUrl } from "@/src/components/StockLink";
@@ -183,9 +184,8 @@ function CompanyView() {
         </div>
       </PageHeader>
 
-      <p className="text-[12px]" style={{ color: FAINT }}>
-        리서치 실행 가이드 2단계 순서대로 모았습니다. 점수나 매수 판단은 없습니다 - 판단은 직접 하고 아래 &quot;내 기록&quot;에 남기세요.
-      </p>
+      {/* 이 화면은?(2026-11-13) - 예전 한 줄 안내('리서치 실행 가이드 2단계 순서대로…')를 상자로. 배지 줄 아래에 둔다 */}
+      <PageIntro k="company" />
 
       {/* ① 무엇을 하는 회사인가 */}
       <Section title={<><Step n="2-1·2-2">{null}</Step>무엇을 하는 회사인가</>} sub={d.profile?.summary_ko ? "사업 요약(yfinance 원문을 한국어로) · 소속 테마와 근거" : "사업 요약 원문(yfinance, 영문) · 소속 테마와 근거"}>

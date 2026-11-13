@@ -7,7 +7,9 @@ import { GLOSSARY, type GlossaryKey } from "@/src/lib/glossary";
 // 설명은 src/lib/glossary.ts 한 곳에서만 - 화면마다 같은 말이 다르게 쓰이지 않게(2026-10-23).
 /** 짧은 표시 이름: "공시 (DART · 8-K)" -> "공시", "Quiet Strength · 조용한 강세" -> "Quiet Strength" */
 export function termLabel(term: string): string {
-  return term.replace(/\s*\(.*\)\s*$/, "").split(" · ")[0];
+  // 'Hidden Strength · 숨은 강세'처럼 영어·한국어가 같이 있으면 한국어 쪽(2026-11-13 - 용어 줄에 영어만 떴다)
+  const parts = term.replace(/\s*\(.*\)\s*$/, "").split(" · ");
+  return parts.find((x) => /[가-힣]/.test(x)) ?? parts[0];
 }
 
 export default function Term({ k, children }: { k: GlossaryKey; children?: ReactNode }) {

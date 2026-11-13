@@ -41,7 +41,7 @@ export default function StatusPage() {
 
   return (
     <div className="space-y-2">
-      <PageHeader title="데이터 상태"
+      <PageHeader title="데이터 상태" intro="status"
         asOf={<InfoTooltip content="정기 수집마다 표에 마지막으로 저장된 시각입니다. 허용 기간보다 오래되면 '지연' - GitHub 예약 실행은 몇 시간씩 늦게 시작되기도 해서 여유를 두었습니다. 표가 아직 없거나 비어 있으면 '없음'." />}
         desc={err ? "불러오지 못했습니다." : !h ? "확인 중…" :
           `${kst(h.checked_at)} 확인 · ${h.summary.total}개 중 정상 ${h.summary.ok}${h.summary.late ? ` · 지연 ${h.summary.late}` : ""}${h.summary.missing ? ` · 없음 ${h.summary.missing}` : ""} · 시각은 한국 시간`} />

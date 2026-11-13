@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { GLOSSARY } from "@/src/lib/glossary";
-import { INTRO_STORAGE_PREFIX, PAGE_INTROS, type PageIntroKey } from "@/src/lib/pageIntros";
+import { INTRO_STORAGE_PREFIX, PAGE_INTROS, type PageIntro as Intro, type PageIntroKey } from "@/src/lib/pageIntros";
 import Term, { termLabel } from "@/src/components/Term";
 
 // "이 화면은?" 상자(2026-10-23). 처음엔 펼쳐져 있고, 접으면 이 화면에서는 다음에도 접힌 채로.
@@ -18,7 +18,7 @@ function writeClosed(key: string, closed: boolean) {
 }
 
 export default function PageIntro({ k }: { k: PageIntroKey }) {
-  const intro = PAGE_INTROS[k];
+  const intro: Intro = PAGE_INTROS[k];
   // 서버 렌더와 첫 화면이 같도록 처음엔 접힌 상태로 그리고, 브라우저에서 저장값을 읽어 펼친다.
   const [closed, setClosed] = useState(true);
   const [ready, setReady] = useState(false);
@@ -38,7 +38,11 @@ export default function PageIntro({ k }: { k: PageIntroKey }) {
       </button>
     );
   }
-  const rows: [string, string, string][] = [["👀", "무엇을", intro.what], ["🕐", "언제", intro.when], ["✅", "할 일", intro.todo]];
+  // 2026-11-13: 무엇을·언제는 짧은 글, 보는 순서는 번호 목록, 주의는 칸 아래 한 줄로 따로(예전엔 할 일 한 문단에 섞였다)
+  const box = { background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,176,32,0.14)" };
+  const head = (icon: string, label: string) => (
+    <p className="text-[12px] font-bold" style={{ color: "#ffb020" }}><span aria-hidden className="mr-1">{icon}</span>{label}</p>
+  );
   return (
     <section className="print-hidden mt-3 w-full rounded-xl px-4 py-3.5 sm:px-5" aria-label="이 화면은?"
       style={{ background: "rgba(255,176,32,0.07)", border: "1px solid rgba(255,176,32,0.32)", borderLeft: "4px solid #ffb020" }}>
@@ -51,16 +55,35 @@ export default function PageIntro({ k }: { k: PageIntroKey }) {
           접기 ▲
         </button>
       </div>
-      <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {rows.map(([icon, label, text]) => (
-          <div key={label} className="rounded-lg px-3 py-2.5" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,176,32,0.14)" }}>
-            <p className="text-[12px] font-bold" style={{ color: "#ffb020" }}><span aria-hidden className="mr-1">{icon}</span>{label}</p>
-            <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{text}</p>
-          </div>
-        ))}
+      <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-[1.15fr_0.75fr_1.6fr]">
+        <div className="rounded-lg px-3 py-2.5" style={box}>
+          {head("👀", "무엇을")}
+          <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{intro.what}</p>
+        </div>
+        <div className="rounded-lg px-3 py-2.5" style={box}>
+          {head("🕐", "언제")}
+          <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{intro.when}</p>
+        </div>
+        <div className="rounded-lg px-3 py-2.5" style={box}>
+          {head("✅", "보는 순서")}
+          <ol className="mt-1 space-y-1">
+            {intro.steps.map((x, i) => (
+              <li key={i} className="flex gap-2 text-[13.5px] leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                <span className="mt-[3px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{ background: "rgba(255,176,32,0.18)", color: "#ffb020" }}>{i + 1}</span>
+                <span>{x}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
+      {intro.note && (
+        <p className="mt-2.5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+          <span aria-hidden className="mr-1">⚠️</span>{intro.note}
+        </p>
+      )}
       {intro.terms && intro.terms.length > 0 && (
-        <p className="mt-2.5 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+        <p className="mt-2 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
           이 화면의 용어(눌러서 보기):{" "}
           {intro.terms.map((t, i) => (
             <span key={t}>{i > 0 && " · "}<Term k={t}>{termLabel(GLOSSARY[t].term)}</Term></span>
