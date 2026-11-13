@@ -126,34 +126,40 @@ function levelsOf(market: "US" | "KR", p: Profile | undefined): Level[] {
 
 async function industryPeers(client: ReturnType<typeof getClient>, market: "US" | "KR", symbol: string) {
   const prof = PROFILES[market]?.[symbol];
-  const all = Object.entries(PROFILES[market] ?? {});
-  let lv: Level | null = null;
-  let syms: string[] = [];
-  for (const l of levelsOf(market, prof)) {
-    const ms = all.filter(([, p]) => levelsOf(market, p).some((x) => x.key === l.key)).map(([k]) => k);
-    if (ms.length >= PEER_MIN) { lv = l; syms = ms; break; }
-  }
-  if (!lv) return null;
+  const levels = levelsOf(market, prof);
+  if (levels.length === 0) return null;
   try {
-    const ph = syms.map(() => "?").join(",");
+    // 최근 주 유니버스 값을 한 번에 읽고, 값이 있는 동료가 PEER_MIN곳 이상인 첫 묶음을 고른다 - 회사 정보 수가 아니라
+    // 실제 값 수로 골라야 밸류 등급(compute_watchlist_valuation)이 쓴 묶음과 같아진다(2026-11-13 삼성전자: 회사 정보로는
+    // Consumer Electronics 5곳 이상인데 값은 4곳 -> 등급은 KSIC 소분류로, 카드는 4곳 묶음으로 어긋났다).
     const rs = await client.execute({
       sql: `SELECT symbol, week_start, rev_yoy, om_now, fcf_yield_3y, psr FROM universe_peer_metrics
-            WHERE market = ? AND week_start = (SELECT MAX(week_start) FROM universe_peer_metrics WHERE market = ?) AND symbol IN (${ph})`,
-      args: [market, market, ...syms],
+            WHERE market = ? AND week_start = (SELECT MAX(week_start) FROM universe_peer_metrics WHERE market = ?)`,
+      args: [market, market],
     });
     if (rs.rows.length === 0) return null;
+    const keysOf: Record<string, string[]> = {};
+    for (const r of rs.rows) keysOf[String(r.symbol)] = levelsOf(market, PROFILES[market]?.[String(r.symbol)]).map((x) => x.key);
+    let lv: Level | null = null;
+    let rows: typeof rs.rows = [];
+    for (const l of levels) {
+      const hit = rs.rows.filter((r) => keysOf[String(r.symbol)].includes(l.key));
+      if (hit.filter((r) => num(r.psr) != null).length >= PEER_MIN) { lv = l; rows = hit; break; }   // 밸류 등급과 같은 기준(PSR 있는 동료 수)
+    }
+    if (!lv) return null;
+    const syms = rows.map((r) => String(r.symbol));
     const roe: Record<string, number | null> = {};
     const rr = await client.execute({
-      sql: `SELECT symbol, roe FROM watchlist_screening_results WHERE market = ? AND symbol IN (${ph})`,
+      sql: `SELECT symbol, roe FROM watchlist_screening_results WHERE market = ? AND symbol IN (${syms.map(() => "?").join(",")})`,
       args: [market, ...syms],
     });
     for (const r of rr.rows) roe[String(r.symbol)] = num(r.roe);
-    const vals: PeerVals[] = rs.rows.map((r) => ({
+    const vals: PeerVals[] = rows.map((r) => ({
       symbol: String(r.symbol), rev_yoy: num(r.rev_yoy), om_now: num(r.om_now), fcf_yield_3y: num(r.fcf_yield_3y),
       roe: roe[String(r.symbol)] ?? null, psr: num(r.psr),
     }));
     return { basis: lv.basis, sector: lv.key.startsWith("i:") ? prof?.s ?? null : null, industry: lv.name,
-             week: String(rs.rows[0].week_start), ...summarize(vals, symbol, market) };
+             week: String(rows[0].week_start), ...summarize(vals, symbol, market) };
   } catch {
     return null;   // 표가 아직 없으면(첫 주간 계산 전) 업종 칸만 빠진다
   }
