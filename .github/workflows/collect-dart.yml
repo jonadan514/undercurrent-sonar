@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "sample(몇 종목 표로 확인) / financials(유니버스 전체 재무) / watchlist(워치리스트 종목 재무) / profiles(사업정보 없는 종목 보강) / profiles-refresh(DART로 채운 것 다시 받기) / ksic(유니버스 업종코드 모으기 - 업종 기준 밸류 등급·동료 비교용)"
+        description: "sample(몇 종목 표로 확인) / financials(유니버스 전체 재무) / watchlist(워치리스트 종목 재무) / profiles(사업정보 없는 종목 보강) / profiles-refresh(DART로 채운 것 다시 받기) / ksic(유니버스 업종코드 모으기 - 업종 기준 밸류 등급·동료 비교용) / prelim-history(지난 1년 잠정실적 날짜 - 한국 실적 발표일 예상용)"
         required: true
         default: "sample"
       tickers:
@@ -73,18 +73,21 @@ jobs:
               python scripts/fill_kr_profiles_from_dart.py --refresh-dart ;;
             ksic)
               python scripts/fetch_kr_ksic.py ;;
+            prelim-history)
+              python scripts/fetch_kr_prelim_history.py ;;
             *) echo "알 수 없는 mode"; exit 1 ;;
           esac
       # 사업정보 보강 결과와 기업코드 캐시(+ 수집 시각을 적은 메타 파일)를 저장소에 남긴다.
       # 메타 파일이 없으면 캐시를 늘 오래된 것으로 보고 매번 corpCode.zip을 다시 받는다.
       # (sample은 확인용이라 커밋하지 않음)
       - name: Commit profiles
-        if: startsWith(inputs.mode, 'profiles') || inputs.mode == 'ksic'
+        if: startsWith(inputs.mode, 'profiles') || inputs.mode == 'ksic' || inputs.mode == 'prelim-history'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/kr_profiles.json data/dart_corp_codes.json data/dart_corp_codes_meta.json
           [ -f data/kr_ksic.json ] && git add data/kr_ksic.json
+          [ -f data/kr_prelim_dates.json ] && git add data/kr_prelim_dates.json
           if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
           git commit -m "data: DART로 한국 사업정보 보강"
           git pull --rebase --autostash

@@ -240,14 +240,18 @@ def business_overview(rcept_no: str, max_chars: int = 2500) -> str | None:
 
 # ── 공시 목록·원문 표 (2026-10-17, 공급계약·잠정실적 알림) ─────────────
 
-def list_disclosures(bgn_de: str, end_de: str, pblntf_ty: str = "I", max_pages: int = 40) -> list[dict]:
+def list_disclosures(bgn_de: str, end_de: str, pblntf_ty: str = "I", max_pages: int = 40,
+                     pblntf_detail_ty: str | None = None) -> list[dict]:
     """기간 안의 전체 공시 목록(기업 지정 없음 - DART는 이때 기간 3개월까지). pblntf_ty I = 거래소공시.
+    pblntf_detail_ty(2026-11-13): I002 = 공정공시(잠정실적이 여기) 처럼 더 좁힐 때.
     항목: corp_code, corp_name, stock_code, corp_cls(Y 코스피/K 코스닥), report_nm, rcept_no, rcept_dt."""
     out: list[dict] = []
     page = 1
     while page <= max_pages:
-        data = _get("list.json", {"bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": pblntf_ty,
-                                  "page_no": str(page), "page_count": "100"})
+        params = {"bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": pblntf_ty, "page_no": str(page), "page_count": "100"}
+        if pblntf_detail_ty:
+            params["pblntf_detail_ty"] = pblntf_detail_ty
+        data = _get("list.json", params)
         out.extend(data.get("list") or [])
         total_page = int(data.get("total_page") or 1)
         if page >= total_page:
