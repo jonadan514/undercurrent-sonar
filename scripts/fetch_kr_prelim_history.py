@@ -25,7 +25,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from collectors import dart_client as dart  # noqa: E402
 
 OUT = ROOT / "data" / "kr_prelim_dates.json"
-WINDOW = 85   # DART 기업 지정 없는 검색은 3개월까지
+WINDOW = 30   # DART 기업 지정 없는 검색은 3개월까지 - 1~3월은 공정공시가 많아 85일 창이 2만 건(200쪽) 상한에 잘렸다(11/13)
+MAX_PAGES = 200
 
 
 def is_prelim(report_nm: str) -> bool:
@@ -37,17 +38,21 @@ def is_prelim(report_nm: str) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=400)
+    ap.add_argument("--start", default=None, help="YYYY-MM-DD - 이 구간만 다시(잘린 창 채우기)")
+    ap.add_argument("--end", default=None)
     args = ap.parse_args()
     have: dict[str, set[str]] = {}
     if OUT.exists():
         have = {k: set(v) for k, v in json.loads(OUT.read_text(encoding="utf-8")).items()}
-    end = date.today()
-    start = end - timedelta(days=args.days)
+    end = date.fromisoformat(args.end) if args.end else date.today()
+    start = date.fromisoformat(args.start) if args.start else end - timedelta(days=args.days)
     cur = start
     total = 0
     while cur <= end:
         stop = min(cur + timedelta(days=WINDOW), end)
-        rows = dart.list_disclosures(cur.strftime("%Y%m%d"), stop.strftime("%Y%m%d"), "I", max_pages=200, pblntf_detail_ty="I002")
+        rows = dart.list_disclosures(cur.strftime("%Y%m%d"), stop.strftime("%Y%m%d"), "I", max_pages=MAX_PAGES, pblntf_detail_ty="I002")
+        if len(rows) >= MAX_PAGES * 100:
+            print(f"[prelim-hist] 경고: {cur} ~ {stop} 상한({MAX_PAGES * 100}건)에 닿음 - 창을 더 줄여야 한다", flush=True)
         hit = [r for r in rows if r.get("stock_code") and is_prelim(r.get("report_nm", ""))]
         for r in hit:
             d = str(r["rcept_dt"])

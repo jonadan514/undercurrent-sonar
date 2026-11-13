@@ -74,7 +74,10 @@ jobs:
             ksic)
               python scripts/fetch_kr_ksic.py ;;
             prelim-history)
-              python scripts/fetch_kr_prelim_history.py ;;
+              # tickers 칸에 "2026-01-01 2026-03-31"처럼 두 날짜를 주면 그 구간만 다시(잘린 창 채우기)
+              set -- ${{ inputs.tickers }}
+              if [ "$#" -eq 2 ] && [[ "$1" == 20* ]]; then python scripts/fetch_kr_prelim_history.py --start "$1" --end "$2";
+              else python scripts/fetch_kr_prelim_history.py; fi ;;
             *) echo "알 수 없는 mode"; exit 1 ;;
           esac
       # 사업정보 보강 결과와 기업코드 캐시(+ 수집 시각을 적은 메타 파일)를 저장소에 남긴다.
