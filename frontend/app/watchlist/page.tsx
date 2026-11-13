@@ -35,7 +35,10 @@ interface Candidate {
   // 4분기 중 한 분기라도 비면 null, PER은 적자면 null(원칙 4 - 계산 불가는 탈락이 아니다).
   psr?: number | null;
   per?: number | null;
-  valuation_tier?: string | null;   // 싼 편 / 중간 / 비싼 편. 같은 시장 후보 안에서 3등분
+  valuation_tier?: string | null;   // 싼 편 / 중간 / 비싼 편. 같은 시장·같은 업종 유니버스 PSR 분포에서 위치(2026-11-13, 예전엔 같은 시장 후보 3등분)
+  valuation_basis?: string | null;  // "업종 · Oil & Gas E&P" / "섹터 · Energy" / "시장 후보"(예전 방식)
+  psr_peer_median?: number | null;
+  psr_peer_n?: number | null;
   // 성장 지표. 밸류와 달리 절대 기준(0%, 10%)으로 나눈다 - 후보 대부분이 이미
   // 성장 중이라 순위로 나누면 +3% 성장 기업에 "역성장" 라벨이 붙는다(SPEC_watchlist_growth.md).
   revenue_cagr_3y?: number | null;
@@ -227,13 +230,13 @@ const INDICATOR_INFO = {
   valuation: {
     title: "밸류 위치 (PSR 기준)",
     desc: "PSR은 시가총액을 최근 4분기 매출 합으로 나눈 값, PER은 순이익 합으로 나눈 값입니다. "
-        + "같은 시장 후보 전체를 PSR 낮은 순으로 줄 세워 셋으로 나눈 위치를 보여줍니다. "
-        + "LOW는 절대적으로 싸다는 뜻이 아니라 '이 후보들 중에서' PSR이 낮은 쪽이라는 뜻이고, 순위나 점수는 아닙니다. "
+        + "PSR은 업종마다 정상 범위가 달라(소프트웨어 8~10배, 정유 0.5~1배) 같은 시장·같은 업종의 유니버스 전체(필터 통과 후보만이 아니라)와 견줍니다. "
+        + "업종 동료가 5곳 미만이면 섹터로 넓힙니다. LOW는 절대적으로 싸다는 뜻이 아니라 '같은 업종 안에서' PSR이 낮은 쪽이라는 뜻이고, 순위나 점수는 아닙니다. "
         + "4분기가 이어지지 않으면 '-', 적자 기업은 PER만 '-'로 둡니다.",
     levels: [
-      { range: "LOW", color: GOOD, label: "후보 중 PSR 하위 1/3" },
-      { range: "MID", color: WARN, label: "가운데 1/3" },
-      { range: "HIGH", color: CAUTION, label: "후보 중 PSR 상위 1/3" },
+      { range: "LOW", color: GOOD, label: "업종 동료 4곳 중 3곳보다 PSR 낮음" },
+      { range: "MID", color: WARN, label: "업종 가운데 절반" },
+      { range: "HIGH", color: CAUTION, label: "업종 동료 4곳 중 3곳보다 PSR 높음" },
       { range: "-", color: TEXT_FAINT, label: "분기 재무가 모자라 계산 불가" },
     ],
   },
@@ -327,7 +330,7 @@ const fmtPsr = (v?: number | null) => (v == null ? "-" : v >= 100 ? v.toFixed(0)
 const fmtPer = (v?: number | null) => (v == null ? "-" : v >= 100 ? v.toFixed(0) : v.toFixed(1));
 
 // ── 같은 업종 후보 중앙값 (2026-10-19) ───────────────────────────────────────
-// 밸류 등급은 같은 시장 후보 전체 안의 위치라서, 은행처럼 업종 자체가 싼 곳은 늘 "싼 편"이 된다.
+// 밸류 등급은 2026-11-13부터 같은 업종 유니버스 기준이다(valuation_basis·psr_peer_median). 이 후보 업종 중앙값은 그 값이 없을 때(예전 행)만 보인다.
 // 같은 시장·같은 업종 후보의 중앙값을 옆에 두어 그걸 가려 보게 한다. 순위·판정은 만들지 않는다
 // (원칙 1) - 숫자만 나란히. 값이 있는 후보가 PEER_MIN곳 미만이면 중앙값을 내지 않는다.
 const PEER_MIN = 5;
@@ -626,9 +629,11 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
 
             {/* 밸류 위치 — 위 4칸이 전부 "튼튼한가"라서, "싼가"는 따로 한 줄로 둔다.
                 단독 카드로 두는 이유: 위 격자에 끼워 넣으면 재무 건전성 지표처럼
-                읽히는데 이건 판단 기준이 다르다(같은 시장 후보와의 상대 위치). */}
+                읽히는데 이건 판단 기준이 다르다(같은 업종 유니버스와의 상대 위치, 2026-11-13). */}
             <div className="p-3 mt-3" style={insetCard}>
-              <p className={eyebrow + " mb-1"} style={{ color: TEXT_SECONDARY }}>밸류 위치 (같은 시장 후보 중)</p>
+              <p className={eyebrow + " mb-1"} style={{ color: TEXT_SECONDARY }}>
+                밸류 위치 ({c.valuation_basis && c.valuation_basis !== "시장 후보" ? `같은 ${c.valuation_basis.split(" · ")[0]} 안에서` : "같은 시장 후보 중"})
+              </p>
               <div className="flex items-center gap-2 flex-wrap">
                 <ValuationBadge tier={c.valuation_tier} />
                 <span className="text-[12px]" style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>
@@ -639,13 +644,21 @@ function DetailModal({ c, peer, inList, note, onAdd, onSaveNote, onClose }: {
               </div>
               <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY }}>
                 {c.valuation_tier
-                  ? "최근 4분기 매출·순이익 합 기준. 절대적인 고평가·저평가가 아니라 후보들 중 위치입니다."
+                  ? (c.valuation_basis && c.valuation_basis !== "시장 후보"
+                    ? "최근 4분기 매출·순이익 합 기준. 절대적인 고평가·저평가가 아니라 같은 업종 안에서 위치입니다."
+                    : "최근 4분기 매출·순이익 합 기준. 절대적인 고평가·저평가가 아니라 후보들 중 위치입니다.")
                   : c.psr != null
-                    ? "후보 중 PSR을 구한 곳이 3곳 미만이라 등급을 나누지 않습니다."
+                    ? "같은 업종·섹터에 PSR을 구한 동료가 5곳 미만이라 등급을 나누지 않습니다(데이터 부족)."
                     : "최근 4분기 재무나 시가총액이 없어 계산할 수 없습니다."}
                 {c.psr != null && c.per == null && " 순이익 합이 0 이하여서 PER은 표시하지 않습니다."}
               </p>
-              {peer && (
+              {c.psr_peer_median != null && c.valuation_basis && (
+                <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>
+                  {c.valuation_basis.startsWith("업종") ? "업종" : "섹터"}({c.valuation_basis.split(" · ")[1] ? sectorKo(c.valuation_basis.split(" · ")[1]) : ""}) 유니버스 PSR 중앙값 {fmtPsr(c.psr_peer_median)}
+                  <span style={{ color: TEXT_MUTED }}> ({c.psr_peer_n ?? "-"}곳) · 필터 통과 여부와 상관없이 같은 시장 유니버스 전체</span>
+                </p>
+              )}
+              {peer && !(c.psr_peer_median != null && c.valuation_basis) && (
                 <p className="text-[12px] mt-1" style={{ color: TEXT_SECONDARY, fontVariantNumeric: "tabular-nums" }}>
                   {peer.psr != null || peer.per != null ? (
                     <>

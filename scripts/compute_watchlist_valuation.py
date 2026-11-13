@@ -48,6 +48,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -60,7 +61,7 @@ from src.analyzers.company_growth import (pick_latest, quarterly_margin_change, 
                                            growth_tier as calc_growth_tier,
                                            operating_margin_direction,
                                            revenue_cagr, revenue_yoy)
-from src.analyzers.company_valuation import per as calc_per, psr as calc_psr, theme_valuation_tiers
+from src.analyzers.company_valuation import peer_valuation_tier, per as calc_per, psr as calc_psr, theme_valuation_tiers
 from src.analyzers.company_cashflow import fcf_yield
 from src.analyzers.trap_filter import FINANCIAL_SECTORS
 from src.db.data_store import get_db
@@ -84,7 +85,10 @@ LATE_COLUMNS = [
     # FCF 수익률(2026-10-19) - 3년 평균 FCF / 시가총액, 상세 카드 전용(등급 없음, company_cashflow.py)
     ("fcf_yield_3y", "REAL"), ("fcf_yield_latest", "REAL"), ("fcf_negative_years", "INTEGER"),
     ("fcf_latest_year", "TEXT"),
+    # 업종 기준 밸류 등급(2026-11-13) - 등급을 낸 비교 집단(업종/섹터 이름)과 그 집단 PSR 중앙값·종목 수
+    ("valuation_basis", "TEXT"), ("psr_peer_median", "REAL"), ("psr_peer_n", "INTEGER"),
 ]
+PROFILES = ROOT / "frontend" / "src" / "data" / "companyProfiles.json"
 
 UPDATE_SQL = (
     "UPDATE watchlist_candidates SET psr = ?, per = ?, valuation_tier = ?, "
@@ -167,6 +171,50 @@ def write_updates(conn, market: str, updates: list[tuple]) -> None:
 RAW_FIRST_MARKETS = {"US"}
 
 
+def load_profiles() -> dict:
+    try:
+        return json.loads(PROFILES.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - 파일이 없으면 업종을 모른다 -> 예전 방식
+        return {}
+
+
+def industry_tiers(conn, market: str, candidates: list[dict], psr_by_ticker: dict[str, float | None]) -> dict | None:
+    """후보마다 업종(없으면 섹터) 유니버스 PSR 분포에서 등급. 유니버스 PSR이 하나도 없으면 None(예전 방식으로)."""
+    try:
+        rows = conn.execute(
+            "SELECT symbol, psr FROM universe_peer_metrics WHERE market = ? AND psr IS NOT NULL "
+            "AND week_start = (SELECT MAX(week_start) FROM universe_peer_metrics WHERE market = ? AND psr IS NOT NULL)",
+            (market, market)).fetchall()
+    except Exception as e:  # noqa: BLE001 - 표·열이 아직 없으면
+        _log(f"{market}: 유니버스 PSR 조회 실패 {type(e).__name__}")
+        return None
+    if not rows:
+        return None
+    prof = load_profiles().get(market, {})
+    by_ind: dict[str, list[float]] = {}
+    by_sec: dict[str, list[float]] = {}
+    for sym, v in rows:
+        p = prof.get(sym) or {}
+        v = float(v)
+        if p.get("i"):
+            by_ind.setdefault(p["i"], []).append(v)
+        if p.get("s"):
+            by_sec.setdefault(p["s"], []).append(v)
+    out = {}
+    for c in candidates:
+        p = prof.get(c["symbol"]) or {}
+        out[c["symbol"]] = peer_valuation_tier(psr_by_ticker.get(c["symbol"]), p.get("i"), p.get("s") or c.get("sector"), by_ind, by_sec)
+    return out
+
+
+def write_peer_basis(conn, market: str, peer: dict) -> None:
+    for sym, x in peer.items():
+        basis = f"{x['basis']} · {x['group']}" if x["basis"] and x["group"] else x["basis"]
+        conn.execute("UPDATE watchlist_candidates SET valuation_basis = ?, psr_peer_median = ?, psr_peer_n = ? WHERE market = ? AND symbol = ?",
+                     (basis, x["median"], x["n"] or None, market, sym))
+    conn.commit()
+
+
 def run(conn, markets: list[str]) -> None:
     for market in markets:
         candidates = load_candidates(conn, market)
@@ -218,8 +266,14 @@ def run(conn, markets: list[str]) -> None:
                 income_periods(cached.get("cashflow")) if cached and not is_financial else [],
                 c["market_cap"])
 
-        # 밸류: 같은 시장 후보 전체 안에서 3등분(위 모듈 설명 참고 - 분기 화면은 테마 안에서 나눈다).
-        tiers = theme_valuation_tiers(psr_by_ticker)
+        # 밸류(2026-11-13): 같은 시장·같은 업종의 유니버스 PSR 분포에서 위치(company_valuation.peer_valuation_tier).
+        # 유니버스 PSR(universe_peer_metrics, 일요일 실적 축 계산이 씀)이 아직 없으면 예전 방식(같은 시장 후보 3등분)으로.
+        peer = industry_tiers(conn, market, candidates, psr_by_ticker)
+        if peer is None:
+            _log(f"{market}: 유니버스 PSR 없음 - 예전 방식(같은 시장 후보 안에서 3등분)")
+            old = theme_valuation_tiers(psr_by_ticker)
+            peer = {sym: {"tier": old[sym], "basis": "시장 후보", "group": None, "median": None, "n": 0} for sym in old}
+        tiers = {sym: peer[sym]["tier"] for sym in peer}
         # 성장: 절대 기준이라 등급을 매기는 데 다른 종목 값이 필요 없다 - 종목별로 독립 계산.
         growth_tiers = {sym: calc_growth_tier(cagr_by_ticker[sym]) for sym in cagr_by_ticker}
 
@@ -238,6 +292,10 @@ def run(conn, markets: list[str]) -> None:
              c["symbol"])
             for c in candidates
         ])
+
+        write_peer_basis(conn, market, peer)
+        dist = Counter((peer[s]["basis"], peer[s]["tier"]) for s in peer)
+        _log(f"{market}: 밸류 등급 기준·분포 {dict(dist)}")
 
         have_psr = sum(1 for v in psr_by_ticker.values() if v is not None)
         have_per = sum(1 for v in per_by_ticker.values() if v is not None)

@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS universe_peer_metrics (
   rev_yoy      REAL,
   om_now       REAL,
   fcf_yield_3y REAL,
+  psr          REAL,
   computed_at  TEXT NOT NULL,
   PRIMARY KEY (market, symbol, week_start)
 )
@@ -227,21 +228,26 @@ CREATE TABLE IF NOT EXISTS universe_peer_metrics (
 
 
 def upsert_universe_peer_metrics(conn, rows: list[tuple], chunk_size: int = 100) -> None:
-    """rows: (market, symbol, week_start, rev_yoy, om_now, fcf_yield_3y, computed_at). 같은 주를 다시 돌리면 그 주 줄만 고친다."""
-    cols = ("market", "symbol", "week_start", "rev_yoy", "om_now", "fcf_yield_3y", "computed_at")
+    """rows: (market, symbol, week_start, rev_yoy, om_now, fcf_yield_3y, psr, computed_at). 같은 주를 다시 돌리면 그 주 줄만 고친다.
+    psr(2026-11-13): 워치리스트 밸류 등급을 업종 기준으로 매기려고 - 시가총액 ÷ 최근 4분기 매출(company_valuation.psr)."""
+    cols = ("market", "symbol", "week_start", "rev_yoy", "om_now", "fcf_yield_3y", "psr", "computed_at")
     one = "(" + ", ".join("?" * len(cols)) + ")"
     for i in range(0, len(rows), chunk_size):
         chunk = rows[i:i + chunk_size]
         conn.execute(
             f"INSERT INTO universe_peer_metrics ({', '.join(cols)}) VALUES {', '.join([one] * len(chunk))} "
             "ON CONFLICT(market, symbol, week_start) DO UPDATE SET rev_yoy = excluded.rev_yoy, om_now = excluded.om_now, "
-            "fcf_yield_3y = excluded.fcf_yield_3y, computed_at = excluded.computed_at",
+            "fcf_yield_3y = excluded.fcf_yield_3y, psr = excluded.psr, computed_at = excluded.computed_at",
             tuple(v for r in chunk for v in r),
         )
 
 
 def ensure_schema(conn) -> None:
     conn.execute(UNIVERSE_PEER_METRICS_DDL)
+    try:
+        conn.execute("ALTER TABLE universe_peer_metrics ADD COLUMN psr REAL")   # 2026-11-13 늦게 붙인 열
+    except Exception:
+        pass  # 이미 있음
     conn.execute(THEME_NEWS_DDL)
     conn.execute(THEME_SIGNALS_DDL)
     conn.execute(EARNINGS_SURPRISE_DDL)

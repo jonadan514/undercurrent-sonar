@@ -246,7 +246,9 @@ function CompanyView() {
             <p style={{ color: MUTED }}>밸류 · 성장 (워치리스트 후보일 때만)</p>
             {cand ? (
               <p style={{ color: SECONDARY }}>
-                밸류 <b>{tierLabel(cand.valuation_tier as string | null)}</b> · PSR {cand.psr != null ? Number(cand.psr).toFixed(2) : "-"} · PER {cand.per != null ? Number(cand.per).toFixed(1) : "-"}
+                밸류 <b>{tierLabel(cand.valuation_tier as string | null)}</b> · PSR {cand.psr != null ? Number(cand.psr).toFixed(2) : "-"}
+                {cand.psr_peer_median != null && cand.valuation_basis && <span style={{ color: MUTED }}> ({String(cand.valuation_basis).split(" · ")[0]} 중앙값 {Number(cand.psr_peer_median).toFixed(2)})</span>}
+                {" "}· PER {cand.per != null ? Number(cand.per).toFixed(1) : "-"}
                 <br />성장 <b>{(cand.growth_tier as string) ?? "-"}</b> · 매출 3년 {pct(cand.revenue_cagr_3y as number | null)} · 최근 1년 {pct(cand.revenue_yoy as number | null)}
                 {cand.fcf_yield_3y != null && <> · FCF 수익률 3년 {pct(cand.fcf_yield_3y as number, 1)}</>}
               </p>

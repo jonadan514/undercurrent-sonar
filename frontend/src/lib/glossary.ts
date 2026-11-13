@@ -104,7 +104,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   psr: {
     term: "PSR (주가매출비율)", group: "재무",
     short: "회사 몸값(시가총액)이 1년 매출의 몇 배인지입니다. 낮을수록 매출에 비해 싸게 거래됩니다.",
-    use: "'LOW/MID/HIGH'는 같은 시장 후보 안에서 PSR 위치입니다. 업종마다 정상 범위가 달라서 상세 화면에 같은 업종 중앙값을 함께 보여줍니다.",
+    use: "'LOW/MID/HIGH'는 같은 시장·같은 업종 기업들(필터 통과 여부와 상관없이) 사이에서 PSR 위치입니다. 업종마다 정상 범위가 달라서 업종끼리만 견줍니다.",
   },
   per: {
     term: "PER (주가수익비율)", group: "재무",

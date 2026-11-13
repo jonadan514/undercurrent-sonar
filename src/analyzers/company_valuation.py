@@ -111,3 +111,29 @@ def theme_valuation_tiers(psr_by_ticker: dict[str, float | None]) -> dict[str, s
         else:
             tiers[ticker] = EXPENSIVE
     return tiers
+
+
+# ── 업종 기준 밸류 등급 (2026-11-13, 마스터 플랜 Phase C '섹터 중앙값 계산기') ──────────────
+# 예전엔 같은 시장 후보 전체를 PSR 순위로 3등분 - PSR은 업종마다 정상 범위가 달라(소프트웨어 8-10배, 정유 0.5-1배)
+# 소프트웨어는 늘 '비싼 편', 에너지는 늘 '싼 편'이었다. 이제 같은 시장·같은 업종의 **유니버스 전체**(통과 후보만이 아니라)
+# PSR 분포에서 이 종목 위치로: 가운데 절반(25-75%)보다 아래 '싼 편', 위 '비싼 편', 안 '중간'. 동료 비교 화면의
+# '동료보다 낮음/높음'과 같은 잣대. 업종 동료가 PEER_MIN곳 미만이면 섹터로, 그래도 모자라면 None(데이터부족 - 원칙 4).
+PEER_MIN = 5
+
+
+def _quantile(sorted_vals: list[float], p: float) -> float:
+    i = (len(sorted_vals) - 1) * p
+    lo, hi = int(i), min(int(i) + 1, len(sorted_vals) - 1)
+    return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (i - lo)
+
+
+def peer_valuation_tier(own_psr: float | None, industry: str | None, sector: str | None,
+                        psr_by_industry: dict[str, list[float]], psr_by_sector: dict[str, list[float]]) -> dict:
+    """반환: {tier, basis('업종'/'섹터'/None), group(업종·섹터 이름), median, n}. own_psr가 없으면 tier None."""
+    for basis, key, table in (("업종", industry, psr_by_industry), ("섹터", sector, psr_by_sector)):
+        vals = sorted(v for v in table.get(key or "", []) if v is not None and v > 0)
+        if key and len(vals) >= PEER_MIN:
+            q1, med, q3 = _quantile(vals, 0.25), _quantile(vals, 0.5), _quantile(vals, 0.75)
+            tier = None if own_psr is None else CHEAP if own_psr < q1 else EXPENSIVE if own_psr > q3 else MID
+            return {"tier": tier, "basis": basis, "group": key, "median": med, "n": len(vals)}
+    return {"tier": None, "basis": None, "group": None, "median": None, "n": 0}

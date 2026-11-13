@@ -263,6 +263,7 @@ const PEER_ROWS: { key: string; label: string; fmt: (v: number) => string; hint:
   { key: "om_now", label: "영업이익률", fmt: (v) => `${(v * 100).toFixed(1)}%`, hint: "최근 분기" },
   { key: "fcf_yield_3y", label: "FCF 수익률", fmt: (v) => `${(v * 100).toFixed(1)}%`, hint: "3년 평균 잉여현금흐름 / 시가총액, 금융업은 계산 안 함" },
   { key: "roe", label: "ROE", fmt: (v) => `${v.toFixed(1)}%`, hint: "재무 필터가 계산한 값" },
+  { key: "psr", label: "PSR", fmt: (v) => `${v >= 100 ? v.toFixed(0) : v.toFixed(1)}배`, hint: "시가총액 / 최근 4분기 매출 - 업종 묶음에만(워치리스트 밸류 등급과 같은 비교)" },
 ];
 const PEER_GRID = "sm:grid-cols-[6rem_4.5rem_7.5rem_minmax(0,1fr)_9rem] gap-x-2";
 function PeerBar({ m }: { m: PeerMetric }) {
@@ -286,7 +287,8 @@ function peerWhere(m: PeerMetric): { text: string; color: string } {
   if (m.self < m.q1) return { text: "동료보다 낮음", color: TEXT_BODY };
   return { text: "동료와 비슷", color: TEXT_SECONDARY };
 }
-function PeerList({ c, peers }: { c: StockRef; peers: PeerRow[] }) {
+function PeerList({ c, peers, keys }: { c: StockRef; peers: PeerRow[]; keys: string[] }) {
+  const rows = PEER_ROWS.filter((r) => keys.includes(r.key));
   const [open, setOpen] = useState(false);
   const label = (p: PeerRow) => (c.market === "KR" ? (p.name && p.name !== p.symbol ? p.name : krStockName(p.symbol)) : p.symbol);
   return (
@@ -300,7 +302,7 @@ function PeerList({ c, peers }: { c: StockRef; peers: PeerRow[] }) {
             <thead>
               <tr style={{ color: TEXT_MUTED }}>
                 <th className="text-left font-normal py-1 pr-1">종목 <span className="hidden sm:inline" style={{ color: TEXT_FAINT }}>(이름순)</span></th>
-                {PEER_ROWS.map((r) => <th key={r.key} className="text-right font-normal py-1 px-1 sm:px-1.5 whitespace-nowrap" title={r.hint}>{r.label}</th>)}
+                {rows.map((r) => <th key={r.key} className="text-right font-normal py-1 px-1 sm:px-1.5 whitespace-nowrap" title={r.hint}>{r.label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -313,7 +315,7 @@ function PeerList({ c, peers }: { c: StockRef; peers: PeerRow[] }) {
                         : <a href={`/company?stock=${c.market}:${encodeURIComponent(p.symbol)}`} className="hover:underline" style={{ color: TEXT_BODY }}
                              title={p.name ?? undefined}>{label(p)}</a>}
                     </td>
-                    {PEER_ROWS.map((r) => {
+                    {rows.map((r) => {
                       const v = p[r.key];
                       return <td key={r.key} className="text-right py-1 px-1 sm:px-1.5" style={{ color: typeof v === "number" ? (me ? ACCENT : TEXT_SECONDARY) : TEXT_FAINT }}>
                         {typeof v === "number" ? r.fmt(v) : "-"}</td>;
@@ -369,7 +371,7 @@ function PeerGroup({ c, title, g }: { c: StockRef; title: ReactNode; g: PeerGrou
           );
         })}
       </div>
-      {g.peers && g.peers.length > 0 && <PeerList c={c} peers={g.peers} />}
+      {g.peers && g.peers.length > 0 && <PeerList c={c} peers={g.peers} keys={Object.keys(g.metrics)} />}
     </div>
   );
 }

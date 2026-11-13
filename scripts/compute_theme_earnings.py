@@ -42,6 +42,7 @@ from analyzers.company_growth import pick_latest, quarterly_margin_change
 from collectors.watchlist_collector import get_kr_universe, get_us_universe
 from collectors.earnings_surprise_collector import summarize_theme
 from src.analyzers.company_cashflow import fcf_yield
+from src.analyzers.company_valuation import psr as calc_psr
 from src.analyzers.trap_filter import FINANCIAL_SECTORS
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -100,18 +101,28 @@ def member_fcf(data: dict | None, universe_cap: float | None) -> dict:
 
 
 def universe_peer_rows(universe_by_market: dict[str, list[str]], week_start: str, now: str, revenue_by_ticker: dict,
-                       margin_by_ticker: dict, fcf_of) -> list[tuple]:
-    """업종 동료 비교용 유니버스 전체 값(2026-11-11). 세 값이 다 없는 종목은 줄을 만들지 않는다(데이터부족 - 화면에서 빠진다)."""
+                       margin_by_ticker: dict, fcf_of, psr_of=lambda mk, t: None) -> list[tuple]:
+    """업종 동료 비교용 유니버스 전체 값(2026-11-11, PSR은 11-13). 네 값이 다 없는 종목은 줄을 만들지 않는다(데이터부족 - 화면에서 빠진다)."""
     rows = []
     for market, syms in universe_by_market.items():
         for t in syms:
             y = yoy_growth(revenue_by_ticker.get(t))
             om = (margin_by_ticker.get(t) or {}).get("now")
             f = fcf_of(t)
-            if y is None and om is None and f is None:
+            p = psr_of(market, t)
+            if y is None and om is None and f is None and p is None:
                 continue
-            rows.append((market, t, week_start, y, om, f, now))
+            rows.append((market, t, week_start, y, om, f, p, now))
     return rows
+
+
+def universe_cap_of(t: str, universe_cap: dict[str, float], financials: dict) -> float | None:
+    """PSR용 시가총액 - 후보 값·한국 유니버스 파일 먼저(member_fcf와 같은 순서), 없으면 재무 캐시 info.marketCap."""
+    cap = universe_cap.get(t) or ((financials.get(t) or {}).get("info") or {}).get("marketCap")
+    try:
+        return float(cap) if cap else None
+    except (TypeError, ValueError):
+        return None
 
 
 def main() -> None:
@@ -198,6 +209,7 @@ def main() -> None:
     # 한국(DART)은 2026-11-02, 미국(SEC 먼저, 없으면 유니버스 yfinance)은 2026-11-05부터(수집 경로 정리 2단계 - 비교에서
     # 화살표가 바뀌는 테마 0/32, 기준 성장률 표본 450 → 890). 소속 기업과 기준 성장률 표본(유니버스) 모두 같은 규칙이라
     # 기준과 비교 대상의 출처가 어긋나지 않는다. 미국은 소속 기업 분기 영업이익률(표시용)도 같은 규칙으로 고른다.
+    raw_by_market: dict[str, dict] = {}
     for market in ("KR", "US"):
         mk_needed = sorted({m["ticker"] for (_, mk), ms in members_by_theme_market.items() if mk == market for m in ms}
                            | set(universe_by_market.get(market, [])))
@@ -208,6 +220,7 @@ def main() -> None:
         except Exception as e:  # noqa: BLE001 - 표가 없으면 예전처럼 재무 캐시만
             _log(f"{market} 공시 원본 분기 재무 조회 실패 {type(e).__name__} - 재무 캐시만")
             raw_q = {}
+        raw_by_market[market] = raw_q   # 업종 동료 비교용 PSR(최근 4분기 매출)도 같은 표로
         src_count = {"DART": 0, "yfinance": 0, None: 0}
         for t in mk_needed:
             series, src = pick_revenue(revenue_by_ticker.get(t), dart_revenue_series(raw_q.get(t, [])))
@@ -272,10 +285,11 @@ def main() -> None:
     try:
         uni_rows = universe_peer_rows(
             universe_by_market, week_start, now, revenue_by_ticker, margin_by_ticker,
-            lambda t: (fcf_by_ticker.get(t) or member_fcf(financials.get(t), universe_cap.get(t)))["yield_3y"])
+            lambda t: (fcf_by_ticker.get(t) or member_fcf(financials.get(t), universe_cap.get(t)))["yield_3y"],
+            lambda mk, t: calc_psr(universe_cap_of(t, universe_cap, financials), raw_by_market.get(mk, {}).get(t, [])))
         upsert_universe_peer_metrics(conn, uni_rows)
         conn.commit()
-        _log(f"업종 동료 비교용 유니버스 값 {len(uni_rows)}종목 저장")
+        _log(f"업종 동료 비교용 유니버스 값 {len(uni_rows)}종목 저장 (PSR {sum(1 for r in uni_rows if r[6] is not None)})")
     except Exception as e:  # noqa: BLE001
         _log(f"업종 동료 비교용 값 저장 실패 {type(e).__name__}: {str(e)[:80]} - 테마 계산은 계속")
     if args.peer_metrics_only:

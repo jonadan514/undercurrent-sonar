@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const PEER_MIN = 5;
 type Profile = { n?: string; s?: string; i?: string };
 const PROFILES = profiles as unknown as Record<"US" | "KR", Record<string, Profile>>;
-const METRICS = ["rev_yoy", "om_now", "fcf_yield_3y", "roe"] as const;
+const METRICS = ["rev_yoy", "om_now", "fcf_yield_3y", "roe", "psr"] as const;   // psr은 업종 묶음에만(2026-11-13)
 type Metric = typeof METRICS[number];
 
 function quantile(sorted: number[], p: number): number {
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
       const vals = members.map((r) => ({
         symbol: String(r.ticker),
         rev_yoy: num(r.rev_yoy), om_now: num(r.om_now), fcf_yield_3y: num((r as Record<string, unknown>).fcf_yield_3y),
-        roe: roe[String(r.ticker)] ?? null,
+        roe: roe[String(r.ticker)] ?? null, psr: null,
       }));
       return { theme_id: tid, week: members[0] ? String(members[0].week_start) : null, ...summarize(vals, symbol, market) };
     }).filter((t) => t.members > 0);
@@ -94,7 +94,8 @@ type PeerVals = { symbol: string } & Record<Metric, number | null>;
 // 한 묶음(테마 또는 업종)의 지표별 중앙값·가운데 절반과 동료 줄(이름순)
 function summarize(vals: PeerVals[], symbol: string, market: "US" | "KR") {
   const self = vals.find((v) => v.symbol === symbol);
-  const metrics = Object.fromEntries(METRICS.map((m) => {
+  // 값이 하나도 없는 지표(테마 묶음의 PSR)는 빼서 화면 줄·열이 생기지 않게
+  const metrics = Object.fromEntries(METRICS.filter((m) => vals.some((v) => v[m] != null)).map((m) => {
     const xs = vals.map((v) => v[m]).filter((v): v is number => v != null).sort((a, b) => a - b);
     const enough = xs.length >= PEER_MIN;
     return [m, {
@@ -119,7 +120,7 @@ async function industryPeers(client: ReturnType<typeof getClient>, market: "US" 
   try {
     const ph = syms.map(() => "?").join(",");
     const rs = await client.execute({
-      sql: `SELECT symbol, week_start, rev_yoy, om_now, fcf_yield_3y FROM universe_peer_metrics
+      sql: `SELECT symbol, week_start, rev_yoy, om_now, fcf_yield_3y, psr FROM universe_peer_metrics
             WHERE market = ? AND week_start = (SELECT MAX(week_start) FROM universe_peer_metrics WHERE market = ?) AND symbol IN (${ph})`,
       args: [market, market, ...syms],
     });
@@ -132,7 +133,7 @@ async function industryPeers(client: ReturnType<typeof getClient>, market: "US" 
     for (const r of rr.rows) roe[String(r.symbol)] = num(r.roe);
     const vals: PeerVals[] = rs.rows.map((r) => ({
       symbol: String(r.symbol), rev_yoy: num(r.rev_yoy), om_now: num(r.om_now), fcf_yield_3y: num(r.fcf_yield_3y),
-      roe: roe[String(r.symbol)] ?? null,
+      roe: roe[String(r.symbol)] ?? null, psr: num(r.psr),
     }));
     return { sector: prof.s ?? null, industry: prof.i, week: String(rs.rows[0].week_start), ...summarize(vals, symbol, market) };
   } catch {

@@ -169,7 +169,7 @@ export default function GuidePage() {
         <SectionTitle>이 도구가 하는 것</SectionTitle>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {[
-            ["워치리스트",      "재무 건전성 필터(Piotroski·ROE·부채비율·이자보상배율·현금흐름)를 통과한 종목을 주 1회, 순위 없이 리스트업. 여기에 밸류(PSR/PER, 같은 시장 후보 중 LOW/MID/HIGH)와 성장(매출 3년 CAGR, 성장/정체/역성장) 축을 더해 보여줌. 티커·종목명 검색 지원"],
+            ["워치리스트",      "재무 건전성 필터(Piotroski·ROE·부채비율·이자보상배율·현금흐름)를 통과한 종목을 주 1회, 순위 없이 리스트업. 여기에 밸류(PSR/PER, 같은 업종 기업들 중 LOW/MID/HIGH)와 성장(매출 3년 CAGR, 성장/정체/역성장) 축을 더해 보여줌. 티커·종목명 검색 지원"],
             ["뉴스 관심도",  "후보 종목별 최근 1주 뉴스 헤드라인을 GPT가 HOT/WARM/COLD로 나눈 보조 정보 — 판정 아님"],
             ["섹터 분석",       "전환 중인 섹터 + 섹터별 지수 대비 상대강도. 한국은 코스피200 공식 섹터지수, 미국은 SPDR 11개 ETF 기준"],
             ["테마 레이더",     "미국·한국 산업 테마를 뉴스·실적·주가 세 축으로 주 1회 관찰, 정해진 조합에만 라벨 부여. Hidden(실적이 먼저)·Hype(뉴스가 먼저)·Broad(세 축 동반) 3단계로 묶어서 표시"],
@@ -259,8 +259,8 @@ export default function GuidePage() {
             <p className="text-[12px] font-bold text-white mb-1">워치리스트의 &quot;밸류&quot;와 &quot;성장&quot;은 기준이 다릅니다</p>
             <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
               둘 다 3단계 등급이지만 나누는 방식이 다릅니다. <span className="text-white">밸류(LOW/MID/HIGH)</span>는
-              지금 화면에 뜬 후보들을 PSR 기준으로 순서대로 줄 세워 3등분한 <span className="text-white">상대 등급</span>입니다 —
-              절대적으로 싸다는 뜻이 아니라 &quot;이 후보들 중에서&quot; PSR이 낮은 쪽이라는 뜻입니다.
+              같은 시장·같은 업종 기업들 사이에서 PSR 위치를 본 <span className="text-white">상대 등급</span>입니다 —
+              절대적으로 싸다는 뜻이 아니라 &quot;같은 업종 안에서&quot; PSR이 낮은 쪽이라는 뜻입니다(업종마다 정상 PSR이 달라서).
               <span className="text-white"> 성장(성장/정체/역성장)</span>은 반대로 매출 3년 성장률이 0%·10%를 넘는지 보는
               <span className="text-white"> 절대 기준</span>입니다 — 후보 대부분이 이미 성장 중이라 상대 등급으로 나누면
               실제로 성장 중인 기업에도 &quot;역성장&quot; 라벨이 붙어버리기 때문입니다.
@@ -278,7 +278,7 @@ export default function GuidePage() {
             <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
               같은 종목의 PSR 수치 자체는 두 화면이 동일한 계산식을 씁니다. 다만 등급을 매기는
               <span className="text-white"> 비교 대상이 다릅니다</span> — 분기 리서치는 같은 테마 소속 기업들 안에서,
-              워치리스트는 같은 시장의 후보 전체 안에서 3등분합니다. 비교 집단이 다르니 등급도 다르게 나오는 게 맞습니다.
+              워치리스트는 같은 업종의 유니버스 기업들과 견줍니다. 비교 집단이 다르니 등급도 다르게 나오는 게 맞습니다.
             </p>
           </div>
 

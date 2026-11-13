@@ -44,3 +44,10 @@ def test_universe_peer_rows_skips_all_missing():
     rows = universe_peer_rows({"US": ["AAA", "BBB", "CCC"]}, "2026-11-09", "t", {"AAA": rev},
                               {"BBB": {"now": 0.25}}, lambda t: None)
     assert [(r[1], r[3], r[4], r[5]) for r in rows] == [("AAA", pytest.approx(0.2), None, None), ("BBB", None, 0.25, None)]
+
+
+def test_universe_peer_rows_psr():
+    """PSR(2026-11-13)만 있어도 줄을 만든다 - 업종 기준 밸류 등급용."""
+    from compute_theme_earnings import universe_peer_rows
+    rows = universe_peer_rows({"KR": ["000001"]}, "2026-11-09", "t", {}, {}, lambda t: None, lambda mk, t: 1.5)
+    assert rows == [("KR", "000001", "2026-11-09", None, None, None, 1.5, "t")]

@@ -25,6 +25,8 @@ const REVQ_COLS = `${MARGIN_COLS}, rev_q_yoy, rev_q_tier, rev_q_quarter`;
 const TTM_COLS = `${REVQ_COLS}, rev_ttm_yoy, rev_ttm_tier, rev_ttm_quarter`;
 // FCF 수익률(2026-10-19) - 가장 늦게 붙은 열이라 가장 바깥 계층. 상세 카드 전용(필터 없음).
 const FCF_COLS = `${TTM_COLS}, fcf_yield_3y, fcf_yield_latest, fcf_negative_years, fcf_latest_year`;
+// 업종 기준 밸류 등급의 비교 집단·중앙값(2026-11-13) - 가장 늦게 붙은 열이라 가장 바깥 계층.
+const PEER_COLS = `${FCF_COLS}, valuation_basis, psr_peer_median, psr_peer_n`;
 
 export async function GET(request: Request) {
   try {
@@ -52,7 +54,8 @@ export async function GET(request: Request) {
     // 그걸 **빈 목록**으로 바꿔 버려서 후보 275종목이 0종목으로 보인다. 컬럼
     // 계층(전체 -> 성장 -> 밸류 -> 기본)을 하나씩 낮춰가며 재시도해 목록 자체는
     // 항상 뜨게 한다.
-    const res = await client.execute({ sql: FCF_COLS + tail, args })
+    const res = await client.execute({ sql: PEER_COLS + tail, args })
+      .catch(async () => await client.execute({ sql: FCF_COLS + tail, args }))
       .catch(async () => await client.execute({ sql: TTM_COLS + tail, args }))
       .catch(async () => await client.execute({ sql: REVQ_COLS + tail, args }))
       .catch(async () => await client.execute({ sql: MARGIN_COLS + tail, args }))

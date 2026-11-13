@@ -177,7 +177,9 @@ export async function GET(request: Request) {
   if (q0 && q0.net_income != null && q0.net_income < 0)
     cautions.push({ text: "최근 분기 순손실", why: q0.quarter });
   if (candidate && String(candidate.valuation_tier ?? "").includes("비싼"))
-    cautions.push({ text: "밸류 HIGH - 같은 시장 후보 중 비싼 쪽", why: "워치리스트 밸류 등급" });
+    cautions.push({ text: String(candidate.valuation_basis ?? "").startsWith("업종") || String(candidate.valuation_basis ?? "").startsWith("섹터")
+      ? `밸류 HIGH - 같은 ${String(candidate.valuation_basis).split(" · ")[0]} 동료 4곳 중 3곳보다 PSR이 높음` : "밸류 HIGH - 같은 시장 후보 중 비싼 쪽",
+      why: candidate.psr_peer_median != null ? `PSR ${Number(candidate.psr).toFixed(2)} · 중앙값 ${Number(candidate.psr_peer_median).toFixed(2)}` : "워치리스트 밸류 등급" });
   for (const f of warn8k) cautions.push({ text: `미국 8-K 주의 공시: ${f.labels.join(", ") || "주의 항목"}`, why: f.date });
   for (const d of krDisclosures.filter((x) => x.kind === "termination"))
     cautions.push({ text: "공급계약 해지 공시", why: d.date + (d.pct != null ? ` · 매출 대비 ${d.pct.toFixed(1)}%` : "") });
