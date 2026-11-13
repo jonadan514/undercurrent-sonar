@@ -50,4 +50,4 @@ jobs:
           ${{ inputs.quarter && format('--quarter {0}', inputs.quarter) || '' }}
           ${{ inputs.market && format('--market {0}', inputs.market) || '' }}
           ${{ inputs.theme_id && format('--theme-id {0}', inputs.theme_id) || '' }}
-          ${{ inputs.include_peripheral == 'true' && '--include-peripheral' || '' }}
+          ${{ inputs.include_peripheral && '--include-peripheral' || '' }}
