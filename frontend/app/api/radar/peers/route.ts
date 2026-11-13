@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // 업종 동료(industry): 테마 소속이 없는 종목도 같은 시장·같은 업종(회사 정보의 yfinance industry) 유니버스 종목과 견준다.
 // 값은 compute_theme_earnings.py가 유니버스 전체에 쓰는 universe_peer_metrics(테마 동료와 같은 함수·단위)의 최근 주.
 const PEER_MIN = 5;
-type Profile = { n?: string; s?: string; i?: string };
+type Profile = { n?: string; s?: string; i?: string; g?: [string, string][] };
 const PROFILES = profiles as unknown as Record<"US" | "KR", Record<string, Profile>>;
 const METRICS = ["rev_yoy", "om_now", "fcf_yield_3y", "roe", "psr"] as const;   // psr은 업종 묶음에만(2026-11-13)
 type Metric = typeof METRICS[number];
@@ -112,11 +112,28 @@ function summarize(vals: PeerVals[], symbol: string, market: "US" | "KR") {
   return { members: vals.length, metrics, peers };
 }
 
+// 비교 묶음 순서 - compute_watchlist_valuation(company_valuation.peer_levels)과 같게(2026-11-13):
+// 미국 yfinance 업종 → 섹터, 한국 yfinance 업종 → KSIC 소분류 → KSIC 중분류(한국은 섹터로 넓히지 않는다).
+type Level = { basis: string; key: string; name: string };
+function levelsOf(market: "US" | "KR", p: Profile | undefined): Level[] {
+  if (!p) return [];
+  const out: Level[] = [];
+  if (p.i) out.push({ basis: "업종", key: `i:${p.i}`, name: p.i });
+  if (market === "KR") (p.g ?? []).forEach(([key, name], i) => out.push({ basis: i === 0 ? "업종" : "업종 대분류", key, name }));
+  else if (p.s) out.push({ basis: "섹터", key: `s:${p.s}`, name: p.s });
+  return out;
+}
+
 async function industryPeers(client: ReturnType<typeof getClient>, market: "US" | "KR", symbol: string) {
   const prof = PROFILES[market]?.[symbol];
-  if (!prof?.i) return null;
-  const syms = Object.entries(PROFILES[market]).filter(([, p]) => p.i === prof.i).map(([k]) => k);
-  if (syms.length < PEER_MIN) return null;
+  const all = Object.entries(PROFILES[market] ?? {});
+  let lv: Level | null = null;
+  let syms: string[] = [];
+  for (const l of levelsOf(market, prof)) {
+    const ms = all.filter(([, p]) => levelsOf(market, p).some((x) => x.key === l.key)).map(([k]) => k);
+    if (ms.length >= PEER_MIN) { lv = l; syms = ms; break; }
+  }
+  if (!lv) return null;
   try {
     const ph = syms.map(() => "?").join(",");
     const rs = await client.execute({
@@ -135,7 +152,8 @@ async function industryPeers(client: ReturnType<typeof getClient>, market: "US" 
       symbol: String(r.symbol), rev_yoy: num(r.rev_yoy), om_now: num(r.om_now), fcf_yield_3y: num(r.fcf_yield_3y),
       roe: roe[String(r.symbol)] ?? null, psr: num(r.psr),
     }));
-    return { sector: prof.s ?? null, industry: prof.i, week: String(rs.rows[0].week_start), ...summarize(vals, symbol, market) };
+    return { basis: lv.basis, sector: lv.key.startsWith("i:") ? prof?.s ?? null : null, industry: lv.name,
+             week: String(rs.rows[0].week_start), ...summarize(vals, symbol, market) };
   } catch {
     return null;   // 표가 아직 없으면(첫 주간 계산 전) 업종 칸만 빠진다
   }

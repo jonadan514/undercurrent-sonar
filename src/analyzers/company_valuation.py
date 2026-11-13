@@ -127,13 +127,42 @@ def _quantile(sorted_vals: list[float], p: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (i - lo)
 
 
-def peer_valuation_tier(own_psr: float | None, industry: str | None, sector: str | None,
-                        psr_by_industry: dict[str, list[float]], psr_by_sector: dict[str, list[float]]) -> dict:
-    """반환: {tier, basis('업종'/'섹터'/None), group(업종·섹터 이름), median, n}. own_psr가 없으면 tier None."""
-    for basis, key, table in (("업종", industry, psr_by_industry), ("섹터", sector, psr_by_sector)):
-        vals = sorted(v for v in table.get(key or "", []) if v is not None and v > 0)
+def tier_from_levels(own_psr: float | None, levels: list[tuple[str, str, str]], psr_by_key: dict[str, list[float]]) -> dict:
+    """levels: [(기준 이름, 묶음 키, 표시 이름)] 좁은 것부터. 값 있는 동료가 PEER_MIN곳 이상인 첫 묶음에서 등급.
+    반환: {tier, basis, group, median, n}. 모든 묶음이 모자라면 tier·basis None(데이터부족 - 원칙 4)."""
+    for basis, key, name in levels:
+        vals = sorted(v for v in psr_by_key.get(key, []) if v is not None and v > 0)
         if key and len(vals) >= PEER_MIN:
             q1, med, q3 = _quantile(vals, 0.25), _quantile(vals, 0.5), _quantile(vals, 0.75)
             tier = None if own_psr is None else CHEAP if own_psr < q1 else EXPENSIVE if own_psr > q3 else MID
-            return {"tier": tier, "basis": basis, "group": key, "median": med, "n": len(vals)}
+            return {"tier": tier, "basis": basis, "group": name, "median": med, "n": len(vals)}
     return {"tier": None, "basis": None, "group": None, "median": None, "n": 0}
+
+
+def peer_levels(market: str, profile: dict, sector_fallback: str | None = None) -> list[tuple[str, str, str]]:
+    """회사 정보(companyProfiles.json 한 종목)로 비교 묶음 순서. 미국: 업종 → 섹터. 한국(2026-11-13): yfinance 업종 →
+    KSIC 소분류('g' 첫째) → KSIC 중분류 - 한국은 섹터로 넓히지 않는다(카지노가 자동차·유통과 묶였다)."""
+    out: list[tuple[str, str, str]] = []
+    if profile.get("i"):
+        out.append(("업종", f"i:{profile['i']}", profile["i"]))
+    if market == "KR":
+        for i, (key, name) in enumerate(profile.get("g") or []):
+            out.append(("업종" if i == 0 else "업종 대분류", key, name))
+    else:
+        sec = profile.get("s") or sector_fallback
+        if sec:
+            out.append(("섹터", f"s:{sec}", sec))
+    return out
+
+
+def peer_keys(market: str, profile: dict) -> list[str]:
+    """이 종목이 들어가는 모든 묶음 키(분포를 쌓을 때)."""
+    return [k for _, k, _ in peer_levels(market, profile)]
+
+
+def peer_valuation_tier(own_psr: float | None, industry: str | None, sector: str | None,
+                        psr_by_industry: dict[str, list[float]], psr_by_sector: dict[str, list[float]]) -> dict:
+    """업종 → 섹터 두 단계(미국 방식). 반환: {tier, basis('업종'/'섹터'/None), group, median, n}."""
+    table = {**{f"i:{k}": v for k, v in psr_by_industry.items()}, **{f"s:{k}": v for k, v in psr_by_sector.items()}}
+    levels = [x for x in (("업종", f"i:{industry}", industry), ("섹터", f"s:{sector}", sector)) if x[2]]
+    return tier_from_levels(own_psr, levels, table)

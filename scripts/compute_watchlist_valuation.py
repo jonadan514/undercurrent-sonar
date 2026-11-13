@@ -61,7 +61,8 @@ from src.analyzers.company_growth import (pick_latest, quarterly_margin_change, 
                                            growth_tier as calc_growth_tier,
                                            operating_margin_direction,
                                            revenue_cagr, revenue_yoy)
-from src.analyzers.company_valuation import peer_valuation_tier, per as calc_per, psr as calc_psr, theme_valuation_tiers
+from src.analyzers.company_valuation import (peer_keys, peer_levels, per as calc_per, psr as calc_psr, theme_valuation_tiers,
+                                             tier_from_levels)
 from src.analyzers.company_cashflow import fcf_yield
 from src.analyzers.trap_filter import FINANCIAL_SECTORS
 from src.db.data_store import get_db
@@ -179,7 +180,8 @@ def load_profiles() -> dict:
 
 
 def industry_tiers(conn, market: str, candidates: list[dict], psr_by_ticker: dict[str, float | None]) -> dict | None:
-    """후보마다 업종(없으면 섹터) 유니버스 PSR 분포에서 등급. 유니버스 PSR이 하나도 없으면 None(예전 방식으로)."""
+    """후보마다 company_valuation.peer_levels 순서(미국 업종→섹터, 한국 업종→KSIC 소분류→중분류)의 유니버스 PSR 분포에서 등급.
+    유니버스 PSR이 하나도 없으면 None(예전 방식으로)."""
     try:
         rows = conn.execute(
             "SELECT symbol, psr FROM universe_peer_metrics WHERE market = ? AND psr IS NOT NULL "
@@ -191,19 +193,14 @@ def industry_tiers(conn, market: str, candidates: list[dict], psr_by_ticker: dic
     if not rows:
         return None
     prof = load_profiles().get(market, {})
-    by_ind: dict[str, list[float]] = {}
-    by_sec: dict[str, list[float]] = {}
+    by_key: dict[str, list[float]] = {}
     for sym, v in rows:
-        p = prof.get(sym) or {}
-        v = float(v)
-        if p.get("i"):
-            by_ind.setdefault(p["i"], []).append(v)
-        if p.get("s"):
-            by_sec.setdefault(p["s"], []).append(v)
+        for k in peer_keys(market, prof.get(sym) or {}):
+            by_key.setdefault(k, []).append(float(v))
     out = {}
     for c in candidates:
-        p = prof.get(c["symbol"]) or {}
-        out[c["symbol"]] = peer_valuation_tier(psr_by_ticker.get(c["symbol"]), p.get("i"), p.get("s") or c.get("sector"), by_ind, by_sec)
+        levels = peer_levels(market, prof.get(c["symbol"]) or {}, c.get("sector"))
+        out[c["symbol"]] = tier_from_levels(psr_by_ticker.get(c["symbol"]), levels, by_key)
     return out
 
 

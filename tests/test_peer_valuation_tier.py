@@ -23,3 +23,17 @@ def test_falls_back_to_sector_then_none():
 def test_no_own_psr_keeps_basis():
     r = peer_valuation_tier(None, "Software", None, IND, SEC)
     assert r["tier"] is None and r["basis"] == "업종" and r["median"] == 9.5
+
+
+def test_kr_levels_use_ksic_not_sector():
+    """한국(2026-11-13): yfinance 업종이 모자라면 KSIC 소분류 → 중분류, 섹터로는 넓히지 않는다."""
+    from src.analyzers.company_valuation import peer_levels, tier_from_levels
+    prof = {"i": "Resorts & Casinos", "s": "Consumer Cyclical",
+            "g": [["ksic3:912", "유원지 및 기타 오락관련 서비스업"], ["ksic2:91", "스포츠 및 오락관련 서비스업"]]}
+    levels = peer_levels("KR", prof)
+    assert [b for b, _, _ in levels] == ["업종", "업종", "업종 대분류"]
+    table = {"i:Resorts & Casinos": [1.0, 2.0], "ksic3:912": [0.8, 1.0, 1.2, 1.5, 2.0], "s:Consumer Cyclical": [0.1] * 20}
+    r = tier_from_levels(1.1, levels, table)
+    assert (r["basis"], r["group"], r["tier"]) == ("업종", "유원지 및 기타 오락관련 서비스업", MID)
+    assert tier_from_levels(1.1, levels, {"s:Consumer Cyclical": [0.1] * 20})["tier"] is None   # 섹터로 안 넓힘
+    assert [b for b, _, _ in peer_levels("US", {"i": "Software", "s": "Technology"})] == ["업종", "섹터"]

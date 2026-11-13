@@ -257,7 +257,7 @@ type PeerMetric = { self: number | null; n: number; median: number | null; q1: n
 type PeerRow = { symbol: string; name: string | null } & Record<string, number | string | null>;
 type PeerGroupData = { week: string | null; members: number; metrics: Record<string, PeerMetric>; peers?: PeerRow[] };
 type PeerTheme = PeerGroupData & { theme_id: string };
-type PeerIndustry = PeerGroupData & { sector: string | null; industry: string };
+type PeerIndustry = PeerGroupData & { basis?: string; sector: string | null; industry: string };
 const PEER_ROWS: { key: string; label: string; fmt: (v: number) => string; hint: string }[] = [
   { key: "rev_yoy", label: "매출 YoY", fmt: (v) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}%`, hint: "최근 분기 매출, 1년 전 같은 분기 대비" },
   { key: "om_now", label: "영업이익률", fmt: (v) => `${(v * 100).toFixed(1)}%`, hint: "최근 분기" },
@@ -397,12 +397,13 @@ export function ThemePeerSection({ c }: { c: StockRef }) {
       ))}
       {d.industry && (
         <PeerGroup c={c} g={d.industry} title={<>
-          <span style={{ color: TEXT_MUTED }}>업종 </span>
-          <span className="font-bold">{d.industry.sector ? `${sectorKo(d.industry.sector)} · ` : ""}{d.industry.industry}</span>
+          <span style={{ color: TEXT_MUTED }}>{d.industry.basis ?? "업종"} </span>
+          <span className="font-bold">{d.industry.basis === "섹터" ? sectorKo(d.industry.industry)
+            : `${d.industry.sector ? `${sectorKo(d.industry.sector)} · ` : ""}${d.industry.industry}`}</span>
         </>} />
       )}
       <p className="text-[12px]" style={{ color: TEXT_MUTED }}>
-        숫자는 저장된 재무 그대로(주간 계산·재무 필터) · 테마는 사업 소속 기업, 업종은 같은 시장 유니버스(미국 S&amp;P 500·400, 한국 시총 상위)에서 회사 정보의 업종이 같은 기업 ·
+        숫자는 저장된 재무 그대로(주간 계산·재무 필터) · 테마는 사업 소속 기업, 업종은 같은 시장 유니버스(미국 S&amp;P 500·400, 한국 시총 상위)에서 업종이 같은 기업(동료 5곳 미만이면 미국은 섹터, 한국은 공식 산업분류 KSIC 소분류·중분류로 넓힘) ·
         동료 값이 5곳 미만인 지표는 비교하지 않음 · 막대: 노란 띠 = 동료 보통 범위(가운데 절반), 세로선 = 중앙값, 점 = 이 종목 · &apos;동료보다 높음/낮음&apos; = 동료 4곳 중 3곳보다 높거나 낮음 ·
         업종이 섞인 테마는 이익률·FCF 정상 범위가 달라 참고로만
       </p>

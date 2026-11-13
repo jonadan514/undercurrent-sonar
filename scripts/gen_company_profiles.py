@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+from analyzers.ksic import ksic_levels  # noqa: E402
 DATA = ROOT / "data"
 OUT = ROOT / "frontend" / "src" / "data" / "companyProfiles.json"
 SUMMARY_MAX = 900
@@ -39,6 +42,11 @@ def build() -> dict:
                     us_names.setdefault(row["Symbol"].strip(), (row.get("Security") or "").strip())
     kr_names = {it["symbol"]: it.get("name") for it in json.loads((DATA / "kr_universe.json").read_text(encoding="utf-8")).get("items", [])}
     overrides = json.loads((DATA / "kr_profile_overrides.json").read_text(encoding="utf-8")).get("industry", {})
+    # 한국 KSIC 업종 묶음(2026-11-13, scripts/fetch_kr_ksic.py) - "g": [[키, 이름], ...] 소분류·중분류 순. 업종 기준 밸류 등급·동료 비교용
+    try:
+        ksic = json.loads((DATA / "kr_ksic.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        ksic = {}
 
     out: dict[str, dict] = {"US": {}, "KR": {}}
     for market, path, names in (("US", "us_profiles.json", us_names), ("KR", "kr_profiles.json", kr_names)):
@@ -52,6 +60,7 @@ def build() -> dict:
             out[market][sym] = {k: v for k, v in {
                 "n": names.get(sym), "s": p.get("sector"), "i": industry,
                 "d": _cut(p.get("summary_long") or p.get("summary") or ""),
+                "g": [list(x) for x in ksic_levels(ksic.get(sym) or p.get("industry_code"))] if market == "KR" else None,
             }.items() if v}
     return out
 
