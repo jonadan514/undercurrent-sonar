@@ -86,7 +86,8 @@ export async function GET(request: Request) {
     const o: Record<string, unknown> = {};
     res.columns.forEach((c, i) => { o[c] = r[i]; });
     const pick = ["name", "market_cap", "piotroski", "debt_ratio", "interest_coverage", "roe", "psr", "per", "valuation_tier",
-      "revenue_cagr_3y", "revenue_yoy", "growth_tier", "op_margin_direction", "op_margin_q_status", "rev_ttm_yoy", "fcf_yield_3y", "screened_at"];
+      "revenue_cagr_3y", "revenue_yoy", "growth_tier", "op_margin_direction", "op_margin_q_status", "rev_ttm_yoy", "fcf_yield_3y", "screened_at",
+      "valuation_basis", "psr_peer_median", "psr_peer_n"];   // 업종 기준 밸류 등급(2026-11-13)
     return Object.fromEntries(pick.filter((k) => k in o).map((k) => [k, o[k]]));
   }, null);
 
