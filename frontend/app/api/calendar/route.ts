@@ -23,7 +23,7 @@ export interface CalEvent {
   symbol?: string;
   name?: string;
   estimate?: boolean;           // 실적 발표일이 회사 확정 전 예상치
-  source?: string;              // yfinance | DART
+  source?: string;              // yfinance | DART | 작년 기준(2026-11-13 - 한국, 작년 같은 분기 잠정실적 날짜를 52주 뒤로)
   tags?: Tag[];
   themes?: string[];            // 소속 테마 이름(테마 태그일 때)
   text?: string;                // 마감·도구 일정·회고 설명
@@ -51,7 +51,7 @@ function monthRange(month: string): [string, string] {
   return [iso(start), iso(end)];
 }
 
-interface EarnRow { ticker: string; market: string; earnings_date: string; is_estimate: unknown; fetched_on: string }
+interface EarnRow { ticker: string; market: string; earnings_date: string; is_estimate: unknown; fetched_on: string; source?: unknown }
 
 /** 종목마다 이 달에 보일 실적 발표일 하나.
  *  달 안에 든 행 중 가장 늦게 받은 것을 쓰되, 그 뒤에 받은 행이 다른 날짜를 말하고 그때 아직 이 날짜가 오지 않았으면 날짜가 바뀐 것이라 뺀다
@@ -115,7 +115,7 @@ export async function GET(req: Request) {
     };
 
     // ── 실적 발표 ──
-    const inMonth = (await q(`SELECT ticker, market, earnings_date, is_estimate, fetched_on FROM earnings_calendar
+    const inMonth = (await q(`SELECT ticker, market, earnings_date, is_estimate, fetched_on, source FROM earnings_calendar
                                WHERE earnings_date >= ? AND earnings_date <= ?`, [from, to])) as unknown as EarnRow[];
     const latestRows = (await q(`SELECT e.ticker, e.market, e.earnings_date, e.is_estimate, e.fetched_on FROM earnings_calendar e
                                   JOIN (SELECT ticker, market, MAX(fetched_on) AS f FROM earnings_calendar GROUP BY ticker, market) l
@@ -125,7 +125,7 @@ export async function GET(req: Request) {
     for (const r of pickEarnings(inMonth, latest)) {
       const k = `${r.market}:${r.ticker}`;
       earn.set(k, { date: String(r.earnings_date).slice(0, 10), kind: "earnings", market: r.market as "US" | "KR", symbol: r.ticker,
-                    estimate: truthy(r.is_estimate), source: "yfinance" });
+                    estimate: truthy(r.is_estimate), source: String(r.source ?? "") === "dart-lastyear" ? "작년 기준" : "yfinance" });
     }
     // 한국 결산실적 공시예고(DART) - 회사가 정한 날짜. 같은 종목이면 예고가 이긴다(늦게 낸 예고 우선)
     for (const r of await q(`SELECT stock_code, payload, rcept_dt FROM kr_disclosures WHERE kind = 'notice' ORDER BY rcept_dt, rcept_no`)) {

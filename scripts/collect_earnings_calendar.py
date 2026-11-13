@@ -21,7 +21,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import yfinance as yf
 
-from src.collectors.earnings_calendar import parse_info
+import json
+
+from src.collectors.earnings_calendar import LAST_YEAR_SOURCE, parse_info, project_from_last_year
 from src.collectors.kr_kospi_list import yf_suffix as kr_yf_suffix
 from src.db.data_store import get_db
 
@@ -104,21 +106,33 @@ def main() -> int:
     tg = targets(conn)
     _log(f"대상 {len(tg)}종목")
     stats = {"US": [0, 0], "KR": [0, 0]}   # [조회, 날짜 있음]
+    # 한국: yfinance에 없으면 작년 잠정실적 날짜로 예상(2026-11-13, scripts/fetch_kr_prelim_history.py가 만든 파일)
+    try:
+        prelim_hist = json.loads((ROOT / "data" / "kr_prelim_dates.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - 파일이 없으면 예상 없이
+        prelim_hist = {}
+    last_year = 0
     for n, (t, m) in enumerate(tg, 1):
         stats[m][0] += 1
         rec = fetch(t, m, today)
+        src = SOURCE
+        if not rec and m == "KR":
+            p = project_from_last_year(prelim_hist.get(t, []), today)
+            if p:
+                rec, src = {"earnings_date": p.isoformat(), "earnings_date_end": p.isoformat(), "is_estimate": 1}, LAST_YEAR_SOURCE
+                last_year += 1
         if rec:
             stats[m][1] += 1
             conn.execute(
                 "INSERT OR IGNORE INTO earnings_calendar (ticker, market, fetched_on, earnings_date, earnings_date_end, "
                 "is_estimate, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (t, m, today.isoformat(), rec["earnings_date"], rec["earnings_date_end"], rec["is_estimate"], SOURCE, now))
+                (t, m, today.isoformat(), rec["earnings_date"], rec["earnings_date_end"], rec["is_estimate"], src, now))
         if n % 50 == 0:
             conn.commit()
             _log(f"  진행 {n}/{len(tg)} {stats}")
     conn.commit()
     conn.close()
-    _log("완료 " + " / ".join(f"{m} {a}종목 중 날짜 {b}" for m, (a, b) in stats.items()))
+    _log("완료 " + " / ".join(f"{m} {a}종목 중 날짜 {b}" for m, (a, b) in stats.items()) + f" (한국 중 작년 기준 예상 {last_year})")
     attempted = sum(a for a, _ in stats.values())
     if attempted >= 20 and sum(b for _, b in stats.values()) == 0:
         _log("날짜 0종목 - 실패로 끝낸다")

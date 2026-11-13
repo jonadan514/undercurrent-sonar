@@ -62,7 +62,7 @@ function EventLine({ e, compact }: { e: CalEvent; compact?: boolean }) {
   }
   return (
     <a href={e.href} className="flex items-baseline gap-1 text-[12px] leading-snug hover:underline" style={{ color: tone(e) }}
-      title={`${e.name} · ${e.market === "KR" ? "한국" : "미국"} · ${(e.tags ?? []).map((t) => TAG_KO[t]).join("·")}${e.estimate ? " · 날짜 미확정" : ""}`}>
+      title={`${e.name} · ${e.market === "KR" ? "한국" : "미국"} · ${(e.tags ?? []).map((t) => TAG_KO[t]).join("·")}${e.source === "작년 기준" ? " · 작년 이맘때 잠정실적 날짜로 본 예상" : e.estimate ? " · 날짜 미확정" : ""}`}>
       <span className="shrink-0"><FlagIcon market={e.market!} size={11} /></span>
       <span className={`truncate ${e.tags?.includes("my") ? "font-bold" : ""}`}>{e.name}</span>
       {e.estimate && <span className="shrink-0 text-[10px]" style={FAINT}>?</span>}
@@ -70,7 +70,7 @@ function EventLine({ e, compact }: { e: CalEvent; compact?: boolean }) {
         <span className="ml-1 shrink-0 text-[11px]" style={FAINT}>
           {(e.tags ?? []).map((t) => TAG_KO[t]).join(" · ")}
           {e.themes?.length ? ` · ${e.themes.join(", ")}` : ""}
-          {e.estimate ? " · 날짜 미확정" : e.source === "DART" ? " · 공시 예고" : ""}
+          {e.source === "작년 기준" ? " · 작년 기준 예상" : e.estimate ? " · 날짜 미확정" : e.source === "DART" ? " · 공시 예고" : ""}
         </span>
       )}
     </a>
@@ -225,7 +225,7 @@ function CalendarView() {
       </div>
 
       <p className="text-[12px]" style={FAINT}>
-        실적 발표일은 워치리스트 후보·내 관심·관찰 노트·테마 소속 종목을 받습니다(테마 소속은 11/8 수집부터). 한국은 회사가 공시로 예고한 날짜를 먼저 씁니다.
+        실적 발표일은 워치리스트 후보·내 관심·관찰 노트·테마 소속 종목을 받습니다(테마 소속은 11/8 수집부터). 한국은 회사가 공시로 예고한 날짜를 먼저 쓰고, yfinance에도 없으면 작년 같은 분기 잠정실적 날짜를 52주 뒤로 옮긴 "작년 기준 예상"을 씁니다.
         관찰 노트 회고는 작성 주 + 4주·12주가 지난 다음 월요일 브리핑에 붙습니다. 공시 마감일이 주말이면 실제 마감은 다음 영업일일 수 있습니다.
       </p>
     </div>
