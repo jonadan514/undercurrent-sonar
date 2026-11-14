@@ -1,0 +1,57 @@
+name: Collect KR Prelim History
+
+# 한국 잠정실적 공시 날짜 이력(data/kr_prelim_dates.json) 자동 갱신(2026-11-14, 사용자 요청).
+# 일요일 밤 실적 발표일 수집(collect-earnings-calendar.yml, 일요일 20:00 UTC)이 yfinance에 날짜가 없는 한국 종목에
+# '작년 같은 분기 잠정실적 날짜 + 52주'를 예상으로 쓴다. 이력이 늘지 않으면 1년 뒤 예상이 줄어들어 매주 최근 40일만 더한다
+# (이미 있는 날짜는 그대로 - 합칠 뿐 지우지 않는다). 처음 1년치는 Collect DART mode=prelim-history로 채웠다(11/13).
+on:
+  schedule:
+    # 토요일 11:47 UTC (20:47 KST) - Collect DART(토 09:00 UTC) 뒤, 실적 발표일 수집(일 20:00 UTC) 전.
+    # 주말 새벽(KST)은 DART 점검 시간대라 피한다(collect-dart.yml 10/11 기록).
+    - cron: "47 11 * * 6"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "최근 며칠을 다시 볼지 (비우면 40)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/fetch_kr_prelim_history.py --days "${{ inputs.days || '40' }}"
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/kr_prelim_dates.json
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "data: 한국 잠정실적 날짜 이력 갱신"
+          git pull --rebase --autostash
+          git push
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py
