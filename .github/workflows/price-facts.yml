@@ -1,0 +1,52 @@
+name: Price Facts and Decision Outcomes
+
+# 차트 상태(stock_price_facts)와 검토 기록 결과(stock_decision_outcomes)를 매일 채운다(2026-11-15, 사용자: 3개월 가상 매수 검증).
+# 평일 22:17 UTC(한국 다음 날 07:17) - 미국 장 마감(21:00 UTC) 뒤라 미국·한국 모두 그날 종가가 완성돼 있다.
+on:
+  schedule:
+    - cron: "17 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      only_extra:
+        description: "true면 관심·검토 기록·기준 종목만(빠른 확인)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  facts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Chart facts
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/compute_price_facts.py ${{ inputs.only_extra && '--only-extra' || '' }}
+      - name: Decision outcomes
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/compute_decision_outcomes.py
+      # 정기 실행이 실패하면 텔레그램으로 알린다 - 수동 실행은 보는 사람이 있어 알리지 않는다.
+      - name: Notify on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULTS: ${{ github.job }}=failure
+        run: python scripts/notify_failure.py

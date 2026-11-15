@@ -38,6 +38,7 @@ type Company = {
   mine: { note: string | null; added_at: string } | null;
   notes: { id: number; created_at: string; hypothesis: string }[];
   cautions: { text: string; why: string }[];
+  chart?: Record<string, number | string | null> | null;
 };
 
 const GOOD = "#4ade80", BAD = "#f87171", WARN = "#facc15", INFO = "#6fb3b8", ACCENT = "#ffb020";
@@ -145,6 +146,40 @@ function ContraNews({ stock, market }: { stock: string; market: string }) {
           <a href={r.search_url} target="_blank" rel="noopener noreferrer" className="underline">&ldquo;{r.query}&rdquo; 기사 전체 보기 ↗</a>
         </p>
       )}
+    </div>
+  );
+}
+
+// 차트 상태(2026-11-15, 사용자: 밸류·실적·차트로 본다) - 판정 없이 사실만. 200일선·52주 위치·수익률(scripts/compute_price_facts.py, 매일)
+function ChartFacts({ f, market }: { f: Record<string, number | string | null> | null; market: "US" | "KR" }) {
+  const box = { background: "var(--bg-inset)", border: "1px solid var(--border)" };
+  if (!f) return <div className="rounded-lg p-2.5 text-[12.5px]" style={box}><span style={{ color: MUTED }}>차트 상태</span> <span style={{ color: FAINT }}>· 아직 계산 전(매일 밤 갱신)</span></div>;
+  const n = (k: string) => (f[k] == null ? null : Number(f[k]));
+  const pos = n("pos_52w");
+  const posPct = pos == null ? null : Math.round(pos * 100);
+  const money = (v: number | null) => v == null ? "-" : market === "KR" ? Math.round(v).toLocaleString() + "원" : "$" + v.toFixed(2);
+  const above = n("above_ma200"), slope = n("ma200_slope");
+  return (
+    <div className="rounded-lg p-2.5 text-[12.5px]" style={box}>
+      <p style={{ color: MUTED }}>차트 상태 <span style={{ color: FAINT }}>· {String(f.as_of ?? "").slice(5).replace("-", "/")} 종가 기준, 판정 아님</span></p>
+      <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3" style={{ color: SECONDARY, fontVariantNumeric: "tabular-nums" }}>
+        <div>
+          52주 범위 안 위치 <b style={{ color: "var(--text-primary)" }}>{posPct == null ? "-" : posPct + "%"}</b>
+          <div className="relative mt-1 h-1.5 rounded-full" style={{ background: "var(--border)" }}>
+            {posPct != null && <span className="absolute h-2.5 w-1 rounded" style={{ top: -2, left: "calc(" + posPct + "% - 2px)", background: ACCENT }} />}
+          </div>
+          <p className="mt-0.5 text-[11.5px]" style={{ color: FAINT }}>{money(n("low_52w"))} ~ {money(n("high_52w"))} · 고점 대비 {pct(n("from_high"))}</p>
+        </div>
+        <div>
+          200일선 {above == null ? <b style={{ color: FAINT }}>기록 부족</b> : <b style={{ color: "var(--text-primary)" }}>{above ? "위" : "아래"}</b>}
+          {slope != null && <span style={{ color: MUTED }}> · 선 기울기 {slope > 0.002 ? "오름" : slope < -0.002 ? "내림" : "평평"}</span>}
+          <p className="text-[11.5px]" style={{ color: FAINT }}>종가 {money(n("close"))} · 200일선 {money(n("ma200"))}</p>
+        </div>
+        <div>
+          수익률 1개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_1m"))}</b> · 3개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_3m"))}</b>
+          {f.tiger_ret_3m != null && <p className="text-[11.5px]" style={{ color: FAINT }}>TIGER 반도체TOP10 3개월 {pct(n("tiger_ret_3m"))}{market === "US" ? " (원화 기준, 이 종목은 달러)" : ""}</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -261,6 +296,7 @@ function CompanyView() {
             ) : <p style={{ color: MUTED }}>후보가 아니라 계산하지 않음</p>}
           </div>
         </div>
+        <div className="mt-2"><ChartFacts f={d.chart ?? null} market={d.market} /></div>
         <div className="mt-3"><QuarterTable quarters={d.quarters} market={d.market} /></div>
         <div className="mt-3"><ThemePeerSection c={c} /></div>
       </Section>

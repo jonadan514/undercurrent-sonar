@@ -16,6 +16,7 @@ const SOURCES: Source[] = [
   { key: "insider_us", label: "내부자 매수 · 미국", group: "매일", cadence: "매일 밤", okDays: 3, sql: "SELECT MAX(checked_at) FROM insider_filings_seen WHERE market = 'US'", note: "새로 읽은 Form 4가 있을 때만 시각이 바뀐다" },
   { key: "insider_kr", label: "내부자 매수 · 한국", group: "매일", cadence: "매일 밤", okDays: 4, sql: "SELECT MAX(checked_at) FROM insider_filings_seen WHERE market = 'KR'", note: "새로 읽은 보고서가 있을 때만 시각이 바뀐다" },
   { key: "us_8k", label: "미국 8-K", group: "매일", cadence: "매일 밤", okDays: 4, sql: "SELECT MAX(fetched_at) FROM us_8k_filings", note: "새 8-K가 있을 때만 시각이 바뀐다" },
+  { key: "price_facts", label: "차트 상태(52주·200일선)", group: "매일", cadence: "평일 밤", okDays: 4, sql: "SELECT MAX(updated_at) FROM stock_price_facts", note: "주말에는 돌지 않는다" },
   { key: "theme_events", label: "테마 이벤트(공시·내부자)", group: "매일", cadence: "매일 밤", okDays: 3, sql: "SELECT MAX(computed_at) FROM theme_events" },
   { key: "watchlist", label: "워치리스트 스크리닝", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(screened_at) FROM watchlist_screening_results" },
   { key: "narratives", label: "뉴스 관심도", group: "매주", cadence: "월요일 아침", okDays: 9, sql: "SELECT MAX(updated_at) FROM narrative_briefs" },
