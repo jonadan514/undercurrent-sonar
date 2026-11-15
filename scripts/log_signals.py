@@ -24,8 +24,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.collect_insider_trades import targets
 from scripts.compute_theme_events import events_for, members_by_theme
-from src.analyzers.signal_check import (insider_signals, kr_disclosure_signals, sentiment_signals, sentiment_window, theme_signals,
-                                        turnaround_signals, us8k_signals, week_window)
+from src.analyzers.signal_check import (insider_signals, kr_disclosure_signals, sentiment_signals, sentiment_window, theme_label_signals,
+                                        theme_signals, turnaround_signals, us8k_signals, week_window)
 from src.analyzers.theme_events import FETCH_DAYS, by_theme
 from src.db.data_store import get_db
 
@@ -33,7 +33,7 @@ DDL = """
 CREATE TABLE IF NOT EXISTS signal_log (
   week       TEXT NOT NULL,     -- 브리핑 주차(월요일). 결과는 이날 이후 첫 거래일 종가부터 잰다
   kind       TEXT NOT NULL,     -- insider_buy | turnaround_new | theme_busier | kr_contract_big | kr_termination
-                                --  | us_8k_contract | us_8k_warn | sentiment_heating (뒤 다섯은 2026-10-21 추가)
+                                --  | us_8k_contract | us_8k_warn | sentiment_heating (뒤 다섯은 2026-10-21 추가) | theme_label (11-15)
   market     TEXT NOT NULL,
   symbol     TEXT NOT NULL,     -- 종목코드, theme_busier는 테마 id
   detail     TEXT NOT NULL,     -- 그때의 값 JSON (관심 여부·산 사람 수·금액, 소속 기업 목록 등)
@@ -86,6 +86,12 @@ def week_signals(conn, week: str) -> list[dict]:
                           "(SELECT MAX(week_start) FROM theme_signals WHERE market = ? AND week_start <= ?)", (market, market, week)):
                 quiet[theme_id] = not ({na, ea, pa} & MOVING)
             out += theme_signals(market, result, members, quiet)
+        # 테마 레이더 라벨(2026-11-15) - 이 주(브리핑 월요일)에 보인 라벨 = 그 전 주 데이터(week_start = 월요일 - 7일)
+        if members:
+            ws = (date.fromisoformat(week) - timedelta(days=7)).isoformat()
+            out += theme_label_signals(market, _rows(
+                conn, "SELECT theme_id, label, news_arrow, earn_arrow, price_arrow FROM theme_signals "
+                      "WHERE market = ? AND week_start = ? AND label IS NOT NULL", (market, ws)), members, ws)
 
     # 브리핑 다른 칸(2026-10-21 추가) - 한국 큰 공급계약·해지, 미국 8-K 중요 계약·주의 종류, 관심도 상승
     kr = [dict(zip(("stock_code", "kind", "payload"), r)) for r in _rows(
@@ -118,6 +124,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--week", default=None, help="주차(월요일, 기본: 다가오는 월요일)")
     ap.add_argument("--backfill-weeks", type=int, default=0, help="지난 몇 주도 원본 표에서 다시 만든다(backfilled=1)")
+    ap.add_argument("--kinds", nargs="*", default=None,
+                    help="이 종류만 적는다(예: theme_label) - 새 종류를 소급할 때 다른 신호의 옛 주를 새로 만들지 않게(2026-11-15)")
     args = ap.parse_args()
 
     this_week = args.week or upcoming_monday(datetime.now(timezone.utc))
@@ -134,6 +142,8 @@ def main() -> int:
             _log(f"{week}: 공시 기간이 아직 안 끝남 - 건너뜀")
             continue
         sigs = week_signals(conn, week)
+        if args.kinds:
+            sigs = [s for s in sigs if s["kind"] in args.kinds]
         backfilled = int(week != this_week or bool(args.week))
         for s in sigs:
             conn.execute("INSERT OR IGNORE INTO signal_log (week, kind, market, symbol, detail, backfilled, logged_at) "

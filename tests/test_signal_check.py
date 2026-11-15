@@ -119,3 +119,13 @@ def test_signal_outcomes_fill_only_due_and_empty_horizons():
     assert not needs_fill("2026-09-28", (0.1, 0.02, None, None), today)   # 4주 채움, 12주는 아직 기간 전
     assert needs_fill("2026-09-28", (None, 0.02, None, None), today)
     assert not needs_fill("2026-10-12", None, today)          # 아직 4주 전
+
+
+def test_theme_label_signals_keep_members_and_label():
+    """테마 레이더 라벨(2026-11-15) - 라벨 있는 줄만, 소속 기업은 그때 그대로."""
+    from src.analyzers.signal_check import theme_label_signals
+    rows = [("shipbuilding", "Quiet Strength", "flat", "up2", "flat"), ("k_beauty", None, "up1", "flat", "flat")]
+    out = theme_label_signals("KR", rows, {"shipbuilding": ["010140", "009540", "010140"]}, "2026-11-02")
+    assert len(out) == 1 and out[0]["kind"] == "theme_label" and out[0]["symbol"] == "shipbuilding"
+    assert out[0]["detail"]["label"] == "Quiet Strength" and out[0]["detail"]["members"] == ["009540", "010140"]
+    assert out[0]["detail"]["week_start"] == "2026-11-02"

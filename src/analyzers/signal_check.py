@@ -84,6 +84,25 @@ def theme_signals(market: str, result: dict[str, dict], members: dict[str, list[
     return out
 
 
+# ── 테마 레이더 라벨 (2026-11-15, 사용자 결정: 툴 점검 1번) ─────────────────────────
+# 이 툴의 핵심 가설('숨은 강세' 같은 라벨이 뒤에 주가로 이어지나)이 사후 확인에 없었다. 라벨이 붙은 (테마, 시장)을
+# 그 라벨이 화면에 처음 보인 주(데이터 주 + 7일 = 브리핑 월요일)에 적고, 결과는 소속 기업 주가 중앙값(theme_busier와 같은 방식).
+# 기대 방향이 하락인 라벨(기대 과열·동반 하락)은 화면에 따로 적는다. 판정·적중률 없음(원칙 1).
+THEME_KINDS = ("theme_busier", "theme_label")
+
+
+def theme_label_signals(market: str, rows: list[tuple], members: dict[str, list[str]], week_start: str) -> list[dict]:
+    """theme_signals 그 주 줄 (theme_id, label, news_arrow, earn_arrow, price_arrow) -> 라벨 붙은 테마. 소속 기업은 그때 그대로 적는다."""
+    out = []
+    for theme_id, label, na, ea, pa in rows:
+        if not label:
+            continue
+        out.append({"kind": "theme_label", "market": market, "symbol": theme_id,
+                    "detail": {"label": label, "week_start": week_start, "news": na, "earn": ea, "price": pa,
+                               "members": sorted(set(members.get(theme_id, [])))}})
+    return out
+
+
 # ── 브리핑 다른 칸 (2026-10-21 추가, 사용자 결정: 신호 종류 더하기) ─────────────────
 # 브리핑에 나오는 칸을 같은 잣대로 보려고. 나쁜 쪽 신호(해지·8-K 주의 종류)는 '기대 방향이 하락'이라
 # 초과수익이 마이너스면 신호가 맞은 쪽 - 화면에 기대 방향을 같이 적는다(판정·점수 아님).

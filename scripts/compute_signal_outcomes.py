@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts.compute_pick_returns import _kr_yf_symbol, _load_kr_universe
-from src.analyzers.signal_check import HORIZONS, completed_bars, distribution, fwd_return, median_return
+from src.analyzers.signal_check import HORIZONS, THEME_KINDS, completed_bars, distribution, fwd_return, median_return
 from src.collectors.us_price_fetcher import USPriceFetcher
 from src.db.data_store import get_db
 
@@ -121,7 +121,7 @@ def main() -> int:
 
     need: dict[str, set[str]] = {"US": set(), "KR": set()}
     for week, kind, market, symbol, detail in todo:
-        if kind == "theme_busier":
+        if kind in THEME_KINDS:   # 테마 신호는 소속 기업 중앙값(theme_label 2026-11-15)
             need[market] |= set(json.loads(detail).get("members", []))
         else:
             need[market].add(symbol)
@@ -179,7 +179,7 @@ def main() -> int:
         vals: dict[str, float | None] = {}
         n_priced = None
         for h in HORIZONS:
-            if kind == "theme_busier":
+            if kind in THEME_KINDS:   # 테마 신호는 소속 기업 중앙값(theme_label 2026-11-15)
                 members = json.loads(detail).get("members", [])
                 vals[f"ret_{h}d"], n_priced = median_return([fwd_return(series(market, m), week, h, today) for m in members])
             else:
@@ -210,7 +210,8 @@ def summarize(conn) -> None:
     groups: dict[str, dict[tuple[str, int], list[float]]] = {}
     for r in rows:
         market, week, kind, detail = r[0], r[1], r[2], json.loads(r[3])
-        name = f"{market} {kind}" + ({True: "·관심", False: "·관심 밖"}[bool(detail.get("watched"))] if kind == "insider_buy" else "")
+        name = f"{market} {kind}" + ({True: "·관심", False: "·관심 밖"}[bool(detail.get("watched"))] if kind == "insider_buy" else
+                                     f"·{detail.get('label')}" if kind == "theme_label" else "")
         names = [name] + ([f"{market} theme_busier·축 조용"] if kind == "theme_busier" and detail.get("quiet_axes") else [])
         u = univ.get((market, week))
         for i, h in enumerate(HORIZONS):

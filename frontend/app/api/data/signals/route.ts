@@ -36,6 +36,13 @@ const GROUPS: { key: string; label: string; desc: string; kind: string; market?:
   { key: "us_8k_contract", label: "8-K 중요 계약 체결 (1.01)", desc: "브리핑 미국 8-K 칸", kind: "us_8k_contract", market: "US" },
   { key: "us_8k_warn", label: "8-K 주의 종류", desc: "해지·손상·구조조정·감사인 교체 등 (붉은 칸)", kind: "us_8k_warn", market: "US", expect: "down" },
   { key: "sentiment_heating", label: "관심도 상승", desc: "브리핑 관심도 칸 (워치리스트 후보)", kind: "sentiment_heating" },
+  // 테마 레이더 라벨(2026-11-15) - 이 툴의 핵심 가설. 라벨이 화면에 보인 주부터 소속 기업 주가 중앙값. 기대 과열·동반 하락은 기대 방향이 하락
+  { key: "label_qs", label: "라벨 · 숨은 강세", desc: "테마 레이더 Hidden Strength - 실적↑↑, 뉴스·주가 잠잠 (소속 기업 중앙값)", kind: "theme_label", test: (d) => d.label === "Quiet Strength" },
+  { key: "label_qr", label: "라벨 · 숨은 회복", desc: "Hidden Recovery - 실적만 올라섬 (소속 기업 중앙값)", kind: "theme_label", test: (d) => d.label === "Quiet Recovery" },
+  { key: "label_eb", label: "라벨 · 뉴스 선행", desc: "Early Hype - 뉴스↑↑, 실적 보합 (소속 기업 중앙값)", kind: "theme_label", test: (d) => d.label === "Early Buzz" },
+  { key: "label_fa", label: "라벨 · 동반 상승", desc: "Broad Rally - 세 축 모두 오름 (소속 기업 중앙값)", kind: "theme_label", test: (d) => d.label === "Full Alignment" },
+  { key: "label_ob", label: "라벨 · 기대 과열", desc: "Overhyped - 뉴스·주가↑↑인데 실적↓ (소속 기업 중앙값)", kind: "theme_label", expect: "down", test: (d) => d.label === "Overheated Buzz" },
+  { key: "label_fd", label: "라벨 · 동반 하락", desc: "Broad Decline - 세 축 모두 내림 (소속 기업 중앙값)", kind: "theme_label", expect: "down", test: (d) => d.label === "Full Decline" },
 ];
 
 export async function GET(request: Request) {
