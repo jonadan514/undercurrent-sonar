@@ -10,10 +10,11 @@ import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
-import { ObservationCard, ObservationForm, obsStatus, type ObservationT } from "@/src/components/Observation";
+import { ObservationCard, obsStatus, type ObservationT } from "@/src/components/Observation";
 import { Section } from "@/src/components/Section";
 import { krStockName } from "@/src/lib/krStockNames";
 import MyWatchBtn from "@/src/components/MyWatchBtn";
+import NoteBtn from "@/src/components/NoteBtn";
 import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
 import { STYLE_META, type InvestorStyle } from "@/src/lib/institutions";
 
@@ -230,7 +231,7 @@ function WeekFocus({ f, past }: { f: NonNullable<Briefing["week_focus"]>; past: 
         <div className="space-y-1.5">
           <p className="h-sub" style={{ color: "var(--text-secondary)" }}>흐름 - 테마</p>
           {f.themes.map((t) => (
-            <a key={`${t.market}:${t.theme_id}`} href={`/radar/theme?id=${encodeURIComponent(t.theme_id)}&market=${t.market}`}
+            <a key={`${t.market}:${t.theme_id}`} href={`/radar/theme?id=${encodeURIComponent(t.theme_id)}&market=${t.market}#candidates`}
               className="block rounded-lg px-3 py-2 hover:brightness-125" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <FlagIcon market={t.market} size={12} />
@@ -366,26 +367,6 @@ function StockLabel({ s }: { s: StockRef }) {
 
 // 브리핑에서 바로 관찰 노트(2026-10-25) - 🆕 새로 발견·⭐ 관심 종목 줄. 발견 → 재무 확인 → 관찰 시작을 브리핑 안에서.
 // 노트는 저장하는 순간의 값을 고정한다 - 지난 주 브리핑에서 열어도 그 주 값이 아니라 오늘 값이라 창에 적어 둔다.
-function NoteBtn({ s, past }: { s: { market: string; symbol: string; name?: string | null }; past: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const title = s.market === "KR" ? `${s.name || s.symbol} (${s.symbol})` : `${s.symbol}${s.name ? ` · ${s.name}` : ""}`;
-  return (
-    <>
-      <button onClick={() => setOpen(true)} className="text-[11px] px-1.5 rounded hover:brightness-125 whitespace-nowrap"
-        style={{ color: saved ? "#4ade80" : "var(--text-muted)", border: `1px solid ${saved ? "#4ade8055" : "var(--border)"}` }}
-        title="관찰 노트 남기기 - 4주·12주 뒤 그때와 지금을 대조">
-        {saved ? "✓ 노트" : "✎ 노트"}
-      </button>
-      {open && (
-        <ObservationForm kind="stock" market={s.market as "US" | "KR"} ticker={s.symbol} title={title}
-          notice={past ? "지난 주 브리핑에서 열었지만, 노트에는 지금(오늘) 값이 기록됩니다." : undefined}
-          onClose={() => setOpen(false)} onSaved={() => setSaved(true)} />
-      )}
-    </>
-  );
-}
-
 // 지수 1주 변화 - 두 칸 나란히(2026-10-21 브리핑 레이아웃 정리)
 function IndexTile({ label, m }: { label: string; m: MarketWeek }) {
   const v = m?.index_chg_1w;

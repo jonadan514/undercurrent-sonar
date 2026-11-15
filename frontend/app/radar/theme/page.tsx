@@ -16,6 +16,9 @@ import { useMarket } from "@/src/contexts/MarketContext";
 import { ObservationCard, ObservationForm, ObservationT } from "@/src/components/Observation";
 import { labelWithKo } from "@/src/lib/labelNames";
 import VALUE_CHAINS from "@/src/data/themeValueChains.json";
+import MyWatchBtn from "@/src/components/MyWatchBtn";
+import NoteBtn from "@/src/components/NoteBtn";
+import { weekReasonsAll, type WeekSignals } from "@/src/lib/weekSignals";
 
 const GOOD = "var(--good)";
 const DANGER = "var(--danger)";
@@ -456,6 +459,9 @@ function ThemeHistory() {
             </section>
           )}
 
+          {/* 이 테마의 후보(2026-11-15, 사용자: 사용성 D) - 흐름에서 종목으로 가는 마지막 걸음 */}
+          {members.length > 0 && <ThemeCandidates members={members} market={market} />}
+
           {/* ④ 이번 흐름을 만든 기업 */}
           <section className={box} style={boxStyle}>
             <h2 className="mb-1 h-section" style={{ color: "var(--text-primary)" }}>이번 흐름을 만든 기업</h2>
@@ -604,5 +610,70 @@ export default function ThemeHistoryPage() {
     <Suspense fallback={<div className="py-16 text-center" style={{ color: MUTED }}>불러오는 중...</div>}>
       <ThemeHistory />
     </Suspense>
+  );
+}
+
+// ── 이 테마의 후보 (2026-11-15, 사용자: 사용성 D) ───────────────────────────────
+// 소속 기업 중 재무 필터를 통과한 곳만 따로 묶는다 - 실적 판정(시장 중앙값 초과 / 그 밖)이라는 사실 하나로 나누고 안에서는 이름순.
+// 점수·순위 없음(원칙 1). 이번 주 이유 칩은 최신 브리핑에서(워치리스트 '이번 주 볼 후보'·브리핑 🎯과 같은 규칙, src/lib/weekSignals.ts).
+// 값은 이 화면이 이미 받는 것(theme-history members)만 - 새 계산 없음. 브리핑 🎯 테마 줄에서 #candidates로 바로 온다.
+function ThemeCandidates({ members, market }: { members: MemberRow[]; market: string }) {
+  const nameOf = (m: MemberRow) => (market === "KR" ? krStockName(m.ticker) || m.wl_name : m.wl_name || m.profile_name) || m.ticker;   // 가치사슬과 같은 규칙
+  const [reasons, setReasons] = useState<WeekSignals>(new Map());
+  useEffect(() => {
+    fetch("/api/briefing?limit=1").then((r) => r.json())
+      .then((d) => setReasons(weekReasonsAll(Array.isArray(d?.briefings) && d.briefings.length ? d.briefings[0] : null)))
+      .catch(() => setReasons(new Map()));
+  }, []);
+  useEffect(() => {   // 브리핑에서 #candidates로 들어오면 데이터가 그려진 뒤에 스크롤
+    if (typeof window !== "undefined" && window.location.hash === "#candidates")
+      document.getElementById("candidates")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  const cands = members.filter((m) => m.in_watchlist).sort((a, b) => nameOf(a).localeCompare(nameOf(b), "ko"));
+  const groups: [string, string, MemberRow[]][] = [
+    ["실적 시장 중앙값 초과", "var(--good)", cands.filter((m) => m.earn_status === "improved")],
+    ["실적 중앙값 미달 · 데이터 부족", "var(--text-muted)", cands.filter((m) => m.earn_status !== "improved")],
+  ];
+  const outside = members.length - cands.length;
+  return (
+    <section id="candidates" className="rounded-xl p-3 sm:p-4 scroll-mt-4" style={{ background: "#4ade800a", border: "1px solid #4ade8044" }}>
+      <h2 className="mb-1 h-section" style={{ color: "#4ade80" }}>이 테마의 후보 <span className="text-[13px] font-normal" style={{ color: MUTED }}>재무 필터 통과 소속 기업 {cands.length}곳</span></h2>
+      {cands.length === 0 ? (
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          이 테마 소속 중 재무 필터를 통과한 기업이 없습니다 - 흐름은 있어도 재무로 받쳐 주는 곳이 없다는 뜻입니다. 아래 표에서 소속 기업 전체를 볼 수 있습니다.
+        </p>
+      ) : groups.filter(([, , list]) => list.length > 0).map(([title, color, list]) => (
+        <div key={title} className="mt-2">
+          <p className="text-[12.5px] font-bold mb-1" style={{ color }}>{title} <span className="font-normal" style={{ color: FAINT }}>{list.length}곳</span></p>
+          <div className="space-y-1.5">
+            {list.map((m) => {
+              const why = reasons.get(`${market}:${m.ticker}`) ?? [];
+              return (
+                <div key={m.ticker} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2"
+                  style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                  <StockLink market={market as "US" | "KR"} symbol={m.ticker} className="font-bold text-white hover:underline">{nameOf(m)}</StockLink>
+                  <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                    밸류 {tierLabel(m.valuation_tier) || "-"} · {m.growth_tier ?? "성장 -"}
+                    {m.om_status && <> · 영업이익률 {m.om_status}</>}
+                    {m.price_ret != null && <> · 4주 <span style={{ color: m.price_ret >= 0 ? GOOD : DANGER }}>{pct(m.price_ret)}</span></>}
+                  </span>
+                  {why.map((r) => (
+                    <span key={r} className="text-[12px] px-1.5 rounded" style={{ background: "#4ade8014", color: "#86efac", border: "1px solid #4ade8033" }}>{r}</span>
+                  ))}
+                  <span className="ml-auto flex items-center gap-1.5">
+                    <MyWatchBtn market={market} symbol={m.ticker} name={nameOf(m)} />
+                    <NoteBtn s={{ market, symbol: m.ticker, name: nameOf(m) }} past={false} />
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="mt-2 text-[12px]" style={{ color: FAINT }}>
+        실적 판정 하나로만 나눴고 안에서는 이름순(순위 아님) · 밸류는 같은 업종 기업들 사이 위치 · 초록 칩은 이번 주 브리핑에 생긴 이유
+        {outside > 0 && ` · 재무 필터 밖 소속 기업 ${outside}곳은 아래 표에`}
+      </p>
+    </section>
   );
 }

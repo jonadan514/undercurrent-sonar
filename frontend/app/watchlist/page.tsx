@@ -1,6 +1,7 @@
 "use client";
 
 import { sectorKo } from "@/src/lib/sectorNames";
+import { weekSignalsFrom, type WeekSignals } from "@/src/lib/weekSignals";
 import { tierLabel } from "@/src/lib/valuation";
 import { classLabel } from "@/src/lib/quarterlyNames";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -122,27 +123,7 @@ const PRESETS: { key: PresetKey; label: string; note: string; test: (c: Candidat
 // ── 이번 주 볼 후보 (2026-11-07, 사용자: 380개는 너무 많다) ───────────────────────
 // 재무 필터 기준값은 그대로 두고(원칙 3) 처음 보여 줄 것만 줄인다: 테마에 소속돼 있으면서 이번 주 이유가 하나라도 있는 종목.
 // 이유는 그대로 칩으로 보여 준다 - 점수나 순위가 아니다(원칙 1). 전체 통과 목록은 토글 한 번으로.
-type WeekSignals = Map<string, string[]>;
-function weekSignalsFrom(b: Record<string, unknown> | null): WeekSignals {
-  const out: WeekSignals = new Map();
-  if (!b) return out;
-  const add = (m: string | undefined, s: string | undefined, why: string) => {
-    if (!m || !s) return;
-    const k = `${m}:${s}`;
-    const cur = out.get(k) ?? [];
-    if (!cur.includes(why)) out.set(k, [...cur, why]);
-  };
-  type G = { market?: string; symbol?: string; buyers?: number; all_plan?: boolean; pct?: number | null; warn?: boolean };
-  const ins = (b.insider_week ?? {}) as { items?: G[]; discovery?: G[] };
-  for (const g of [...(ins.items ?? []), ...(ins.discovery ?? [])]) if (!g.all_plan) add(g.market, g.symbol, (g.buyers ?? 0) > 1 ? "내부자 여러 명 매수" : "내부자 매수");
-  const kd = (b.kr_disclosures ?? {}) as Record<string, { items?: G[] } | undefined>;
-  for (const x of kd.contract?.items ?? []) if ((x.pct ?? 0) >= 10) add("KR", x.symbol, "큰 공급계약");
-  for (const x of kd.termination?.items ?? []) add("KR", x.symbol, "계약 해지");
-  for (const x of ((b.us_8k_week ?? {}) as { items?: G[] }).items ?? []) if (x.warn) add("US", x.symbol, "8-K 주의");
-  for (const x of ((b.turnaround ?? {}) as { added?: G[] }).added ?? []) add(x.market, x.symbol, "실적 반전 신규");
-  return out;
-}
-
+// 이번 주 이유 규칙은 src/lib/weekSignals.ts(2026-11-15 테마 화면 '이 테마의 후보'와 같이 쓰려고 옮김)
 // ── 프로토타입 팔레트 (이 페이지 한정) ───────────────────────────────────────
 // globals.css의 공용 토큰과는 별도로, 워치리스트 페이지에서만 새 팔레트를 시험한다.
 // "터미널 앰버" — 본문은 종이빛 화이트, 티커·숫자만 앰버로 강조하는 배색.
