@@ -10,7 +10,7 @@ import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
-import { ObservationForm } from "@/src/components/Observation";
+import { ObservationCard, ObservationForm, obsStatus, type ObservationT } from "@/src/components/Observation";
 import { Section } from "@/src/components/Section";
 import { krStockName } from "@/src/lib/krStockNames";
 import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
@@ -187,6 +187,36 @@ interface RegimeWeek {
   axes: Record<string, { name: string; dir: string | null }>;
   combos: { id: string; name: string; meaning: string }[];
 }
+// ── 회고 판정 (2026-11-15, 사용자: 사용성 2번 - "사용해 볼 기회도 없었고 사용법도 잘 몰라서") ─────────────
+// 관찰 노트 화면을 따로 찾아가지 않아도 브리핑에서 바로 판정하게. 최신 브리핑에서만, 지금 판정 안 한 회고를 그때그때 읽는다
+// (브리핑 저장값이 아니라서 판정하면 바로 사라진다). 카드는 관찰 노트 화면과 같은 것(ObservationCard).
+function DueReviews() {
+  const [items, setItems] = useState<ObservationT[] | null>(null);
+  const [week, setWeek] = useState<string | undefined>();
+  const load = () => {
+    fetch("/api/notes").then((r) => r.json())
+      .then((d) => { setItems((Array.isArray(d.observations) ? d.observations : []).filter((o: ObservationT) => obsStatus(o) === "due")); setWeek(d.current_week); })
+      .catch(() => setItems([]));
+  };
+  useEffect(load, []);
+  if (!items || items.length === 0) return null;
+  return (
+    <Section className={SCROLL_M} id="reviews" tone="mine" title="🔁 회고 판정" count={items.length}
+      sub="몇 주 전 적어 둔 예상이 맞았는지 - 그때와 지금 값을 보고 버튼 하나로">
+      <p className="text-[13px] mb-2" style={{ color: "var(--text-secondary)" }}>
+        표에서 그때와 지금을 비교하고 <b>맞았다 · 틀렸다 · 애매</b> 중 하나를 누르면 끝입니다(배운 점 한 줄은 선택). 판정이 쌓이면 관찰 노트 화면 위에
+        &quot;내 예상이 얼마나 맞았나&quot;가 모입니다.
+      </p>
+      <div className="space-y-2">
+        {items.slice(0, 3).map((o) => <ObservationCard key={o.id} o={o} currentWeek={week} onChanged={load} />)}
+      </div>
+      {items.length > 3 && (
+        <a href="/notes" className="mt-2 inline-block text-[12.5px] hover:underline" style={{ color: "#f59e0b" }}>나머지 {items.length - 3}건 → 관찰 노트</a>
+      )}
+    </Section>
+  );
+}
+
 // ── 이번 주 볼 것 (2026-11-15) ─────────────────────────────────────────────
 // 산업 흐름(라벨 테마)과 매수 후보 찾기(테마 소속 재무 통과 후보 + 이번 주 이유)를 맨 위 한 칸에. 점수·순위 없음 - 이유를 그대로.
 const AX: Record<string, string> = { up2: "↑↑", up1: "↑", flat: "→", down: "↓", na: "–" };
@@ -610,6 +640,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
       <div className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-5">
         <div className="space-y-2 min-w-0">
           {has.focus && <WeekFocus f={b.week_focus!} past={past} />}
+          {!past && <DueReviews />}
           {has.mine && (
             <Section className={SCROLL_M} id="mine" tone="mine" title="⭐ 관심 종목에 생긴 일"
               sub={`내 관심·노트 ${b.my_stocks_week!.watched}종목 중 ${b.my_stocks_week!.count}종목`}>
