@@ -9,7 +9,6 @@ import Link from "next/link";
 import StockLink from "@/src/components/StockLink";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO, labelEn, labelWithKo } from "@/src/lib/labelNames";
-import { StatGrid, StatTile } from "@/src/components/Section";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import Note from "@/src/components/Note";
@@ -93,21 +92,21 @@ const quietOrder = (ev?: ThemeEvents) => {
 };
 const hasRecent = (ev?: ThemeEvents) => !!ev && (ev.counts.disclosure_7d > 0 || ev.counts.insider_cos_7d > 0);
 const isBusier = (ev?: ThemeEvents) => !!ev?.counts.busier && (ev.counts.busier.disclosure || ev.counts.busier.insider);
-const avgText = (w?: WeeklyCount) => w?.avg == null ? "" : `·평소 ${w.avg < 10 ? w.avg.toFixed(1) : Math.round(w.avg)}`;
+const avgText = (w?: WeeklyCount) => w?.avg == null ? "" : ` (평소 ${w.avg < 10 ? w.avg.toFixed(1) : Math.round(w.avg)})`;
 
 function EventChip({ ev }: { ev?: ThemeEvents }) {
   if (!hasRecent(ev)) return null;
   const c = ev!.counts;
   const b = c.busier;
   const parts: [string, boolean][] = [];
-  if (c.disclosure_7d > 0) parts.push([`공시 ${c.disclosure_7d}${avgText(c.weekly?.disclosure)}`, !!b?.disclosure]);
+  if (c.disclosure_7d > 0) parts.push([`공시 ${c.disclosure_7d}건${avgText(c.weekly?.disclosure)}`, !!b?.disclosure]);
   if (c.insider_cos_7d > 0) parts.push([`내부자 매수 ${c.insider_cos_7d}개사${avgText(c.weekly?.insider)}`, !!b?.insider]);
   const busy = parts.some(([, x]) => x);
   return (
-    <span className="whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px]"
+    <span className="whitespace-nowrap text-[12px]"
       title={"최근 7일 소속 기업 공시·내부자 장내 매수 (세 축과 별개, 한국 잠정실적은 세지 않음). 평소 = 직전 4주 주당 평균" + (busy ? " · 굵은 항목은 평소의 2배 이상" : "")}
-      style={{ border: `1px solid ${busy ? ACCENT + "88" : "var(--border-ctrl)"}`, color: "var(--text-secondary)", fontFamily: MONO }}>
-      📄 {parts.map(([t, x], i) => (
+      style={{ color: "var(--text-muted)" }}>
+      {parts.map(([t, x], i) => (
         <span key={i}>{i > 0 && " · "}<span style={x ? { color: ACCENT, fontWeight: 700 } : undefined}>{t}</span></span>
       ))}
     </span>
@@ -734,39 +733,35 @@ export default function RadarPage() {
       {/* 라벨이 적은 게 "빈 화면"이 아니라 "걸러낸 결과"로 읽히도록 깔때기로 보여준다. */}
       {!loading && signals.length > 0 && (
         <>
-          {/* 공용 요약 칸(2026-10-25 화면 통일) - 깔때기 순서(관찰 → 움직임 → 조합)는 그대로 */}
-          <div className="mt-4">
-            <StatGrid cols={3}>
-              <StatTile label="관찰한 테마" value={signals.length} />
-              <StatTile label="축이 하나라도 움직임" value={movingCount} />
-              <StatTile label="6개 조합에 해당" value={labeled.length} emphasis="accent" />
-            </StatGrid>
-          </div>
-          <p className="mt-2 text-[12px]" style={{ color: FAINT }}>
-            기준 주 {weekStart} · {market === "KR" ? "한국" : "미국"} 시장 · 조합에 안 맞으면 억지로 이름 붙이지 않습니다 — 적게 나오는 것이 정상입니다.
+          {/* 깔때기(관찰 → 움직임 → 조합)를 한 줄로(2026-11-15 화면 정리 - 예전엔 숫자 타일 3개) */}
+          <p className="mt-4 text-[14px]" style={{ color: "var(--text-secondary)" }}>
+            {market === "KR" ? "한국" : "미국"} 테마 <b style={{ color: "var(--text-primary)" }}>{signals.length}개</b> 중
+            {" "}<b style={{ color: "var(--text-primary)" }}>{movingCount}개</b>가 움직였고, 정해진 조합에 맞아 이름이 붙은 것은
+            {" "}<b style={{ color: ACCENT }}>{labeled.length}개</b>
+            <span className="text-[12px]" style={{ color: FAINT }}> · 억지로 이름 붙이지 않아 적게 나오는 것이 정상</span>
           </p>
         </>
       )}
 
-      <div className="mt-5 flex flex-wrap gap-4 rounded-xl px-4 py-3 text-[12px]" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: MUTED }}>
-        <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↑↑</b> 강함</span>
-        <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↑</b> 상승</span>
-        <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>→</b> 보합</span>
-        <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↓</b> 하락</span>
-        <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>–</b> 표본 부족</span>
-        {/* 오늘 실적 축이 "중앙값 대비"로 바뀌어서, 각 축의 비교 대상을 명시하는 게 중요해졌다. */}
-        <span style={{ color: FAINT }}>뉴스=직전 8주 중앙값 대비(미국은 테마 전체 대비) · 실적=시장 중앙값 대비 · 주가=지수 대비</span>
-      </div>
-
-      <div className="mt-2 mb-6 flex flex-wrap items-center gap-2.5 rounded-xl px-4 py-3 text-[11.5px]"
-           style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: FAINT }}>
-        <span>라벨 색 —</span>
-        {["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment"].map((l) => (
-          <span key={l} className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-extrabold"
-                style={BADGE_STYLE[l]} title={LABEL_NOTE[l]}>{labelWithKo(l)}</span>
-        ))}
-        <span>왼쪽일수록 이른 신호라 색이 진합니다(카드 모양은 모두 같음).</span>
-      </div>
+      {/* 읽는 법(2026-11-15 화면 정리) - 범례 상자 두 개를 접힌 한 줄로 */}
+      <details className="mt-3 mb-4 text-[12px]" style={{ color: MUTED }}>
+        <summary className="cursor-pointer select-none" style={{ color: "var(--text-secondary)" }}>화살표·라벨 읽는 법</summary>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↑↑</b> 강함</span>
+          <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↑</b> 상승</span>
+          <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>→</b> 보합</span>
+          <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>↓</b> 하락</span>
+          <span><b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>–</b> 표본 부족</span>
+          <span style={{ color: FAINT }}>뉴스=직전 8주 중앙값 대비(미국은 테마 전체 대비) · 실적=시장 중앙값 대비 · 주가=지수 대비</span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {["Quiet Strength", "Quiet Recovery", "Early Buzz", "Full Alignment"].map((l) => (
+            <span key={l} className="whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-bold"
+                  style={BADGE_STYLE[l]} title={LABEL_NOTE[l]}>{labelWithKo(l)}</span>
+          ))}
+          <span style={{ color: FAINT }}>왼쪽일수록 이른 신호라 색이 진합니다.</span>
+        </div>
+      </details>
 
       {loading ? (
         <div className="py-16 text-center text-[13px]" style={{ color: MUTED }}>불러오는 중...</div>
@@ -781,7 +776,14 @@ export default function RadarPage() {
               그 선택을 기억해 다음 방문에서도 펼쳐진 채로 보여준다(collapsedStages에
               값이 없을 때만 기본 접힘 - false를 저장해 뒀으면 펼친 채 유지).*/}
           {stageGroups.map(({ stage, items }, i) => {
-            const collapsed = collapsedStages[stage.key] ?? true;
+            // 2026-11-15: 라벨 테마가 이 화면의 핵심인데 기본 접힘이라 '라벨 없음' 목록만 펼쳐져 보였다 - 해당이 있으면 기본 펼침,
+            // 없으면 큰 머리 대신 한 줄(이번 주 비었다는 것도 정보라 숨기지는 않는다).
+            if (items.length === 0) return (
+              <p key={stage.key} className="mt-3 text-[12.5px]" style={{ color: FAINT }}>
+                <span className="font-semibold" style={{ color: MUTED }}>{stage.name}</span> · 이번 주 해당 없음
+              </p>
+            );
+            const collapsed = collapsedStages[stage.key] ?? false;
             return (
               <div key={stage.key} className="mt-8">
                 <StageRail index={i} color={stage.color} />
@@ -867,14 +869,6 @@ export default function RadarPage() {
         </>
       )}
 
-      <div className="mt-12 border-t pt-5 text-[12px] leading-relaxed" style={{ borderColor: "var(--border)", color: FAINT }}>
-        <p>이 화면이 하지 않는 것</p>
-        <ul className="mt-1 list-disc pl-5">
-          <li>종합 점수·등급 표시</li>
-          <li>&ldquo;매수 추천&rdquo; / &ldquo;BUY&rdquo; / &ldquo;우선순위&rdquo; 류의 표현</li>
-          <li>테마를 수익률 기대치로 정렬</li>
-        </ul>
-      </div>
     </div>
   );
 }

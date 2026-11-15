@@ -201,16 +201,17 @@ function ValueChain({ themeId, market, members }: { themeId: string; market: str
     { key: "0", title: "어느 구간에도 안 맞음", items: members.filter((m) => m.segment === 0) },
     { key: "na", title: "아직 분류 전", items: members.filter((m) => m.segment == null) }]
     .filter((g) => g.items.length > 0 || /^\d+$/.test(g.key) && g.key !== "0");
+  // 비어 있는 구간은 한 줄로 모은다(2026-11-15 화면 정리 - 예전엔 빈 상자가 구간마다 하나씩)
+  const empty = groups.filter((g) => g.items.length === 0);
+  const filled = groups.filter((g) => g.items.length > 0);
   return (
-    <div className="space-y-2.5">
-      {groups.map((g) => (
-        <div key={g.key} className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+    <div>
+      {filled.map((g) => (
+        <div key={g.key} className="py-2" style={{ borderTop: "1px solid var(--border)" }}>
           <p className="mb-1.5 text-[12.5px] font-semibold" style={{ color: g.key === "0" || g.key === "na" ? MUTED : "var(--text-primary)" }}>
             {g.title} <span className="font-normal" style={{ color: FAINT }}>· {g.items.length}개사</span>
           </p>
-          {g.items.length === 0 ? (
-            <p className="text-[12px]" style={{ color: FAINT }}>이 구간에 승인된 소속 기업 없음</p>
-          ) : (
+          {(
             <div className="flex flex-wrap gap-1.5">
               {[...g.items].sort((a, b) => nameOf(a).localeCompare(nameOf(b))).map((m) => {
                 const st = EARN_STATUS[m.earn_status ?? "insufficient"] ?? EARN_STATUS.insufficient;
@@ -229,7 +230,13 @@ function ValueChain({ themeId, market, members }: { themeId: string; market: str
           )}
         </div>
       ))}
-      <p className="text-[11.5px]" style={{ color: FAINT }}>
+      {empty.length > 0 && (
+        <p className="py-2 text-[12.5px]" style={{ borderTop: "1px solid var(--border)", color: MUTED }}>
+          비어 있는 구간 <span style={{ color: FAINT }}>· 승인된 소속 기업 없음</span>
+          <span className="block" style={{ color: "var(--text-secondary)" }}>{empty.map((g) => g.title).join(" · ")}</span>
+        </p>
+      )}
+      <p className="mt-1 text-[11.5px]" style={{ color: FAINT }}>
         구간은 테마 정의(themes.yaml)의 가치사슬, 기업 배정은 매핑 근거 글을 읽고 GPT가 구간 번호만 고른 것입니다. 점 색 = 실적 판정
         (<span style={{ color: GOOD }}>●</span> 시장 중앙값 초과 · <span style={{ color: MUTED }}>●</span> 미달 · <span style={{ color: FAINT }}>●</span> 데이터 부족),
         옆 숫자 = 최근 분기 매출 YoY. 구간 안은 이름 순이며 순위가 아닙니다.
@@ -308,6 +315,9 @@ function ThemeHistory() {
   }, {} as Record<string, number>);
   const hasMargin = members.some((m) => m.om_status != null || m.om_now != null);
   const withSurprise = members.filter((m) => m.surprise);
+  // 매출 YoY 분기가 소속 기업 모두 같으면 열 머리에 한 번만(2026-11-15 화면 정리 - 줄마다 '2026 Q3' 반복)
+  const quarters = new Set(members.map((m) => m.rev_quarter).filter(Boolean));
+  const oneQuarter = quarters.size === 1 ? String([...quarters][0]) : null;
   const hasFacts = members.some((m) => m.facts && (m.facts.analysts != null || m.facts.from_high != null));
   const factsAsOf = members.map((m) => m.facts?.as_of).filter(Boolean).sort().pop();
   const surpriseBeat = withSurprise.filter((m) => (m.surprise?.pct ?? 0) > 0).length;
@@ -409,11 +419,17 @@ function ThemeHistory() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-[12px] leading-relaxed" style={{ color: FAINT }}>
-              ↑↑ 크게 오름 · ↑ 오름 · → 보합 · ↓ 내림 · – 데이터 부족(탈락 아님) · · 그 주 계산 없음. 칸에 마우스를 올리면 숫자가 보입니다.
-              {switchIdx >= 0 && <> 점선은 뉴스 수집원이 바뀐 주로, 그 앞뒤 뉴스 건수는 비교할 수 없습니다. 뉴스 축은 바뀐 뒤 4주가 쌓여야 다시 판정됩니다.</>}
-              {" "}라벨 약자: HS Hidden Strength(숨은 강세) · HR Hidden Recovery(숨은 회복) · EH Early Hype(뉴스 선행) · OH Overhyped(기대 과열) · BR Broad Rally(동반 상승) · BD Broad Decline(동반 하락).
+            <p className="mt-3 text-[12px]" style={{ color: FAINT }}>
+              ↑↑ 크게 오름 · ↑ 오름 · → 보합 · ↓ 내림 · – 데이터 부족 · 칸에 마우스를 올리면 숫자
             </p>
+            {/* 약자·점선 설명은 접어 둔다(2026-11-15 화면 정리 - 예전엔 세 줄 문단) */}
+            <details className="mt-1 text-[12px]" style={{ color: FAINT }}>
+              <summary className="cursor-pointer select-none">라벨 약자{switchIdx >= 0 ? "·점선" : ""} 설명</summary>
+              <p className="mt-1 leading-relaxed">
+                HS 숨은 강세 · HR 숨은 회복 · EH 뉴스 선행 · OH 기대 과열 · BR 동반 상승 · BD 동반 하락.
+                {switchIdx >= 0 && <> 점선은 뉴스 수집원이 바뀐 주로, 그 앞뒤 뉴스 건수는 비교할 수 없습니다(바뀐 뒤 4주가 쌓여야 다시 판정).</>}
+              </p>
+            </details>
           </section>
 
           {/* ② 먼저 움직인 축 */}
@@ -430,6 +446,9 @@ function ThemeHistory() {
             {order && <p className="mt-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>{order}</p>}
             <p className="mt-2 text-[12px]" style={{ color: FAINT }}>지난 {WEEKS}주에 일어난 일만 적습니다. 앞으로 어떻게 될지는 판단하지 않습니다.</p>
           </section>
+
+          {/* 이 테마의 후보(2026-11-15, 사용자: 사용성 D) - 흐름에서 종목으로 가는 마지막 걸음. 11/15 화면 정리로 최근 움직임 바로 아래 */}
+          {members.length > 0 && <ThemeCandidates members={members} market={market} />}
 
           {/* ③ 숫자 추이 */}
           <section className={box} style={boxStyle}>
@@ -459,8 +478,6 @@ function ThemeHistory() {
             </section>
           )}
 
-          {/* 이 테마의 후보(2026-11-15, 사용자: 사용성 D) - 흐름에서 종목으로 가는 마지막 걸음 */}
-          {members.length > 0 && <ThemeCandidates members={members} market={market} />}
 
           {/* ④ 이번 흐름을 만든 기업 */}
           <section className={box} style={boxStyle}>
@@ -471,11 +488,15 @@ function ThemeHistory() {
               </p>
             ) : (
               <>
-                <p className="mb-3 text-[12px]" style={{ color: FAINT }}>
-                  {data.members_week && `${md(data.members_week)} 주 · `}사업 소속(직접·부분) {members.length}개사 · 4주 수익률 높은 순 ·
-                  실적 중앙값 초과 {earnCounts.improved ?? 0} / 미달 {earnCounts.not_improved ?? 0} / 데이터 부족 {earnCounts.insufficient ?? 0}
-                  {hasMargin && <> · 영업이익률(전년 같은 분기 대비) 개선 {omCounts["개선"] ?? 0} / 유지 {omCounts["유지"] ?? 0} / 악화 {omCounts["악화"] ?? 0}</>}
-                  {withSurprise.length > 0 && <> · 최근 100일 실적 발표 {withSurprise.length}개사 중 추정치 상회 {surpriseBeat}</>}
+                <p className="text-[12px]" style={{ color: FAINT }}>
+                  {data.members_week && `${md(data.members_week)} 주 · `}사업 소속(직접·부분) {members.length}개사 · 4주 수익률 높은 순
+                </p>
+                <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                  {[
+                    `실적 중앙값 초과 ${earnCounts.improved ?? 0} · 미달 ${earnCounts.not_improved ?? 0}${earnCounts.insufficient ? ` · 데이터 부족 ${earnCounts.insufficient}` : ""}`,
+                    hasMargin ? `영업이익률 개선 ${omCounts["개선"] ?? 0} · 악화 ${omCounts["악화"] ?? 0}${omCounts["유지"] ? ` · 유지 ${omCounts["유지"]}` : ""}` : null,
+                    withSurprise.length > 0 ? `최근 100일 실적 발표 ${withSurprise.length}곳 중 추정치 상회 ${surpriseBeat}` : null,
+                  ].filter(Boolean).join("   |   ")}
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-[13px]" style={{ minWidth: hasFacts ? 900 : 560 }}>
@@ -483,7 +504,7 @@ function ThemeHistory() {
                       <tr style={{ borderBottom: "1px solid var(--border)", color: MUTED }}>
                         <th className="py-2 text-left font-normal">종목</th>
                         <th className="py-2 text-right font-normal">4주 수익률</th>
-                        <th className="py-2 text-right font-normal">매출 YoY</th>
+                        <th className="py-2 text-right font-normal">매출 YoY{oneQuarter && <span className="ml-1 text-[11px]" style={{ color: FAINT }}>{oneQuarter.replace("-", " ")}</span>}</th>
                         <th className="py-2 text-left font-normal pl-4">실적</th>
                         {hasMargin && <th className="py-2 text-right font-normal" title="최근 분기 영업이익률과 1년 전 같은 분기 대비 차이 (±1%p 이상이면 개선/악화)">영업이익률</th>}
                         {withSurprise.length > 0 && <th className="py-2 pl-3 text-right font-normal" title="최근 100일 안에 발표한 실적의 EPS 추정치 대비 차이">서프라이즈</th>}
@@ -511,7 +532,7 @@ function ThemeHistory() {
                               {pct(m.price_ret)}
                             </td>
                             <td className="py-2 text-right" style={{ fontFamily: MONO, color: "var(--text-secondary)" }}>
-                              {pct(m.rev_yoy)}{m.rev_quarter && <span className="ml-1 text-[10px]" style={{ color: FAINT }}>{m.rev_quarter.replace("-", " ")}</span>}
+                              {pct(m.rev_yoy)}{m.rev_quarter && !oneQuarter && <span className="ml-1 text-[10px]" style={{ color: FAINT }}>{m.rev_quarter.replace("-", " ")}</span>}
                               {m.prelim_rev_yoy != null && m.prelim_quarter && m.prelim_quarter !== m.rev_quarter && (
                                 <div className="text-[11px]" style={{ color: MUTED }} title="잠정실적 공시 - 실적 판정에는 들어가지 않는 참고 값">
                                   잠정 {pct(Number(m.prelim_rev_yoy))}<span className="ml-1 text-[10px]" style={{ color: FAINT }}>{m.prelim_quarter.replace("-", " ")}</span>

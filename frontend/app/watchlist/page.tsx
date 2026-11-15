@@ -15,7 +15,6 @@ import AsOf from "@/src/components/AsOf";
 import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
-import { StatGrid, StatTile } from "@/src/components/Section";
 import { ChecklistSection, InsiderSection, InstitutionSection, MissDetail, NarrativeSection, ThemePeerSection, Us8kSection } from "@/src/components/stock/StockSections";
 
 interface Candidate {
@@ -263,14 +262,10 @@ function formatPrice(market: string, price: number | null) {
   return market === "KR" ? `₩${Math.round(price).toLocaleString()}` : `$${price.toFixed(2)}`;
 }
 
+// 2026-11-15 화면 정리: 표 안 칸마다 색 상자(배경+테두리)가 있어 한 줄에 상자가 6~8개였다 - 글자만 남긴다.
 function PiotroskiBadge({ score }: { score: number | null }) {
   if (score === null) return <span style={{ color: TEXT_FAINT }}>-</span>;
-  const color = score >= 7 ? GOOD : score >= 5 ? WARN : BAD;
-  return (
-    <span style={{ background: color + "20", color, border: `1px solid ${color}40`, padding: "1px 6px", fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-      {score}/9
-    </span>
-  );
+  return <span style={{ color: TEXT_PRIMARY, fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{score}<span style={{ color: TEXT_MUTED }}>/9</span></span>;
 }
 function RegimeBadge({ fit }: { fit: string }) {
   const map: Record<string, { label: string; color: string }> = {
@@ -278,12 +273,8 @@ function RegimeBadge({ fit }: { fit: string }) {
     dividend: { label: "배당", color: GOOD },
     neutral:  { label: "중립", color: TEXT_SECONDARY },
   };
-  const { label, color } = map[fit] ?? map.neutral;
-  return (
-    <span style={{ background: color + "20", color, border: `1px solid ${color}40`, padding: "1px 6px", fontSize: 11 }}>
-      {label}
-    </span>
-  );
+  const { label } = map[fit] ?? map.neutral;
+  return <span style={{ color: TEXT_SECONDARY, fontSize: 12 }}>{label}</span>;
 }
 
 // 밸류 등급은 "싼 편"만 GOOD으로 칠하고 "비싼 편"은 CAUTION까지만 쓴다 - 비싼 게
@@ -296,11 +287,7 @@ const TIER_COLOR: Record<string, string> = {
 function ValuationBadge({ tier }: { tier?: string | null }) {
   if (!tier) return <span style={{ color: TEXT_FAINT }}>-</span>;
   const color = TIER_COLOR[tier] ?? TEXT_SECONDARY;
-  return (
-    <span style={{ background: color + "20", color, border: `1px solid ${color}40`, padding: "1px 6px", fontSize: 11, whiteSpace: "nowrap" }}>
-      {tierLabel(tier)}
-    </span>
-  );
+  return <span style={{ color, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>{tierLabel(tier)}</span>;
 }
 
 // PSR·PER을 한 칸에 같이 둔다 - 배지(등급)가 먼저 눈에 들어오고, 근거 숫자는 그
@@ -913,6 +900,7 @@ export default function WatchlistPage() {
   // 몇 개가 "값 없음"으로 빠졌는지 따로 보여준다(계산 불가를 조용히 탈락시키지 않는다 - 원칙 4).
   const [numFilter, setNumFilter] = useState({ minF: "", maxDebt: "", minInterest: "", maxPsr: "", maxPer: "", minCagr: "" });
   const [showNumFilter, setShowNumFilter] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);   // 조건 칸 전체(2026-11-15 기본 접힘)
   const [sort, setSort] = useState<SortState>(null);
   // 후보를 한 번에 다 그리면 화면이 2만 9천 픽셀까지 길어졌다(2026-11-05 사이트 둘러보기, 380종목) - 앞부분만 그리고 "더 보기"로
   const [shown, setShown] = useState(LIST_PAGE);
@@ -1120,6 +1108,8 @@ export default function WatchlistPage() {
   // 켜 둔 조건이 하나라도 있으면 "조건 모두 해제"(2026-10-25) - 예전엔 칩을 하나씩 꺼야 했다
   const anyFilter = marketFilter !== "ALL" || regimeFilter !== "ALL" || newOnly || cheapOnly || growingOnly || themeOnly
     || heatingOnly || preset != null || activeChecks.length > 0 || searchQuery.trim() !== "";
+  const filterCount = [marketFilter !== "ALL", regimeFilter !== "ALL", newOnly, cheapOnly, growingOnly, themeOnly, heatingOnly, preset != null]
+    .filter(Boolean).length + activeChecks.length;
   const clearFilters = () => {
     setMarketFilter("ALL"); setRegimeFilter("ALL"); setNewOnly(false); setCheapOnly(false); setGrowingOnly(false);
     setThemeOnly(false); setHeatingOnly(false); setPreset(null); setSearchQuery("");
@@ -1161,8 +1151,8 @@ export default function WatchlistPage() {
       <>
         {/* 배지(신규·내 관심·실적 반전 등)가 많으면 다음 줄로 - 좁은 화면에서 이 칸이 표를 밀어내지 않게 */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexWrap: "wrap", rowGap: 3 }}>
-          <span style={{ color: c.market === "US" ? INFO : BAD, fontSize: 11, fontWeight: 600 }}>{c.market}</span>
-          <span style={{ fontWeight: 700, color: NUM }}>{c.symbol}</span>
+          <span style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: 600 }}>{c.market}</span>
+          <span style={{ fontWeight: 700, color: TEXT_PRIMARY }}>{c.symbol}</span>
           {c.is_new === true && (
             <span
               // first_seen은 이력 기록이 쌓이기 시작한 뒤로만 알 수 있다 - 실제
@@ -1182,15 +1172,16 @@ export default function WatchlistPage() {
             <TagBadges tags={[...(inList ? ["my"] : []), ...(isTurnaround(c) ? ["turnaround"] : [])]} />
           )}
           {focus && reasonsFor(c).filter((r) => !["신규 통과", "재진입"].includes(r)).map((r) => (
-            <span key={r} style={{ fontSize: 10, color: ACCENT, border: `1px solid ${ACCENT}44`, padding: "1px 5px" }}>{r}</span>
+            <span key={r} style={{ fontSize: 10.5, color: r === "계약 해지" || r === "8-K 주의" ? BAD : TEXT_SECONDARY,
+              border: `1px solid ${r === "계약 해지" || r === "8-K 주의" ? BAD + "55" : BORDER_CTRL}`, padding: "1px 5px" }}>{r}</span>
           ))}
           {focus && contextFor(c).map((r) => (
-            <span key={r} title="참고 - 이것만으로는 '이번 주 볼 후보'에 넣지 않음" style={{ fontSize: 10, color: TEXT_MUTED, border: `1px solid ${BORDER_CTRL}`, padding: "1px 5px" }}>{r}</span>
+            <span key={r} title="참고 - 이것만으로는 '이번 주 볼 후보'에 넣지 않음" style={{ fontSize: 10.5, color: TEXT_FAINT }}>{r}</span>
           ))}
           {heating.has(key) && (
             <span title={`최근 주간 갱신에서 관심도 상승 (${heating.get(key)}) · 뉴스량 기준 보조 정보`}
-              style={{ fontSize: 10, fontWeight: 700, color: BAD, border: `1px solid ${BAD}55`, padding: "1px 5px", verticalAlign: "middle" }}>
-              ▲관심
+              style={{ fontSize: 10.5, color: TEXT_MUTED, verticalAlign: "middle" }}>
+              관심도↑
             </span>
           )}
         </div>
@@ -1215,26 +1206,32 @@ export default function WatchlistPage() {
       </>
     );
   };
-  const renderGrowth = (c: Candidate) => (
-    <>
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        <GrowthBadge tier={c.growth_tier} prefix={c.rev_q_tier || c.rev_ttm_tier ? "3년" : undefined} title="연간 매출 3년 CAGR 기준" />
-        {/* 지금 흐름: 최근 4개 분기 합 비교가 있으면 그것(덜 흔들림), 없으면 최근 한 분기 비교 */}
-        {c.rev_ttm_tier
-          ? <GrowthBadge tier={c.rev_ttm_tier} prefix="1년"
-              title={`최근 4개 분기 매출 합, 그 전 4개 분기 대비 ${fmtGrowthPct(c.rev_ttm_yoy)} (최근 분기 단독 ${fmtGrowthPct(c.rev_q_yoy)})`} />
-          : <GrowthBadge tier={c.rev_q_tier} prefix="분기"
-              title={`${quarterLabel(c.rev_q_quarter)} 매출, 1년 전 같은 분기 대비 ${fmtGrowthPct(c.rev_q_yoy)}`} />}
+  const renderGrowth = (c: Candidate) => {
+    const line = (label: string, v: number | null | undefined, tier: string | null | undefined, title: string) => (
+      <div title={title} style={{ whiteSpace: "nowrap", fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ color: TEXT_MUTED }}>{label} </span>
+        <span style={{ color: v == null ? TEXT_FAINT : NUM }}>{fmtGrowthPct(v)}</span>
+        {tier && <span style={{ color: GROWTH_TIER_COLOR[tier] ?? TEXT_SECONDARY, fontSize: 11.5 }}> {tier}</span>}
       </div>
-      <div style={{ marginTop: 2 }}><GrowthNumbers cagr3y={c.revenue_cagr_3y} yoy={c.revenue_yoy} /></div>
-      {(c.op_margin_q_status === "개선" || c.op_margin_q_status === "악화") && (
-        <div style={{ marginTop: 2, fontSize: 11, color: c.op_margin_q_status === "개선" ? GOOD : CAUTION, whiteSpace: "nowrap" }}
-          title={`최근 분기 영업이익률 ${c.op_margin_q_now != null ? (c.op_margin_q_now * 100).toFixed(1) + "%" : "-"}, 1년 전 같은 분기 대비 ${c.op_margin_q_change != null ? ((c.op_margin_q_change >= 0 ? "+" : "") + (c.op_margin_q_change * 100).toFixed(1)) : "-"}%p`}>
-          분기 이익률 {c.op_margin_q_status === "개선" ? "↑" : "↓"}
-        </div>
-      )}
-    </>
-  );
+    );
+    // 지금 흐름: 최근 4개 분기 합 비교가 있으면 그것(덜 흔들림), 없으면 최근 한 분기 비교, 둘 다 없으면 연간 1년(판정 없이)
+    return (
+      <>
+        {line("3년", c.revenue_cagr_3y, c.growth_tier, "연간 매출 3년 연평균 성장")}
+        {c.rev_ttm_tier
+          ? line("1년", c.rev_ttm_yoy, c.rev_ttm_tier, `최근 4개 분기 매출 합, 그 전 4개 분기 대비 (최근 분기 단독 ${fmtGrowthPct(c.rev_q_yoy)})`)
+          : c.rev_q_tier
+            ? line("분기", c.rev_q_yoy, c.rev_q_tier, `${quarterLabel(c.rev_q_quarter)} 매출, 1년 전 같은 분기 대비`)
+            : line("1년", c.revenue_yoy, null, "최근 연간 매출 전년 대비")}
+        {(c.op_margin_q_status === "개선" || c.op_margin_q_status === "악화") && (
+          <div style={{ fontSize: 11.5, color: TEXT_MUTED, whiteSpace: "nowrap" }}
+            title={`최근 분기 영업이익률 ${c.op_margin_q_now != null ? (c.op_margin_q_now * 100).toFixed(1) + "%" : "-"}, 1년 전 같은 분기 대비 ${c.op_margin_q_change != null ? ((c.op_margin_q_change >= 0 ? "+" : "") + (c.op_margin_q_change * 100).toFixed(1)) : "-"}%p`}>
+            분기 이익률 {c.op_margin_q_status === "개선" ? "↑" : "↓"}
+          </div>
+        )}
+      </>
+    );
+  };
 
   // 후보가 275종목이라 목록만으로는 이번 주에 뭐가 달라졌는지 안 보인다.
   // 순위를 만들지 않으면서 "먼저 볼 것"을 주는 방법 - 이번 회차 신규만 따로 센다.
@@ -1289,23 +1286,6 @@ export default function WatchlistPage() {
         asOf={!loading && <AsOf date={screened_at} cadence="매주 월요일 아침" staleDays={8} />}
         desc="재무 필터(재무 건전성 필터)를 통과한 종목 전부, 순위 없이. 종목을 누르면 재무·공시·내부자 매수·뉴스 관심도를 한 화면에." />
 
-      {/* 통계 - 공용 요약 칸(2026-10-25 화면 통일) */}
-      <div style={{ marginBottom: 24 }}>
-        <StatGrid cols={5}>
-          <StatTile label="후보 종목" value={candidates.length} />
-          {/* 이번 회차 신규는 후보 중 먼저 볼 것을 고르는 유일한 단서라 강조하고, 누르면 신규만 본다.
-              직전 회차가 없으면 숫자 대신 "-"(알 수 없음) - 0으로 쓰면 "신규가 없다"는 뜻이 되어 사실과 다르다. */}
-          <StatTile label="이번 회차 신규" value={newKnown ? newCount : "-"} emphasis={newKnown && newCount > 0 ? "good" : undefined}
-            active={newOnly} onClick={newKnown && newCount > 0 ? () => { setTab("candidates"); setNewOnly((v) => !v); } : undefined}
-            hint="누르면 이번 회차 신규만" />
-          <StatTile label="내 워치리스트" value={myList.length} onClick={() => setTab("my")} active={tab === "my"} hint="누르면 내 워치리스트 탭" />
-          <StatTile label="성장 후보" value={candidates.filter((c) => c.regime_fit === "growth").length}
-            active={regimeFilter === "growth"} onClick={() => { setTab("candidates"); setRegimeFilter((r) => r === "growth" ? "ALL" : "growth"); }} hint="누르면 성장 체제만" />
-          <StatTile label="배당 후보" value={candidates.filter((c) => c.regime_fit === "dividend").length}
-            active={regimeFilter === "dividend"} onClick={() => { setTab("candidates"); setRegimeFilter((r) => r === "dividend" ? "ALL" : "dividend"); }} hint="누르면 배당 체제만" />
-        </StatGrid>
-      </div>
-
       {/* 탭 */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: `1px solid ${BORDER}`, paddingBottom: 12 }}>
         {(["candidates", "my"] as const).map((t) => (
@@ -1335,7 +1315,7 @@ export default function WatchlistPage() {
               </div>
               <p style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 6, lineHeight: 1.5 }}>
                 {focus
-                  ? "재무 필터 통과 종목 중 테마에 소속돼 있고 이번 주에 생긴 이유(신규 통과·실적 반전 신규·밸류 LOW·성장·관심도 HOT 진입·내부자 매수·큰 공급계약·계약 해지·8-K 주의)가 하나라도 있는 것만 - 이유는 이름 옆에(흐린 칩은 참고). 순위가 아니고 기준값은 그대로입니다."
+                  ? "재무 필터 통과 + 테마 소속 + 이번 주에 생긴 이유가 있는 종목. 이유는 이름 옆에 - 순위 아님."
                   : "재무 필터(F-Score·ROE·이자보상·부채비율)를 통과한 전부 - 순위 없음."}
               </p>
             </div>
@@ -1367,6 +1347,25 @@ export default function WatchlistPage() {
             )}
           </div>
 
+          {/* 조건(2026-11-15 화면 정리) - 좁혀 보기·시장·체제·지표 필터를 버튼 하나 뒤로. 켜 둔 조건 수는 버튼에 */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+            <button onClick={() => setShowFilters((v) => !v)} style={{
+              background: filterCount ? ACCENT + "18" : "transparent", color: filterCount ? ACCENT : TEXT_SECONDARY,
+              border: `1px solid ${filterCount ? ACCENT + "40" : BORDER_CTRL}`, padding: "5px 12px", fontSize: 12.5, cursor: "pointer",
+            }}>{showFilters ? "▾" : "▸"} 조건으로 좁혀 보기{filterCount ? ` (${filterCount}개 켜짐)` : ""}</button>
+            {anyFilter && (
+              <button onClick={clearFilters} style={{ background: "transparent", border: "none", color: ACCENT, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
+                조건 모두 해제
+              </button>
+            )}
+            {sort && (
+              <span style={{ fontSize: 12, color: TEXT_SECONDARY }}>
+                정렬: {SORT_LABEL[sort.key]} {sort.dir === "asc" ? "낮은 순" : "높은 순"}
+                <button onClick={() => setSort(null)} style={{ marginLeft: 6, background: "transparent", border: "none", color: TEXT_MUTED, cursor: "pointer", fontSize: 12 }}>해제 ✕</button>
+              </span>
+            )}
+          </div>
+          {showFilters && (<>
           {/* 좁혀 보기: 테마 흐름 교집합 + 조합 보기. 숫자는 현재 시장 범위 기준 */}
           {(themesKnown || tierKnown || growthKnown || heating.size > 0) && (
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -1443,11 +1442,6 @@ export default function WatchlistPage() {
                 <button key={r} onClick={() => setRegimeFilter(r)} style={{ background: regimeFilter === r ? INFO + "20" : "transparent", color: regimeFilter === r ? INFO : TEXT_MUTED, border: `1px solid ${regimeFilter === r ? INFO + "40" : BORDER_CTRL}`, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>{r === "ALL" ? "전체" : r === "growth" ? "성장" : r === "dividend" ? "배당" : "중립"}</button>
               ))}
             </FilterGroup>
-            {anyFilter && (
-              <button onClick={clearFilters} style={{ background: "transparent", border: "none", color: ACCENT, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
-                조건 모두 해제
-              </button>
-            )}
           </div>
 
           {/* 지표 숫자 필터 - 접어 두고 필요할 때 연다 */}
@@ -1460,12 +1454,6 @@ export default function WatchlistPage() {
             }}>
               {showNumFilter ? "▾" : "▸"} 지표 필터{activeChecks.length ? ` (${activeChecks.length}개 적용)` : ""}
             </button>
-            {sort && (
-              <span style={{ marginLeft: 10, fontSize: 12, color: TEXT_SECONDARY }}>
-                정렬: {SORT_LABEL[sort.key]} {sort.dir === "asc" ? "낮은 순" : "높은 순"}
-                <button onClick={() => setSort(null)} style={{ marginLeft: 6, background: "transparent", border: "none", color: TEXT_MUTED, cursor: "pointer", fontSize: 12 }}>해제 ✕</button>
-              </span>
-            )}
             {showNumFilter && (
               <div style={{ marginTop: 10, padding: "12px 14px", background: INSET_BG, border: `1px solid ${BORDER}`, display: "flex", flexWrap: "wrap", gap: "10px 18px", alignItems: "center" }}>
                 {([
@@ -1498,6 +1486,7 @@ export default function WatchlistPage() {
               </div>
             )}
           </div>
+          </>)}
 
           {loading ? (
             <div style={{ color: TEXT_MUTED, textAlign: "center", padding: 60 }}>불러오는 중...</div>

@@ -399,28 +399,19 @@ function ThemeRow({ theme, market, isNa }: { theme: ThemeQuarterly; market: stri
   }, [members, loadingMembers, theme.theme_id, market]);
 
   return (
-    <div className="mb-2.5 overflow-hidden rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <div className="mb-1.5 overflow-hidden rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
       <button
         onClick={toggle}
-        className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left"
+        className="flex w-full flex-wrap items-center gap-3 px-4 py-2 text-left"
         style={{ cursor: "pointer" }}
         onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-raised)")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        <div className="flex min-w-[150px] shrink-0 flex-col gap-0.5">
+        <span className="min-w-[150px] shrink-0">
           <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>{ko}</span>
-          <span className="text-[11.5px]" style={{ color: FAINT }}>{en}</span>
-        </div>
+          <span className="ml-1.5 hidden text-[11px] sm:inline" style={{ color: FAINT }}>{en}</span>
+        </span>
 
-        {!isNa && (() => {
-          const info = CLASSIFICATION_INFO[theme.classification as Classification];
-          return (
-            <span className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-bold"
-                  style={{ background: info?.bg ?? ACCENT_SOFT, color: info?.color ?? ACCENT }}>
-              {classLabel(theme.classification)}
-            </span>
-          );
-        })()}
         {isNa && (
           <span className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px]" style={{ color: FAINT, border: "1px solid var(--border)" }}>
             {naReason(theme)}
@@ -433,7 +424,7 @@ function ThemeRow({ theme, market, isNa }: { theme: ThemeQuarterly; market: stri
         <span className="text-[12px]" style={{ color: MUTED }}>
           뉴스 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{newsDisplay(theme)}</b>
         </span>
-        <span className="ml-auto shrink-0 text-[11.5px]" style={{ color: FAINT }}>{prevDisplay(theme)}</span>
+        <span className="ml-auto shrink-0 text-[11.5px]" style={{ color: FAINT }}>{theme.previous_classification != null ? prevDisplay(theme) : ""}</span>
         <span className="shrink-0 text-[13px] transition-transform" style={{ color: FAINT, transform: open ? "rotate(90deg)" : "none" }}>▸</span>
       </button>
 
@@ -573,14 +564,6 @@ export default function QuarterlyPage() {
         </>
       )}
 
-      <div className="mt-12 border-t pt-5 text-[12px] leading-relaxed" style={{ borderColor: "var(--border)", color: FAINT }}>
-        <p>이 화면이 하지 않는 것</p>
-        <ul className="mt-1 list-disc pl-5">
-          <li>종합 점수·등급 표시</li>
-          <li>테마 간 순위·비교</li>
-          <li>&ldquo;매수 추천&rdquo; 류의 표현</li>
-        </ul>
-      </div>
     </div>
   );
 }
