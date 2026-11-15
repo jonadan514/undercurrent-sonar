@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // 검토 기록 칸(2026-11-15, 사용자: 3개월 가상 매수 검증) - 기업 카드에서 관심·보류·제외를 누르고, 밸류·실적·차트를 내가 어떻게 봤는지 표시.
-// 글은 선택. '관심'은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 결과를 TIGER 반도체TOP10·지수와 비교한다(scripts/compute_decision_outcomes.py).
+// 글은 선택. '관심'은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 결과를 시장 벤치마크(미국 SPY, 한국 코스피200)와 비교한다(scripts/compute_decision_outcomes.py).
 // 기록은 덮어쓰지 않는다 - 생각이 바뀌면 새로 누른다(원칙 5).
 
 export const DECISION_KO: Record<string, string> = { watch: "관심", hold: "보류", pass: "제외" };
@@ -23,18 +23,18 @@ export type Decision = {
 export const pct = (v: unknown) => (v == null || v === "" ? "–" : `${Number(v) >= 0 ? "+" : ""}${(Number(v) * 100).toFixed(1)}%`);
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 
-/** 결과 한 줄 - 원화 기준 수익률과 TIGER 반도체TOP10. 아직 기간이 안 지났으면 '–' */
+/** 결과 한 줄 - 수익률과 같은 기간 시장 벤치마크(종목과 같은 통화). 아직 기간이 안 지났으면 '–' */
 export function OutcomeLine({ o }: { o: Outcome | null }) {
   if (!o || o.entry_price == null) return <span style={{ color: "var(--text-faint)" }}>시작가 대기(다음 거래일 종가)</span>;
   return (
     <span style={{ fontVariantNumeric: "tabular-nums" }}>
       <span style={{ color: "var(--text-faint)" }}>{md(String(o.entry_date))} 시작 · </span>
       {HORIZON_KO.map(([h, lb], i) => {
-        const r = o[`ret_krw_${h}d`], s = o[`semi_${h}d`];
+        const r = o[`ret_${h}d`], s = o[`mkt_${h}d`];
         return (
           <span key={h}>{i > 0 && <span style={{ color: "var(--text-faint)" }}> · </span>}
             {lb} <b style={{ color: r == null ? "var(--text-faint)" : "var(--text-primary)" }}>{pct(r)}</b>
-            {r != null && s != null && <span style={{ color: "var(--text-muted)" }}> (TIGER {pct(s)})</span>}
+            {r != null && s != null && <span style={{ color: "var(--text-muted)" }}> (시장 {pct(s)})</span>}
           </span>
         );
       })}
@@ -120,7 +120,7 @@ export default function DecisionPanel({ market, symbol, name, fromTool }: { mark
       </div>
       {msg && <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>{msg}</p>}
       <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>
-        &apos;관심&apos;은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 뒤 결과를 원화 기준으로 TIGER 반도체TOP10·지수와 비교합니다(보류·제외도 같은 방식으로 재서
+        &apos;관심&apos;은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 뒤 결과를 시장 벤치마크(미국 SPY, 한국 코스피200)와 비교합니다(보류·제외도 같은 방식으로 재서
         &apos;제외한 게 맞았는지&apos;도 봅니다). 그때의 밸류·실적·차트 값은 자동으로 함께 저장됩니다. 생각이 바뀌면 새로 누르세요 - 예전 기록은 남습니다.
       </p>
       {rows && rows.length > 0 && (

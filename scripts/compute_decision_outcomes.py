@@ -2,8 +2,9 @@
 
 - 시작가 = 기록한 날(한국 시간) '다음' 첫 거래일 종가. 기록할 때 본 가격은 그 전 종가라서 같은 날 종가를 쓰면 앞서 본 셈이 된다.
 - 끝가 = 시작일 + 28·84·182일 이후 첫 거래일 종가(수정주가). 오늘 막대는 쓰지 않는다(장중이면 종가가 아님).
-- 비교 기준: TIGER 반도체TOP10(396500, 사용자가 실제로 들고 있는 것 - 원화)과 그 시장 지수(미국 SPY, 한국 코스피).
-- 미국 종목은 원화 기준 수익률도 적는다(달러 수익률 x 원/달러 변화) - TIGER와 같은 돈 기준으로 비교하려고.
+- 비교 기준: 그 시장 벤치마크(미국 SPY, 한국 코스피200 ^KS200). 종목과 기준이 같은 통화라 환율은 넣지 않는다.
+  (첫 판은 TIGER 반도체TOP10·원화 기준이었는데 같은 날 사용자 결정으로 시장 벤치마크로 바꿨다 - 그 사이 쌓인 결과는 없다.
+   표에 남은 ret_krw_*·semi_* 열은 비어 있는 채로 둔다.)
 - 관심·보류·제외 모두 같은 방식으로 잰다('제외한 게 맞았나'도 보려고). 점수·적중률은 만들지 않는다(원칙 1) - 화면은 분포만.
 - 이미 채운 값은 덮어쓰지 않는다(COALESCE). 끝 날짜가 지나고 RETRY_DAYS 동안만 다시 시도한다.
 
@@ -26,10 +27,8 @@ from src.db.turso_http import execute, execute_many, query  # noqa: E402
 
 HORIZONS = (28, 84, 182)      # 4·12·26주(달력일)
 RETRY_DAYS = 56
-SEMI = "396500.KS"            # TIGER 반도체TOP10
-INDEX = {"US": "SPY", "KR": "^KS11"}
-FX = "KRW=X"                  # 원/달러
-VALS = [c for h in HORIZONS for c in (f"ret_{h}d", f"ret_krw_{h}d", f"semi_{h}d", f"mkt_{h}d")]
+INDEX = {"US": "SPY", "KR": "^KS200"}   # 시장 벤치마크(S&P 500 ETF · 코스피200)
+VALS = [c for h in HORIZONS for c in (f"ret_{h}d", f"mkt_{h}d")]
 DDL = f"""CREATE TABLE IF NOT EXISTS stock_decision_outcomes (
   decision_id INTEGER PRIMARY KEY,
   market TEXT NOT NULL, symbol TEXT NOT NULL,
@@ -48,19 +47,10 @@ def entry_day(decided_on: str) -> str:
     return (date.fromisoformat(decided_on) + timedelta(days=1)).isoformat()
 
 
-def krw_return(ret: float | None, fx: float | None) -> float | None:
-    if ret is None or fx is None:
-        return None
-    return (1 + ret) * (1 + fx) - 1
-
-
-def outcome_values(market: str, entry: str, stock, semi, index, fx, today: date) -> dict:
+def outcome_values(entry: str, stock, index, today: date) -> dict:
     vals: dict[str, float | None] = {}
     for h in HORIZONS:
-        r = fwd_return(stock, entry, h, today)
-        vals[f"ret_{h}d"] = r
-        vals[f"ret_krw_{h}d"] = r if market == "KR" else krw_return(r, fwd_return(fx, entry, h, today))
-        vals[f"semi_{h}d"] = fwd_return(semi, entry, h, today)
+        vals[f"ret_{h}d"] = fwd_return(stock, entry, h, today)
         vals[f"mkt_{h}d"] = fwd_return(index, entry, h, today)
     return vals
 
@@ -109,7 +99,7 @@ def main() -> int:
         stock = series(yf_sym)
         entry = entry_day(d["decided_on"])
         first = price_on_or_after(stock, entry)
-        vals = outcome_values(m, entry, stock, series(SEMI), series(INDEX[m]), series(FX) if m == "US" else [], today)
+        vals = outcome_values(entry, stock, series(INDEX[m]), today)
         cols = ["entry_date", "entry_price", *VALS]
         row = [first[0] if first else None, first[1] if first else None, *[vals[c] for c in VALS]]
         stmts.append((
@@ -118,7 +108,7 @@ def main() -> int:
             + ", ".join(f"{c} = COALESCE(stock_decision_outcomes.{c}, excluded.{c})" for c in cols)
             + ", updated_at = datetime('now')",
             [int(d["id"]), m, s, *row]))
-        rets = [vals[f"ret_krw_{h}d"] for h in HORIZONS]
+        rets = [vals[f"ret_{h}d"] for h in HORIZONS]
         _log(f"  #{d['id']} {m}:{s} {d['decided_on']} → 시작 {row[0] or '대기'} · "
              + " · ".join(f"{h}일 " + ("-" if r is None else f"{r * 100:+.1f}%") for h, r in zip(HORIZONS, rets)))
     for i in range(0, len(stmts), 100):

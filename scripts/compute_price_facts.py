@@ -1,7 +1,7 @@
 """차트 상태 사실을 매일 stock_price_facts에 채운다(2026-11-15, 사용자: 밸류·실적·차트 중 차트만 툴 밖에서 봐야 했다).
 
 대상: 유니버스(미국 S&P 500·400, 한국 시총 3000억+) + 내 관심 종목 + 검토 기록에 있는 종목(유니버스 밖 블로그 종목 포함)
-     + 비교 기준(TIGER 반도체TOP10 396500, SPY, 코스피).
+     + 시장 벤치마크(SPY, 코스피200).
 계산은 src/analyzers/price_facts.py - 52주 위치, 200일선 위/아래·기울기, 1·3개월 수익률. 판정·점수 없음(원칙 1).
 이 표는 종목마다 '지금 값' 한 줄(캐시)이다 - 이력이 아니라 덮어쓴다. 그때 값은 검토 기록 snapshot에 따로 남는다.
 
@@ -27,7 +27,7 @@ from scripts.compute_signal_outcomes import us_universe  # noqa: E402
 from src.analyzers.price_facts import completed, price_facts  # noqa: E402
 from src.db.turso_http import execute, execute_many, query  # noqa: E402
 
-BENCH = [("KR", "396500"), ("US", "SPY"), ("KR", "^KS11")]   # TIGER 반도체TOP10 · S&P 500 ETF · 코스피
+BENCH = [("US", "SPY"), ("KR", "^KS200")]   # 시장 벤치마크 - S&P 500 ETF · 코스피200
 LOOKBACK_DAYS = 400       # 52주(252거래일) + 200일선 기울기(20거래일) 여유
 BATCH = 100
 BACKOFF = [60, 180]

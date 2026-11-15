@@ -177,7 +177,7 @@ function ChartFacts({ f, market }: { f: Record<string, number | string | null> |
         </div>
         <div>
           수익률 1개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_1m"))}</b> · 3개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_3m"))}</b>
-          {f.tiger_ret_3m != null && <p className="text-[11.5px]" style={{ color: FAINT }}>TIGER 반도체TOP10 3개월 {pct(n("tiger_ret_3m"))}{market === "US" ? " (원화 기준, 이 종목은 달러)" : ""}</p>}
+          {f.bench_ret_3m != null && <p className="text-[11.5px]" style={{ color: FAINT }}>{market === "US" ? "SPY" : "코스피200"} 3개월 {pct(n("bench_ret_3m"))}</p>}
         </div>
       </div>
     </div>
@@ -339,7 +339,7 @@ function CompanyView() {
       </Section>
 
       {/* 검토 기록(2026-11-15) - 다 읽고 관심·보류·제외. 3개월 가상 매수 검증용 */}
-      <Section id="decide" title="검토 기록" sub="관심·보류·제외 + 내가 본 밸류·실적·차트 · 결과는 자동으로 TIGER 반도체TOP10·지수와 비교">
+      <Section id="decide" title="검토 기록" sub="관심·보류·제외 + 내가 본 밸류·실적·차트 · 결과는 자동으로 시장 벤치마크(SPY·코스피200)와 비교">
         <DecisionPanel market={d.market} symbol={d.symbol} name={d.name} fromTool={!!cand} />
       </Section>
 

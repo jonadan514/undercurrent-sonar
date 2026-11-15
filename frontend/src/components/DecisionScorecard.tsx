@@ -6,8 +6,8 @@ import StockLink from "@/src/components/StockLink";
 import { krStockName } from "@/src/lib/krStockNames";
 import { CHECK_KO, CHECK_VAL_KO, DECISION_COLOR, DECISION_KO, HORIZON_KO, OutcomeLine, SOURCE_KO, pct, type Decision } from "@/src/components/DecisionPanel";
 
-// 내 검토 기록 성적(2026-11-15, 사용자: 3개월 가상 매수 검증) - 결정별·출처별로 4·12·26주 뒤 원화 수익률과 TIGER 반도체TOP10 대비.
-// 분포(건수·중앙값)와 'TIGER보다 나았던 건수'만 - 점수·순위 없음(원칙 1). 기간이 안 지난 기록은 세지 않는다.
+// 내 검토 기록 성적(2026-11-15, 사용자: 3개월 가상 매수 검증) - 결정별·출처별로 4·12·26주 뒤 수익률과 시장 벤치마크(SPY·코스피200) 대비.
+// 분포(건수·중앙값)와 '시장보다 나았던 건수'만 - 점수·순위 없음(원칙 1). 기간이 안 지난 기록은 세지 않는다.
 
 const median = (xs: number[]) => {
   if (!xs.length) return null;
@@ -18,7 +18,7 @@ const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
 
 type Stat = { n: number; med: number | null; medEx: number | null; beat: number };
 function stat(rows: Decision[], h: number): Stat {
-  const pairs = rows.map((r) => [num(r.outcome?.[`ret_krw_${h}d`]), num(r.outcome?.[`semi_${h}d`])] as const)
+  const pairs = rows.map((r) => [num(r.outcome?.[`ret_${h}d`]), num(r.outcome?.[`mkt_${h}d`])] as const)
     .filter(([a]) => a != null) as (readonly [number, number | null])[];
   const ex = pairs.filter(([, b]) => b != null).map(([a, b]) => a - (b as number));
   return { n: pairs.length, med: median(pairs.map(([a]) => a)), medEx: median(ex), beat: ex.filter((x) => x > 0).length };
@@ -29,7 +29,7 @@ function StatCell({ s }: { s: Stat }) {
   return (
     <td className="py-1.5 pr-3" style={{ fontVariantNumeric: "tabular-nums" }}>
       <b style={{ color: "var(--text-primary)" }}>{pct(s.med)}</b>
-      <span className="text-[12px]" style={{ color: "var(--text-muted)" }}> · TIGER 대비 {pct(s.medEx)} · {s.n}건 중 {s.beat}건 앞섬</span>
+      <span className="text-[12px]" style={{ color: "var(--text-muted)" }}> · 시장 대비 {pct(s.medEx)} · {s.n}건 중 {s.beat}건 앞섬</span>
     </td>
   );
 }
@@ -68,7 +68,7 @@ export default function DecisionScorecard() {
   const by = (k: "decision" | "source", v: string) => rows.filter((r) => r[k] === v);
   const nameOf = (r: Decision) => r.market === "KR" ? (r.name && r.name !== r.symbol ? r.name : krStockName(r.symbol)) : r.symbol;
   return (
-    <Section id="mine" title="내 검토 기록 성적" sub="기업 카드에서 누른 관심·보류·제외 · 원화 기준 · TIGER 반도체TOP10 대비">
+    <Section id="mine" title="내 검토 기록 성적" sub="기업 카드에서 누른 관심·보류·제외 · 시장 벤치마크(미국 SPY, 한국 코스피200) 대비">
       {rows.length === 0 ? (
         <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
           아직 검토 기록이 없습니다. 기업 카드 아래 &apos;검토 기록&apos;에서 관심·보류·제외를 누르면 여기 쌓이고, 4주 뒤부터 결과가 나옵니다.
@@ -92,7 +92,7 @@ export default function DecisionScorecard() {
             ))}
           </div>
           <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>
-            시작가는 기록한 다음 거래일 종가. 미국 종목은 달러 수익률에 원/달러 변화를 곱한 원화 기준. 같은 종목을 다시 기록하면 따로 셉니다.
+            시작가는 기록한 다음 거래일 종가. 미국 종목은 달러로 SPY와, 한국 종목은 원화로 코스피200과 비교. 같은 종목을 다시 기록하면 따로 셉니다.
             건수가 적을 때(10건 미만)의 중앙값은 우연이 크게 섞입니다.
           </p>
         </div>

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 // 검토 기록(2026-11-15, 사용자: 3개월 가상 매수 검증). 종목을 보고 관심·보류·제외 중 하나를 누른 기록.
 // - 덮어쓰지 않는다(원칙 5): 생각이 바뀌면 새 줄. 지우기는 같은 날(한국 시간) 적은 줄만 - 잘못 누른 것 바로잡기용.
 // - 그때 값(snapshot)은 서버가 DB에서 읽어 붙인다(원칙 2). 내 확인(밸류·실적·차트)은 사용자가 고른 것 그대로.
-// - 결과(4·12·26주 수익률, TIGER 반도체TOP10·지수 대비)는 scripts/compute_decision_outcomes.py가 stock_decision_outcomes에 채운다.
+// - 결과(4·12·26주 수익률, 시장 벤치마크 SPY·코스피200 대비)는 scripts/compute_decision_outcomes.py가 stock_decision_outcomes에 채운다.
 // 점수·순위는 만들지 않는다(원칙 1) - 결정과 그 뒤 사실만.
 
 const DDL = `CREATE TABLE IF NOT EXISTS stock_decisions (
