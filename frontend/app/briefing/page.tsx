@@ -514,7 +514,7 @@ function BriefGroup({ title, summary, open, onToggle, children }: {
     <div data-group={title}>
       <button onClick={onToggle} aria-expanded={open}
         className="mt-4 flex w-full items-baseline gap-2 border-b pb-1.5 text-left hover:brightness-125" style={{ borderColor: "var(--border)" }}>
-        <span className="h-group shrink-0" style={{ color: "var(--text-primary)" }}>{title}</span>
+        <span className="shrink-0 text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{title}</span>
         <span className="min-w-0 flex-1 truncate text-[13px]" style={{ color: "var(--text-secondary)" }}>{summary ?? GROUP_DESC[title]}</span>
         <span className="shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>{open ? "접기 ▴" : "펼치기 ▾"}</span>
       </button>

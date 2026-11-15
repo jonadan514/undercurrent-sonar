@@ -5,15 +5,15 @@ import { GLOSSARY } from "@/src/lib/glossary";
 import { INTRO_STORAGE_PREFIX, PAGE_INTROS, type PageIntro as Intro, type PageIntroKey } from "@/src/lib/pageIntros";
 import Term, { termLabel } from "@/src/components/Term";
 
-// "이 화면은?" 상자(2026-10-23). 처음엔 펼쳐져 있고, 접으면 이 화면에서는 다음에도 접힌 채로.
+// "이 화면은?" 상자(2026-10-23). 접으면 이 화면에서는 다음에도 접힌 채로.
+// 2026-11-15(사용자: 화면 가독성) - 기본은 접힘. 한 번 펼치면("0") 그 화면은 다음에도 펼친 채로.
 // 저장은 브라우저(localStorage)에만 - 막힌 환경(사생활 모드 등)에서도 화면이 깨지지 않게 try/catch.
 function readClosed(key: string): boolean {
-  try { return window.localStorage.getItem(INTRO_STORAGE_PREFIX + key) === "1"; } catch { return false; }
+  try { return window.localStorage.getItem(INTRO_STORAGE_PREFIX + key) !== "0"; } catch { return true; }
 }
 function writeClosed(key: string, closed: boolean) {
   try {
-    if (closed) window.localStorage.setItem(INTRO_STORAGE_PREFIX + key, "1");
-    else window.localStorage.removeItem(INTRO_STORAGE_PREFIX + key);
+    window.localStorage.setItem(INTRO_STORAGE_PREFIX + key, closed ? "1" : "0");
   } catch { /* 저장 못 해도 이번 화면에서는 동작 */ }
 }
 

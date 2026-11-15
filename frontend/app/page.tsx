@@ -1,15 +1,18 @@
 "use client";
 
 import WelcomePanel from "@/src/components/WelcomePanel";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMarket } from "@/src/contexts/MarketContext";
 import { BigChart, RangeBar, Sparkline, lastN, type Point } from "@/src/components/MacroChart";
 import AsOf from "@/src/components/AsOf";
 import { LABEL_KO } from "@/src/lib/labelNames";
-import { Section, StatTile } from "@/src/components/Section";
+import { Section } from "@/src/components/Section";
+import StockLink from "@/src/components/StockLink";
+import { krStockName } from "@/src/lib/krStockNames";
 import PageHeader from "@/src/components/PageHeader";
 import SectorTurnLine from "@/src/components/SectorTurnLine";
 import { quarterLabel } from "@/src/lib/institutions";
+import { obsStatus, type ObservationT } from "@/src/components/Observation";
 import MarketRegime, { type RegimeData } from "@/src/components/MarketRegime";
 
 // radar/page.tsx의 편집 방침과 같은 순서 (SPEC §6.2) — 페이지별 상수 유지 관행.
@@ -41,15 +44,27 @@ function fmtMacroChg(item: MacroItem): string {
 }
 
 // 주간 브리핑(scripts/generate_weekly_briefing.py)에서 쓰는 칸만
+type Ref = { market: string; symbol: string; name?: string | null };
+type Tagged = Ref & { tags: string[] };
 interface WeekBrief {
   week: string;
-  turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean; added: { market: string }[]; added_count: number } | null;
-  earnings_week?: { total: number; by_market: Record<string, number>; items: { market: string; tags: string[] }[] } | null;
-  kr_disclosures?: { contract: { count: number; items: { tags: string[] }[] }; prelim: { count: number; items: { tags: string[] }[] };
-                     termination?: { count: number; items: { tags: string[] }[] }; amend?: { count: number; items: { tags: string[] }[] } } | null;
-  insider_week?: { by_market: Record<string, number>; items: { market: string }[]; discovery?: { market: string }[]; discovery_count?: number;
+  us?: { index_chg_1w: number | null };
+  kr?: { index_chg_1w: number | null };
+  regime?: Partial<Record<Mkt, { combos: { name: string }[] }>> | null;
+  watchlist?: { added: Ref[]; added_count?: number; has_prev: boolean; total: number } | null;
+  sentiment_heating?: (Ref & { path?: string })[];
+  turnaround?: { total: number; by_market: Record<string, number>; has_prev: boolean; added: Ref[]; added_count: number } | null;
+  earnings_week?: { total: number; by_market: Record<string, number>; items: (Tagged & { date: string; estimate: boolean })[] } | null;
+  kr_disclosures?: { contract: { count: number; items: (Tagged & { pct?: number | null })[] }; prelim: { count: number; items: Tagged[] };
+                     termination?: { count: number; items: Tagged[] }; amend?: { count: number; items: Tagged[] } } | null;
+  insider_week?: { by_market: Record<string, number>; items: (Tagged & { all_plan?: boolean })[]; discovery?: (Tagged & { all_plan?: boolean })[];
                    split_by_market?: Record<string, { tagged: number; discovery: number }> } | null;
-  observation_reviews?: unknown[];
+  us_8k_week?: { items: (Tagged & { warn: boolean })[] } | null;
+  week_focus?: {
+    themes: { market: Mkt; theme_id: string; name: string; label: string | null; why: string }[];
+    stocks: (Ref & { reasons: string[]; theme: string })[];
+    stock_total: Record<string, number>;
+  } | null;
 }
 
 type Mkt = "US" | "KR";
@@ -57,9 +72,36 @@ const MKT_NAME: Record<Mkt, { flag: string; name: string; sub: string }> = {
   US: { flag: "🇺🇸", name: "미국", sub: "S&P 500·400" },
   KR: { flag: "🇰🇷", name: "한국", sub: "시총 3000억+" },
 };
+const nameOf = (x: Ref) => x.market === "KR" ? (x.name && x.name !== x.symbol ? x.name : krStockName(x.symbol)) : x.symbol;
+const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+const sgn = (v?: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
 
-// 개요 한 장(2026-10-25 사용자 의견) - 예전엔 위 시장 탭으로 미국/한국을 바꿔 봐야 했는데, 매크로는 같고
-// "이번 주 변화"는 칸이 몇 개뿐이라 두 시장을 한 화면에 단락으로 나란히 두고 매크로는 한 번만.
+// 이름 줄(2026-11-15, 사용자: "개요는 좀 단순하다") - 예전엔 숫자 타일이라 "실적 반전 7"을 보고 다시 눌러 들어가야 했다.
+// 이번 주 바뀐 이름을 그대로 적는다. 순서는 브리핑에 담긴 순서 그대로 - 점수·순위 아님.
+const SHOW = 6;
+function NameLine({ label, items, total, href, empty, extra, warn }: {
+  label: string; items: (Ref & { extra?: string })[]; total?: number; href: string; empty?: string; extra?: ReactNode; warn?: boolean;
+}) {
+  const more = (total ?? items.length) - Math.min(items.length, SHOW);
+  if (items.length === 0 && !empty) return null;
+  return (
+    <div className="flex gap-3 py-1.5 text-[13.5px] leading-relaxed" style={{ borderTop: "1px solid var(--border)" }}>
+      <a href={href} className="w-[7.5rem] shrink-0 hover:underline" style={{ color: warn ? "#f87171" : "var(--text-muted)" }}>{label}</a>
+      <p className="min-w-0 flex-1" style={{ color: "var(--text-secondary)" }}>
+        {items.length === 0 ? <span style={{ color: "var(--text-faint)" }}>{empty}</span> : items.slice(0, SHOW).map((x, i) => (
+          <span key={`${x.market}:${x.symbol}`}>
+            {i > 0 && <span style={{ color: "var(--text-faint)" }}> · </span>}
+            <StockLink market={x.market} symbol={x.symbol} className="font-semibold" style={{ color: "var(--text-primary)" }}>{nameOf(x)}</StockLink>
+            {x.extra && <span className="text-[12px]" style={{ color: "var(--text-muted)" }}> {x.extra}</span>}
+          </span>
+        ))}
+        {more > 0 && <a href={href} className="hover:underline" style={{ color: "var(--text-muted)" }}> 외 {more}</a>}
+        {extra}
+      </p>
+    </div>
+  );
+}
+
 // 유명 투자자 13F 요약(미국 단락만, 2026-10-25) - /api/investors 값 그대로
 type Inst13f = { period: string; filed: string; newTotal: number; shared: { ticker: string; n: number; newN: number }[]; sharedCount: number;
   conviction: number };
@@ -68,87 +110,113 @@ function MarketBlock({ m, brief, cands, radar, onRadar, inst }: {
   m: Mkt; brief: WeekBrief | null; cands: { total: number; fresh: number | null } | null;
   radar: Record<string, number> | null; onRadar: () => void; inst?: Inst13f | null;
 }) {
-  const ta = brief?.turnaround, ew = brief?.earnings_week, kd = brief?.kr_disclosures, ins = brief?.insider_week;
   const wl = `/watchlist?market=${m}`;
-  const tiles: React.ReactNode[] = [
-    <StatTile key="wl" href={cands?.fresh ? `${wl}&new=1` : wl} label="워치리스트 후보" value={cands ? cands.total : "-"}
-      sub={cands?.fresh != null ? `이번 주 신규 ${cands.fresh}` : "재무 필터 통과, 순위 없음"} subHot={!!cands?.fresh} hint="재무 건전성 필터를 통과한 종목. 매수 신호가 아닙니다." />,
-    (() => {
-      if (!ta) return <StatTile key="ta" href={`${wl}&preset=turnaround`} label="실적 반전" value="-" sub="브리핑 전" />;
-      const added = ta.added.filter(a => a.market === m).length;
-      // 브리핑에는 새로 들어온 종목을 10개까지만 담는다 - 잘렸으면 시장별로 셀 수 없어 미·한 합계를 그대로 쓴다
-      return <StatTile key="ta" href={`${wl}&preset=turnaround`} label="실적 반전" value={ta.by_market[m] ?? 0}
-        sub={!ta.has_prev ? "비교는 다음 주부터" : ta.added_count > ta.added.length ? `신규 ${ta.added_count} (미·한 합계)` : `신규 ${added}`}
-        subHot={ta.has_prev && (ta.added_count > ta.added.length ? ta.added_count > 0 : added > 0)}
-        hint="매출 3년은 정체·역성장인데 최근 1년(없으면 분기)은 성장" />;
-    })(),
-    (() => {
-      const mine = (ew?.items ?? []).filter(x => x.market === m && x.tags.length > 0).length;
-      return <StatTile key="ew" href="/briefing#earnings" label="이번 주 실적 발표" value={ew ? ew.by_market[m] ?? 0 : "-"}
-        sub={ew ? `내 관심·노트·실적 반전 ${mine}` : "브리핑 전"} subHot={mine > 0} />;
-    })(),
-    ...(m === "KR" ? [(() => {
-      const all = kd ? [kd.contract, kd.prelim, kd.termination, kd.amend].filter(Boolean) as { count: number; items: { tags: string[] }[] }[] : [];
-      const tagged = all.flatMap(k => k.items).filter(x => x.tags.length > 0).length;
-      const term = kd?.termination?.count ?? 0;
-      return <StatTile key="kd" href="/briefing#disclosures" label="한국 공시 (7일)" value={kd ? all.reduce((n, k) => n + k.count, 0) : "-"}
-        sub={kd ? `관심 종목 ${tagged} · 공급계약 ${kd.contract.count}${term ? ` · 해지 ${term}` : ""}` : "브리핑 전"} subHot={tagged > 0 || term > 0} />;
-    })()] : []),
-    (() => {
-      // 목록은 30개에서 잘린다 - 시장별 전체 수가 있으면 그것을(10/21 리뷰)
-      const sp = ins?.split_by_market?.[m];
-      const mine = sp ? sp.tagged : (ins?.items ?? []).filter(x => x.market === m).length;
-      const fresh = sp ? sp.discovery : (ins?.discovery ?? []).filter(x => x.market === m).length;
-      return <StatTile key="ins" href="/briefing#insider" label="내부자 장내 매수 (7일)" value={ins ? ins.by_market[m] ?? 0 : "-"}
-        sub={ins ? (ins.discovery ? `관심 종목 ${mine} · 관심 외 ${fresh}` : `종목 ${ins.by_market[m] ?? 0}`) : "브리핑 전"}
-        subHot={!!ins && mine > 0}
-        hint="임원·이사·대주주가 장내에서 직접 산 종목 수. 관심 외는 관심 표시가 없는 유니버스 종목입니다(새 종목 발견용)." />;
-    })(),
-    // 유명 투자자 13F - 카드 두 칸 폭에 '여러 곳이 함께 산 종목' 상위 5개(2026-10-26 사용자 결정 - 새로 산 개수보다 겹친 이름이 의미 있다).
-    // 정렬은 겹친 운용사 수 → 새로 산 곳 수 → 평가액(/api/investors 그대로), 점수·추천 아님. 미국만(13F는 미국 상장주식)
-    ...(m === "US" ? [
-      <a key="13f" href="/investors#shared" className="col-span-2 rounded-lg px-3 py-2.5 block transition-colors hover:brightness-125"
-        style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}
-        title="고른 운용사 15곳이 각자 가장 최근 분기에 신규·추가 매수한 종목 중 2곳 이상이 함께 산 것. 45일 늦은 사실이고 매수 신호가 아닙니다.">
-        <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>
-          유명 투자자 13F · 여러 곳이 함께 산 종목{inst ? ` · 📄 ${quarterLabel(inst.period)} 보유 · ${inst.filed ? `${inst.filed.slice(0, 4)}.${Number(inst.filed.slice(5, 7))}.${Number(inst.filed.slice(8, 10))} 신고` : ""}` : ""}
-        </p>
-        {!inst ? <p className="text-[13px] mt-1" style={{ color: "var(--text-faint)" }}>아직 없음</p>
-          : inst.shared.length === 0 ? <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>2곳 이상이 함께 산 종목 없음</p> : (
-          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-            {inst.shared.map((t) => (
-              <span key={t.ticker} className="whitespace-nowrap">
-                <b style={{ color: "var(--num, #ffb020)" }}>{t.ticker}</b>
-                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}> {t.n}곳{t.newN ? `(신규 ${t.newN})` : ""}</span>
-              </span>
-            ))}
-          </p>
-        )}
-        {inst && (
-          <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>
-            {inst.sharedCount > inst.shared.length ? `외 ${inst.sharedCount - inst.shared.length}종목 · ` : ""}확신 매수(새로 샀는데 비중 3%+) {inst.conviction}
-          </p>
-        )}
-      </a>,
-    ] : []),
-  ];
+  const of = <T extends Ref>(xs?: T[] | null) => (xs ?? []).filter((x) => (x.market ?? "KR") === m);
+  const w = brief?.watchlist, ta = brief?.turnaround, ew = brief?.earnings_week, kd = brief?.kr_disclosures, ins = brief?.insider_week;
+  // 브리핑엔 새로 들어온 종목을 일부만 담는다 - 잘렸으면 시장별 전체 수를 모른다. 담긴 것만 이름으로, 외 N은 담긴 범위 안에서만
+  const added = of(w?.added);
+  const taAdded = of(ta?.added);
+  const myEarn = of(ew?.items).filter((x) => x.tags.length > 0).map((x) => ({ ...x, extra: `${md(x.date)}${x.estimate ? " 추정" : ""}` }));
+  const hot = of(brief?.sentiment_heating).filter((x) => String(x.path ?? "").endsWith("HOT"));
+  const insMine = of(ins?.items).filter((x) => !x.all_plan);
+  const insNew = of(ins?.discovery).filter((x) => !x.all_plan);
+  const bigContract = m === "KR" ? (kd?.contract.items ?? []).filter((x) => (x.pct ?? 0) >= 10).map((x) => ({ ...x, market: "KR", extra: `매출의 ${Math.round(x.pct!)}%` })) : [];
+  const term = m === "KR" ? (kd?.termination?.items ?? []).map((x) => ({ ...x, market: "KR" })) : [];
+  const warn8k = m === "US" ? (brief?.us_8k_week?.items ?? []).filter((x) => x.warn) : [];
   const labels = radar == null ? null : LABEL_ORDER.filter(l => radar[l]).map(l => `${LABEL_KO[l] ?? l} ${radar[l]}`);
   return (
     <Section title={<>{MKT_NAME[m].flag} {MKT_NAME[m].name}</>} sub={MKT_NAME[m].sub}
       right={brief && <span style={{ color: "var(--text-faint)" }}>{brief.week.slice(5).replace("-", "/")} 주 브리핑 기준</span>}>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{tiles}</div>
-      {/* 테마 레이더 라벨 - 누르면 그 시장으로 레이더 */}
-      <a href="/radar" onClick={onRadar} className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] hover:brightness-125"
-        style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-        <span className="shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>테마 레이더</span>
-        <span className="min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>
-          {labels == null ? "불러오는 중…" : labels.length === 0 ? "이번 주 라벨 붙은 테마 없음" : labels.join(" · ")}
-        </span>
-        <span className="ml-auto shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>보기 →</span>
-      </a>
+      {!brief ? <p className="text-[13px]" style={{ color: "var(--text-faint)" }}>브리핑 전</p> : (
+        <div>
+          <NameLine label="새로 통과" items={w?.has_prev ? added : []} href={cands?.fresh ? `${wl}&new=1` : wl}
+            empty={w?.has_prev ? "없음" : "비교는 다음 주부터"}
+            extra={<span className="text-[12px]" style={{ color: "var(--text-faint)" }}>{added.length ? " · " : ""}재무 필터 통과 {cands ? cands.total : "-"}곳</span>} />
+          <NameLine label="실적 반전 신규" items={ta?.has_prev ? taAdded : []} href={`${wl}&preset=turnaround`}
+            empty={ta ? (ta.has_prev ? "없음" : "비교는 다음 주부터") : "브리핑 전"} />
+          <NameLine label="내 종목 실적 발표" items={myEarn} href="/briefing#earnings"
+            empty={ew ? `내 관심·노트 종목은 없음 (전체 ${ew.by_market[m] ?? 0}곳)` : "브리핑 전"} />
+          <NameLine label="관심도 HOT 진입" items={hot} href="/briefing#sentiment" />
+          <NameLine label="큰 공급계약" items={bigContract} href="/briefing#disclosures" />
+          <NameLine label="⚠ 계약 해지" items={term} href="/briefing#disclosures" warn />
+          <NameLine label="⚠ 8-K 주의" items={warn8k} href="/briefing#us8k" warn />
+          <NameLine label="내부자 매수" items={insMine} href="/briefing#insider"
+            empty={insNew.length ? "관심 종목은 없음" : undefined}
+            extra={insNew.length > 0 ? <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{insMine.length ? " · " : ""}관심 밖 {insNew.length}곳</span> : undefined} />
+          {m === "US" && inst && (
+            <div className="flex gap-3 py-1.5 text-[13.5px] leading-relaxed" style={{ borderTop: "1px solid var(--border)" }}
+              title="고른 운용사 15곳이 각자 가장 최근 분기에 신규·추가 매수한 종목 중 2곳 이상이 함께 산 것. 45일 늦은 사실이고 매수 신호가 아닙니다.">
+              <a href="/investors#shared" className="w-[7.5rem] shrink-0 hover:underline" style={{ color: "var(--text-muted)" }}>13F 함께 산 종목</a>
+              <p className="min-w-0 flex-1" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                {inst.shared.length === 0 ? <span style={{ color: "var(--text-faint)" }}>2곳 이상이 함께 산 종목 없음</span>
+                  : inst.shared.map((t, i) => (
+                    <span key={t.ticker}>{i > 0 && <span style={{ color: "var(--text-faint)" }}> · </span>}
+                      <StockLink market="US" symbol={t.ticker} className="font-semibold" style={{ color: "var(--text-primary)" }}>{t.ticker}</StockLink>
+                      <span className="text-[12px]" style={{ color: "var(--text-muted)" }}> {t.n}곳</span></span>
+                  ))}
+                <span className="text-[12px]" style={{ color: "var(--text-faint)" }}> · {quarterLabel(inst.period)} 보유</span>
+              </p>
+            </div>
+          )}
+          {/* 테마 레이더 라벨 - 누르면 그 시장으로 레이더 */}
+          <div className="flex gap-3 py-1.5 text-[13.5px]" style={{ borderTop: "1px solid var(--border)" }}>
+            <a href="/radar" onClick={onRadar} className="w-[7.5rem] shrink-0 hover:underline" style={{ color: "var(--text-muted)" }}>테마 라벨</a>
+            <a href="/radar" onClick={onRadar} className="min-w-0 flex-1 hover:underline" style={{ color: "var(--text-secondary)" }}>
+              {labels == null ? "불러오는 중…" : labels.length === 0 ? "이번 주 라벨 붙은 테마 없음" : labels.join(" · ")}
+            </a>
+          </div>
+        </div>
+      )}
       {cands?.total === 0 && (
         <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>이번 주 통과 후보가 없습니다. GitHub → Actions → Weekly Watchlist Screen 실행 여부를 확인하세요.</p>
       )}
+    </Section>
+  );
+}
+
+// 이번 주 한눈에(2026-11-15) - 개요 맨 위. 브리핑 🎯·회고 대기·두 시장 한 줄. 값은 최신 브리핑 그대로(새로 계산하지 않음).
+function WeekGlance({ brief, due }: { brief: WeekBrief | null; due: number | null }) {
+  if (!brief) return null;
+  const f = brief.week_focus;
+  const combo = (m: Mkt) => (brief.regime?.[m]?.combos ?? []).map((c) => c.name).join("·");
+  const row = (icon: string, label: string, body: ReactNode, href?: string) => (
+    <div className="flex gap-3 py-2 text-[14px] leading-relaxed" style={{ borderTop: "1px solid var(--border)" }}>
+      <span className="w-[6.5rem] shrink-0 font-semibold" style={{ color: "var(--text-primary)" }}><span aria-hidden className="mr-1">{icon}</span>{label}</span>
+      <div className="min-w-0 flex-1" style={{ color: "var(--text-secondary)" }}>{body}</div>
+      {href && <a href={href} className="shrink-0 self-start text-[12px] hover:underline" style={{ color: "var(--text-muted)" }}>보기 →</a>}
+    </div>
+  );
+  const more = f ? Object.values(f.stock_total ?? {}).reduce((a, b) => a + b, 0) - f.stocks.length : 0;
+  return (
+    <Section title="이번 주 한눈에" sub={`${brief.week.slice(5).replace("-", "/")} 주 브리핑 기준 - 추천이 아니라 먼저 들여다볼 곳`}>
+      {row("🌐", "시장", (["US", "KR"] as Mkt[]).map((m, i) => (
+        <span key={m}>{i > 0 && <span style={{ color: "var(--text-faint)" }}> · </span>}
+          {m === "US" ? "🇺🇸 S&P 500" : "🇰🇷 KOSPI"} <b style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{sgn(brief[m === "US" ? "us" : "kr"]?.index_chg_1w)}</b>
+          {combo(m) && <span style={{ color: "var(--text-muted)" }}> ({combo(m)})</span>}
+        </span>
+      )), "#regime")}
+      {row("🎯", "볼 테마", !f ? <span style={{ color: "var(--text-faint)" }}>다음 브리핑(월요일 아침)부터 표시</span>
+        : f.themes.length === 0 ? <span style={{ color: "var(--text-faint)" }}>이번 주 라벨 붙은 테마 없음</span>
+        : f.themes.map((t, i) => (
+          <span key={`${t.market}:${t.theme_id}`}>{i > 0 && <span style={{ color: "var(--text-faint)" }}> · </span>}
+            <a href={`/radar/theme?id=${encodeURIComponent(t.theme_id)}&market=${t.market}#candidates`} className="hover:underline">
+              {MKT_NAME[t.market].flag} <b style={{ color: "var(--text-primary)" }}>{t.name}</b>
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}> {t.label ? (LABEL_KO[t.label] ?? t.label) : "실적 먼저"}</span>
+            </a>
+          </span>
+        )), f ? "/briefing#focus" : undefined)}
+      {f && f.stocks.length > 0 && row("⭐", "볼 후보", <>
+        {f.stocks.map((x, i) => (
+          <span key={`${x.market}:${x.symbol}`}>{i > 0 && <span style={{ color: "var(--text-faint)" }}> · </span>}
+            <StockLink market={x.market} symbol={x.symbol} className="font-semibold" style={{ color: "var(--text-primary)" }}>{nameOf(x)}</StockLink>
+            <span className="text-[12px]" style={{ color: "var(--text-muted)" }}> {x.reasons.join("·")}</span>
+          </span>
+        ))}
+        {more > 0 && <a href="/watchlist" className="hover:underline" style={{ color: "var(--text-muted)" }}> 외 {more}곳</a>}
+      </>, "/briefing#focus")}
+      {row("🔁", "회고", due == null ? "…" : due > 0
+        ? <span><b style={{ color: "var(--accent)" }}>판단 남길 회고 {due}건</b> - 브리핑에서 맞았다·틀렸다·애매 하나만 누르면 됩니다</span>
+        : <span style={{ color: "var(--text-faint)" }}>도착한 회고 없음</span>, due ? "/briefing#reviews" : "/notes")}
     </Section>
   );
 }
@@ -166,6 +234,7 @@ export default function HomePage() {
   const [loaded, setLoaded] = useState(false);
   const [inst, setInst] = useState<Inst13f | null>(null);
   const [regime, setRegime] = useState<RegimeData | null>(null);   // 시장 환경 축(2026-11-07)
+  const [due, setDue] = useState<number | null>(null);   // 회고 대기 - 브리핑 '회고 판정'과 같은 기준(obsStatus due)
 
   useEffect(() => {
     const markets: Mkt[] = ["US", "KR"];
@@ -198,6 +267,9 @@ export default function HomePage() {
       // API가 { error }를 돌려주면(DB 오류 등) items가 없어 화면 전체가 깨졌다 - 모양이 맞을 때만 쓴다(2026-10-04).
       .then(d => setMacro(d && d.items ? d : null))
       .catch(() => setMacro(null));
+    fetch("/api/notes").then(r => r.json())
+      .then(d => setDue((Array.isArray(d?.observations) ? d.observations : []).filter((o: ObservationT) => obsStatus(o) === "due").length))
+      .catch(() => setDue(0));
     fetch("/api/briefing")
       .then(r => r.json())
       .then(d => setBrief(Array.isArray(d?.briefings) && d.briefings.length ? d.briefings[0] : null))
@@ -224,30 +296,21 @@ export default function HomePage() {
     </div>
   );
 
-  const reviews = brief?.observation_reviews?.length ?? 0;
   return (
     <div className="space-y-3">
-      {/* 공통 머리말 - 시장 탭 없이 한 장(2026-10-25). 시장별 숫자는 아래 두 단락, 매크로는 공통 */}
+      {/* 공통 머리말 - 시장 탭 없이 한 장(2026-10-25). 맨 위 '이번 주 한눈에', 시장별 이름 줄, 그 아래 시장 환경·매크로(2026-11-15) */}
       <PageHeader title="이번 주 물밑 흐름" intro="home"
-        desc="미국·한국 두 시장의 이번 주 변화를 한 장에. 숫자를 누르면 해당 목록으로 갑니다 - 순위나 추천이 아닙니다." />
-      {/* 첫 방문 안내 - 닫으면 이 브라우저에서는 안 보인다(2026-10-23). 다른 화면처럼 제목 아래에(2026-10-25 화면 통일) */}
+        desc="미국·한국 두 시장에서 이번 주 바뀐 것을 이름으로. 이름을 누르면 기업 카드, 줄 제목을 누르면 해당 목록 - 순위나 추천이 아닙니다." />
+      {/* 첫 방문 안내 - 닫으면 이 브라우저에서는 안 보인다(2026-10-23) */}
       <WelcomePanel />
+
+      <WeekGlance brief={brief} due={due} />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         {(["US", "KR"] as Mkt[]).map((m) => (
           <MarketBlock key={m} m={m} brief={brief} cands={cands[m]} radar={radar[m]} onRadar={() => setMarket(m)} inst={inst} />
         ))}
       </div>
-
-      {/* 관찰 노트 회고는 시장 구분이 없다 - 공통 한 줄 */}
-      <a href="/notes" className="flex items-center gap-3 rounded-xl px-4 py-3 hover:brightness-125"
-        style={{ background: reviews > 0 ? "#ffb02010" : "var(--bg-card)", border: `1px solid ${reviews > 0 ? "#ffb02055" : "var(--border)"}` }}>
-        <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>관찰 노트 회고</span>
-        <span className="text-[13px]" style={{ color: reviews > 0 ? "#ffb020" : "var(--text-muted)" }}>
-          {reviews > 0 ? `판단 남길 회고 ${reviews}건 도착` : "도착한 회고 없음"}
-        </span>
-        <span className="ml-auto text-[12px]" style={{ color: "var(--text-muted)" }}>노트로 →</span>
-      </a>
 
       {/* 시장 환경 - 축별 수준·방향 + 정해진 조합 이름(2026-11-07, 레짐 모듈). 매주 일요일 계산 */}
       {regime && (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { GLOSSARY, GLOSSARY_GROUPS } from "@/src/lib/glossary";
-import { INTRO_STORAGE_PREFIX, WELCOME_STORAGE_KEY } from "@/src/lib/pageIntros";
+import { INTRO_STORAGE_PREFIX, PAGE_INTROS, WELCOME_STORAGE_KEY } from "@/src/lib/pageIntros";
 
 // 가이드의 "용어 사전" 칸(2026-10-23) - 화면 곳곳의 점선 밑줄 용어와 같은 설명(src/lib/glossary.ts)을 한 번에.
 // 아래 "안내 다시 보기"는 접어 둔 "이 화면은?" 상자와 첫 화면 안내를 모두 되살린다.
@@ -12,12 +12,9 @@ export default function GlossarySection() {
 
   const resetIntros = () => {
     try {
-      const keys: string[] = [];
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && (k.startsWith(INTRO_STORAGE_PREFIX) || k === WELCOME_STORAGE_KEY)) keys.push(k);
-      }
-      keys.forEach((k) => window.localStorage.removeItem(k));
+      // 2026-11-15부터 '이 화면은?'은 기본 접힘 - 다시 보기는 모든 화면 상자를 펼친 상태("0")로 적는다
+      Object.keys(PAGE_INTROS).forEach((k) => window.localStorage.setItem(INTRO_STORAGE_PREFIX + k, "0"));
+      window.localStorage.removeItem(WELCOME_STORAGE_KEY);
     } catch { /* 저장소를 못 쓰는 환경 - 안내는 원래 매번 보인다 */ }
     setReset(true);
   };
