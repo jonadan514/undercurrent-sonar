@@ -1668,6 +1668,54 @@ def build_telegram_summary(b: dict) -> str:
     return "\n".join(l for i, l in enumerate(out) if l or (i > 0 and out[i - 1]))
 
 
+def build_telegram_short(b: dict) -> str:
+    """텔레그램 짧은 본문(2026-11-15, 사용자: 사용성 A - 폰에서 길어 핵심이 묻혔다). 실제로 보내는 것은 이것.
+    🎯 이번 주 볼 것 · ⭐ 관심 종목 · 🔁 회고 판정 대기 · 🌐 시장 한 줄 · 📅 내 관심·노트 종목 실적 발표만, 나머지는 브리핑 링크로.
+    숫자는 DB·시세 값만(원칙 2) - 전체 본문(build_telegram_summary)은 미리 보기 출력에 남긴다."""
+    def disp(item: dict) -> str:
+        label = (item.get("name") or item["symbol"]) if item["market"] == "KR" else item["symbol"]
+        return f"{MARKET_FLAG.get(item['market'], '')} {html.escape(label)}"
+
+    lines = [f"<b>📋 주간 브리핑</b> · {_md(b['week'])}"]
+    wf = b.get("week_focus") or {}
+    if wf.get("themes") or wf.get("stocks"):
+        lines += ["", "<b>🎯 이번 주 볼 것</b>"]
+        for t in wf.get("themes") or []:
+            tag = LABEL_KO_TG.get(t["label"], "") if t.get("label") else "실적 먼저"
+            lines.append(f"  {MARKET_FLAG.get(t['market'], '')} <b>{html.escape(t['name'])}</b> [{tag}] {html.escape(t['why'])}")
+        for x in wf.get("stocks") or []:
+            lines.append(f"  {disp(x)} · {html.escape(' · '.join(x['reasons']))} ({html.escape(x['theme'])})")
+        more = sum((wf.get("stock_total") or {}).values()) - len(wf.get("stocks") or [])
+        if more > 0:
+            lines.append(f"  외 후보 {more}곳")
+    my = b.get("my_stocks_week")
+    if my and my.get("count"):
+        lines += ["", f"<b>⭐ 관심 종목에 생긴 일</b> {my['count']}종목"]
+        for x in my["items"][:MY_TG_MAX]:
+            evs = " · ".join(("⚠️" if e["warn"] else "") + f"{e['kind']} {html.escape(e['text'])}" for e in x["events"])
+            lines.append(f"  {disp(x)} {evs}")
+        if my["count"] > MY_TG_MAX:
+            lines.append(f"  외 {my['count'] - MY_TG_MAX}종목")
+    reviews = b.get("observation_reviews") or []
+    if reviews:
+        lines += ["", f"<b>🔁 회고 판정 대기</b> {len(reviews)}건 - 브리핑에서 바로 판정"]
+    # 시장 한 줄 - 지수 주간 등락 + 시장 환경 조합 이름(없으면 '뚜렷한 조합 없음')
+    mk = []
+    for key, flag, nm in (("us", "🇺🇸", "S&amp;P 500"), ("kr", "🇰🇷", "KOSPI")):   # parse_mode=HTML - & 그대로면 메시지가 안 간다
+        chg = (b.get(key) or {}).get("index_chg_1w")
+        combos = [c.get("name") for c in (((b.get("regime") or {}).get(key.upper()) or {}).get("combos") or []) if c.get("name")]
+        if chg is not None or combos:
+            mk.append(f"{flag} {nm} {chg:+.1f}%" if chg is not None else flag)
+            mk[-1] += f" ({', '.join(combos)})" if combos else ""
+    if mk:
+        lines += ["", "<b>🌐 시장</b> " + " · ".join(mk)]
+    mine = [x for x in ((b.get("earnings_week") or {}).get("items") or []) if set(x.get("tags") or []) & {"my", "note"}]
+    if mine:
+        lines += ["", "<b>📅 내 종목 실적 발표</b> " + " · ".join(f"{disp(x)} {_md(x['date'])}{'?' if x.get('estimate') else ''}" for x in mine[:6])]
+    lines += ["", f'<a href="{SITE_URL}/briefing">전체 브리핑 열기</a> - 시장·종목 변화·테마·공시·일정']
+    return "\n".join(lines)
+
+
 TELEGRAM_MAX = 3900   # 텔레그램 한 메시지 4,096자 - 여유를 둔다
 
 
@@ -1698,7 +1746,7 @@ def send_telegram_summary(b: dict) -> None:
         logger.info("텔레그램 미설정 — 발송 건너뜀")
         return
 
-    parts = split_telegram(build_telegram_summary(b))
+    parts = split_telegram(build_telegram_short(b))   # 짧은 본문(2026-11-15) - 전체는 웹 브리핑
     for i, text in enumerate(parts, 1):
         body = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML",
                            "disable_web_page_preview": True}).encode()
@@ -1739,7 +1787,8 @@ def print_dry_run(b: dict, points: list | None) -> None:
     for pt in points or []:
         print(f"[{pt['kind']}] {pt['title']}\n  - " + "\n  - ".join(pt["facts"]))
     print("\n== 총평 ==\n" + (b.get("gpt_comment") or "(없음)"))
-    print("\n== 텔레그램 ==\n" + build_telegram_summary(b))
+    print("\n== 텔레그램(보내는 것 - 짧은 본문) ==\n" + build_telegram_short(b))
+    print("\n== 텔레그램(예전 전체 본문, 참고) ==\n" + build_telegram_summary(b))
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

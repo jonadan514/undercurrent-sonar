@@ -395,3 +395,18 @@ def test_vix_spread_qual_and_telegram_points():
 def test_theme_keywords_core_minor():
     core, minor = g.theme_keywords("petrochemical", ["KR"])
     assert core == ["석유화학", "에틸렌 스프레드"] and "정제마진" in minor
+
+
+def test_short_telegram_keeps_only_core_blocks():
+    """짧은 텔레그램(2026-11-15) - 이번 주 볼 것·관심 종목·회고·시장 한 줄·내 종목 실적만, 나머지는 링크."""
+    b = _briefing(week_focus={"themes": [{"market": "KR", "theme_id": "ship", "name": "조선", "label": "Quiet Strength", "why": "잠잠"}],
+                              "stocks": [{"market": "US", "symbol": "F&F", "reasons": ["내부자 매수"], "theme": "A&B"}],
+                              "stock_total": {"US": 3}},
+                  observation_reviews=[{}, {}],
+                  regime={"US": {"combos": [{"name": "위험 회피"}]}},
+                  earnings_week={"items": [{"market": "US", "symbol": "AMAT", "date": "2026-11-12", "tags": ["my"]},
+                                           {"market": "US", "symbol": "XYZ", "date": "2026-11-12", "tags": []}]})
+    t = g.build_telegram_short(b)
+    assert "🎯 이번 주 볼 것" in t and "[숨은 강세]" in t and "F&amp;F" in t and "외 후보 2곳" in t
+    assert "회고 판정 대기</b> 2건" in t and "S&amp;P 500 +1.2% (위험 회피)" in t and "S&P" not in t
+    assert "AMAT 11/12" in t and "XYZ" not in t and "워치리스트</b>" not in t and "전체 브리핑 열기" in t
