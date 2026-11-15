@@ -150,39 +150,52 @@ function ContraNews({ stock, market }: { stock: string; market: string }) {
   );
 }
 
-// 차트 상태(2026-11-15, 사용자: 밸류·실적·차트로 본다) - 판정 없이 사실만. 200일선·52주 위치·수익률(scripts/compute_price_facts.py, 매일)
-function ChartFacts({ f, market }: { f: Record<string, number | string | null> | null; market: "US" | "KR" }) {
-  const box = { background: "var(--bg-inset)", border: "1px solid var(--border)" };
-  if (!f) return <div className="rounded-lg p-2.5 text-[12.5px]" style={box}><span style={{ color: MUTED }}>차트 상태</span> <span style={{ color: FAINT }}>· 아직 계산 전(매일 밤 갱신)</span></div>;
+// 숫자 확인 맨 위 목록(2026-11-15 사용자: '밸류·성장 칸이 보기 힘들다', '차트 칸이 안 보인다').
+// 예전엔 두 상자에 문장을 이어 써서 줄이 아무 데서나 꺾였고, 차트는 그 아래 따로 있어 눈에 안 띄었다.
+// 줄마다 이름 · 핵심 값(굵게) · 근거(작게, 다음 줄)로. 판정·점수 없음 - 저장된 값 그대로(원칙 1·2).
+function FactRow({ label, main, color, detail }: { label: string; main: React.ReactNode; color?: string; detail?: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 py-2" style={{ borderTop: "1px solid var(--border)" }}>
+      <span className="w-[4.5rem] shrink-0 pt-px text-[12.5px]" style={{ color: MUTED }}>{label}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-semibold" style={{ color: color ?? "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{main}</p>
+        {detail && <p className="mt-0.5 text-[12px] leading-relaxed" style={{ color: MUTED, fontVariantNumeric: "tabular-nums" }}>{detail}</p>}
+      </div>
+    </div>
+  );
+}
+
+const dot = <span style={{ color: FAINT }}> · </span>;
+
+function ChartRow({ f, market }: { f: Record<string, number | string | null> | null; market: "US" | "KR" }) {
+  if (!f) return <FactRow label="차트" main={<span style={{ color: FAINT }}>아직 계산 전</span>} detail="평일 밤마다 갱신됩니다" />;
   const n = (k: string) => (f[k] == null ? null : Number(f[k]));
   const pos = n("pos_52w");
   const posPct = pos == null ? null : Math.round(pos * 100);
   const money = (v: number | null) => v == null ? "-" : market === "KR" ? Math.round(v).toLocaleString() + "원" : "$" + v.toFixed(2);
   const above = n("above_ma200"), slope = n("ma200_slope");
+  const asOf = String(f.as_of ?? "");
   return (
-    <div className="rounded-lg p-2.5 text-[12.5px]" style={box}>
-      <p style={{ color: MUTED }}>차트 상태 <span style={{ color: FAINT }}>· {String(f.as_of ?? "").slice(5).replace("-", "/")} 종가 기준, 판정 아님</span></p>
-      <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3" style={{ color: SECONDARY, fontVariantNumeric: "tabular-nums" }}>
-        <div>
-          52주 범위 안 위치 <b style={{ color: "var(--text-primary)" }}>{posPct == null ? "-" : posPct + "%"}</b>
-          <div className="relative mt-1 h-1.5 rounded-full" style={{ background: "var(--border)" }}>
-            {posPct != null && <span className="absolute h-2.5 w-1 rounded" style={{ top: -2, left: "calc(" + posPct + "% - 2px)", background: ACCENT }} />}
-          </div>
-          <p className="mt-0.5 text-[11.5px]" style={{ color: FAINT }}>{money(n("low_52w"))} ~ {money(n("high_52w"))} · 고점 대비 {pct(n("from_high"))}</p>
-        </div>
-        <div>
-          200일선 {above == null ? <b style={{ color: FAINT }}>기록 부족</b> : <b style={{ color: "var(--text-primary)" }}>{above ? "위" : "아래"}</b>}
-          {slope != null && <span style={{ color: MUTED }}> · 선 기울기 {slope > 0.002 ? "오름" : slope < -0.002 ? "내림" : "평평"}</span>}
-          <p className="text-[11.5px]" style={{ color: FAINT }}>종가 {money(n("close"))} · 200일선 {money(n("ma200"))}</p>
-        </div>
-        <div>
-          수익률 1개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_1m"))}</b> · 3개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_3m"))}</b>
-          {f.bench_ret_3m != null && <p className="text-[11.5px]" style={{ color: FAINT }}>{market === "US" ? "SPY" : "코스피200(KODEX 200)"} 3개월 {pct(n("bench_ret_3m"))}</p>}
-        </div>
-      </div>
-    </div>
+    <FactRow label="차트"
+      main={<>
+        {above == null ? <span style={{ color: FAINT }}>200일선 기록 부족</span> : <>200일선 {above ? "위" : "아래"}</>}
+        {dot}52주 범위 {posPct == null ? "-" : posPct + "%"} 위치
+        {posPct != null && (
+          <span className="relative ml-2 inline-block h-1.5 w-20 rounded-full align-middle" style={{ background: "var(--border)" }}>
+            <span className="absolute h-2.5 w-1 rounded" style={{ top: -2, left: "calc(" + posPct + "% - 2px)", background: ACCENT }} />
+          </span>
+        )}
+      </>}
+      detail={<>
+        수익률 1개월 {pct(n("ret_1m"))} · 3개월 {pct(n("ret_3m"))}
+        {f.bench_ret_3m != null && <> (같은 기간 {market === "US" ? "SPY" : "코스피200"} {pct(n("bench_ret_3m"))})</>}
+        <br />종가 {money(n("close"))} · 200일선 {money(n("ma200"))}{slope != null ? ` (선 ${slope > 0.002 ? "오르는 중" : slope < -0.002 ? "내리는 중" : "평평"})` : ""}
+        {" "}· 52주 {money(n("low_52w"))} ~ {money(n("high_52w"))}, 고점 대비 {pct(n("from_high"))}
+        {asOf && <span style={{ color: FAINT }}> · {Number(asOf.slice(5, 7))}/{Number(asOf.slice(8, 10))} 종가</span>}
+      </>} />
   );
 }
+
 
 function CompanyView() {
   const stock = useSearchParams().get("stock") ?? "";
@@ -274,29 +287,28 @@ function CompanyView() {
       </Section>
 
       {/* ② 숫자 확인 */}
-      <Section title={<><Step n="2-3">{null}</Step>숫자 확인</>} sub="재무 필터 판정 · 최근 8분기 · 같은 테마·업종 동료 대비">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12.5px]">
-          <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-            <p style={{ color: MUTED }}>재무 필터</p>
-            <p className="font-semibold" style={{ color: scColor }}>{scText}</p>
-            {sc?.screened_at && <p className="text-[11px]" style={{ color: FAINT }}>{sc.screened_at.slice(0, 10)} 기준</p>}
+      <Section title={<><Step n="2-3">{null}</Step>숫자 확인</>} sub="재무 필터 · 밸류 · 성장 · 차트 · 최근 8분기 · 같은 테마·업종 동료 대비">
+        <div className="rounded-lg px-3 pb-0.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+          <div className="-mt-px">
+            <FactRow label="재무 필터" main={scText} color={scColor}
+              detail={sc?.screened_at ? `${sc.screened_at.slice(0, 10)} 기준 · F-Score 6 이상 + 수익성·이자보상·부채 기준` : undefined} />
           </div>
-          <div className="rounded-lg p-2.5" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-            <p style={{ color: MUTED }}>밸류 · 성장 (워치리스트 후보일 때만)</p>
-            {cand ? (
-              <p style={{ color: SECONDARY }}>
-                밸류 <b>{tierLabel(cand.valuation_tier as string | null) || "-"}</b> · PSR {cand.psr != null ? Number(cand.psr).toFixed(2) : "-"}
-                {cand.psr_peer_median != null && cand.valuation_basis
-                  ? <span style={{ color: MUTED }}> ({String(cand.valuation_basis).split(" · ")[1] ?? String(cand.valuation_basis)} 중앙값 {Number(cand.psr_peer_median).toFixed(2)}, {String(cand.psr_peer_n ?? "-")}곳)</span>
-                  : !cand.valuation_tier && cand.psr != null && <span style={{ color: MUTED }}> (같은 업종 동료가 5곳 미만이라 등급 없음 - 데이터 부족)</span>}
-                {" "}· PER {cand.per != null ? Number(cand.per).toFixed(1) : "-"}
-                <br />성장 <b>{(cand.growth_tier as string) ?? "-"}</b> · 매출 3년 {pct(cand.revenue_cagr_3y as number | null)} · 최근 1년 {pct(cand.revenue_yoy as number | null)}
-                {cand.fcf_yield_3y != null && <> · FCF 수익률 3년 {pct(cand.fcf_yield_3y as number, 1)}</>}
-              </p>
-            ) : <p style={{ color: MUTED }}>후보가 아니라 계산하지 않음</p>}
-          </div>
+          {cand ? (
+            <>
+              <FactRow label="밸류"
+                main={<>{tierLabel(cand.valuation_tier as string | null) || "등급 없음"}{dot}PSR {cand.psr != null ? Number(cand.psr).toFixed(2) : "-"}{dot}PER {cand.per != null ? Number(cand.per).toFixed(1) : "-"}</>}
+                detail={cand.psr_peer_median != null && cand.valuation_basis
+                  ? <>같은 {String(cand.valuation_basis).split(" · ")[0]}({String(cand.valuation_basis).split(" · ")[1] ?? ""}) {String(cand.psr_peer_n ?? "-")}곳의 PSR 중앙값 {Number(cand.psr_peer_median).toFixed(2)}</>
+                  : !cand.valuation_tier && cand.psr != null ? "같은 업종 동료가 5곳 미만이라 등급 없음(데이터 부족)" : undefined} />
+              <FactRow label="성장" main={(cand.growth_tier as string) ?? "-"}
+                detail={<>매출 3년 연평균 {pct(cand.revenue_cagr_3y as number | null)} · 최근 1년 {pct(cand.revenue_yoy as number | null)}
+                  {cand.fcf_yield_3y != null && <> · FCF 수익률(3년) {pct(cand.fcf_yield_3y as number, 1)}</>}</>} />
+            </>
+          ) : (
+            <FactRow label="밸류·성장" main={<span style={{ color: FAINT }}>계산 안 함</span>} detail="워치리스트 후보(재무 필터 통과 등)일 때만 계산합니다" />
+          )}
+          <ChartRow f={d.chart ?? null} market={d.market} />
         </div>
-        <div className="mt-2"><ChartFacts f={d.chart ?? null} market={d.market} /></div>
         <div className="mt-3"><QuarterTable quarters={d.quarters} market={d.market} /></div>
         <div className="mt-3"><ThemePeerSection c={c} /></div>
       </Section>
