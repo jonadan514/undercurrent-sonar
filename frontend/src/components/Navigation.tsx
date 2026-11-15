@@ -14,7 +14,6 @@ const NAV_GROUPS = [
     items: [
       { href: "/",          label: "개요",       emoji: "📊", color: "#ffb020" },
       { href: "/radar",     label: "테마 레이더", emoji: "📡", color: "#ffb020" },
-      { href: "/sector",    label: "섹터 분석",   emoji: "🏭", color: "#ffb020" },
       { href: "/briefing",  label: "주간 브리핑", emoji: "📰", color: "#ffb020" },
     ],
   },

@@ -8,6 +8,7 @@ import AsOf from "@/src/components/AsOf";
 import { LABEL_KO } from "@/src/lib/labelNames";
 import { Section, StatTile } from "@/src/components/Section";
 import PageHeader from "@/src/components/PageHeader";
+import SectorTurnLine from "@/src/components/SectorTurnLine";
 import { quarterLabel } from "@/src/lib/institutions";
 import MarketRegime, { type RegimeData } from "@/src/components/MarketRegime";
 
@@ -253,6 +254,7 @@ export default function HomePage() {
         <Section id="regime" title="시장 환경" info="금리·신용·달러/환율·변동성·외국인 수급을 축마다 따로, 각 지표 자신의 지난 1년과 비교합니다. 정해진 조합에만 이름을 붙이고 점수·매수 판단은 없습니다."
           right={<AsOf date={regime.US?.[regime.US.length - 1]?.as_of ?? regime.KR?.[regime.KR.length - 1]?.as_of} cadence="매주 일요일" staleDays={9} />}>
           <MarketRegime data={regime} />
+          <SectorTurnLine />
         </Section>
       )}
 
