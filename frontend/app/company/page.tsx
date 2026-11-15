@@ -15,6 +15,7 @@ import { Section } from "@/src/components/Section";
 import EmptyState from "@/src/components/EmptyState";
 import { externalQuoteUrl } from "@/src/components/StockLink";
 import { ObservationForm } from "@/src/components/Observation";
+import DecisionPanel from "@/src/components/DecisionPanel";
 import { themeName } from "@/src/lib/themeNames";
 import { labelWithKo } from "@/src/lib/labelNames";
 import { tierLabel } from "@/src/lib/valuation";
@@ -183,6 +184,7 @@ function CompanyView() {
           {d.next_earnings && <span className="px-2 py-0.5 rounded" style={{ border: "1px solid var(--border)", color: SECONDARY }}>
             실적 발표 {md(d.next_earnings.date)}{d.next_earnings.estimate ? "(예상)" : ""}</span>}
           <a href={externalQuoteUrl(d.market, d.symbol)} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: MUTED }}>외부 시세 ↗</a>
+          <a href="#decide" className="px-2 py-0.5 rounded" style={{ border: "1px solid #453b1f", color: ACCENT }}>검토 기록 남기기 ↓</a>
         </div>
       </PageHeader>
 
@@ -298,6 +300,11 @@ function CompanyView() {
           </ul>
         ) : <p className="text-[12.5px]" style={{ color: MUTED }}>저장된 데이터에서 걸리는 것은 없습니다.</p>}
         <ContraNews stock={`${d.market}:${d.symbol}`} market={d.market} />
+      </Section>
+
+      {/* 검토 기록(2026-11-15) - 다 읽고 관심·보류·제외. 3개월 가상 매수 검증용 */}
+      <Section id="decide" title="검토 기록" sub="관심·보류·제외 + 내가 본 밸류·실적·차트 · 결과는 자동으로 TIGER 반도체TOP10·지수와 비교">
+        <DecisionPanel market={d.market} symbol={d.symbol} name={d.name} fromTool={!!cand} />
       </Section>
 
       {/* ⑤ 내 기록 */}
