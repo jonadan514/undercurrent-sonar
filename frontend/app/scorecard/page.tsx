@@ -9,6 +9,7 @@ import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import { Section } from "@/src/components/Section";
 import Note from "@/src/components/Note";
+import DecisionScorecard from "@/src/components/DecisionScorecard";
 
 // scripts/compute_pick_returns.py의 HORIZONS와 반드시 일치해야 함.
 const HORIZONS = [30, 60, 90, 180, 365, 730] as const;
@@ -190,6 +191,7 @@ export default function ScorecardPage() {
     return (
       <div className="space-y-2">
         <PageHeader title="성적표" intro="scorecard" desc="과거 워치리스트 후보의 수익률과, 브리핑·레이더 신호의 사후 확인." />
+        <DecisionScorecard />
         <EmptyState title="아직 집계된 후보 수익률이 없습니다" hint="매주 일요일 밤 자동 집계 뒤 표시됩니다. 아래 신호 사후 확인은 따로 집계됩니다." />
         <SignalSection market={market} />
       </div>
@@ -218,6 +220,9 @@ export default function ScorecardPage() {
         desc={data.earliest_date && data.latest_date
           ? `워치리스트 후보 ${data.earliest_date} ~ ${data.latest_date} · ${data.total_picks}개, 아래는 브리핑·레이더 신호의 사후 확인`
           : "아직 집계된 데이터가 없습니다 (매주 일요일 자동 집계)."} />
+
+      {/* 내 검토 기록 성적(2026-11-15) - 맨 위. 3개월 가상 매수 검증 */}
+      <DecisionScorecard />
 
       {/* 2-way 비교 — 30일~2년까지 한 번에 (단기 30/60/90 스윙 검증, 180일 이후는 장기 펀더멘털 검증) */}
       <Section title="후보 수익률 비교" sub="통과 후보 vs 지수, 30일~2년"
