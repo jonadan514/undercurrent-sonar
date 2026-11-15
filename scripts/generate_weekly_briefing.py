@@ -254,6 +254,8 @@ def get_watchlist_changes() -> dict:
         # 신규가 30개여도 "신규 10"으로 나왔다(2026-10-05 수정).
         "added": added[:10],
         "removed": removed[:10],
+        # '이번 주 볼 것'(2026-11-15)이 신규 통과를 이유로 쓰려고 - 자른 목록이 아니라 전부의 '시장:종목'
+        "added_keys": [f"{c['market']}:{c['symbol']}" for c in added],
         "added_count": len(added),
         "removed_count": len(removed),
         "has_prev": bool(prev_map),
@@ -889,6 +891,8 @@ def strip_numeric_sentences(text: str) -> str:
 # 라벨 뜻(theme_labels._RULES의 뉴스·실적·주가 조합) - GPT가 이름만 보고 뜻을 짐작하지 않게 같이 넘긴다
 LABEL_KO_SHORT = {"Early Buzz": "뉴스 선행", "Full Alignment": "동반 상승", "Quiet Strength": "숨은 강세",
                   "Overheated Buzz": "기대 과열", "Full Decline": "동반 하락", "Quiet Recovery": "숨은 회복"}
+LABEL_KO_TG = {"Quiet Strength": "숨은 강세", "Quiet Recovery": "숨은 회복", "Early Buzz": "뉴스 선행", "Full Alignment": "동반 상승",
+               "Overheated Buzz": "기대 과열", "Full Decline": "동반 하락"}
 LABEL_MEANING = {
     "Early Buzz": "뉴스가 크게 늘고 주가도 올랐지만 실적은 아직 그대로 - 기대가 먼저 움직임",
     "Full Alignment": "뉴스·실적·주가가 모두 오름",
@@ -1059,6 +1063,33 @@ def comment_facts(b: dict) -> dict:
 
 
 
+
+
+def get_week_focus(b: dict) -> dict | None:
+    """브리핑 맨 위 '이번 주 볼 것'(2026-11-15, src/analyzers/week_focus.py) - 라벨 테마와 테마 소속·이번 주 이유가 있는 후보.
+    아래 칸들에서 모으기만 한다. 실패하면 None(그 칸만 빠진다)."""
+    from src.analyzers.week_focus import focus_stocks, focus_themes
+    try:
+        rows = []
+        for mk in ("US", "KR"):
+            # 주가 잡이 새 주 줄(price만)을 먼저 만들 수 있어 실적 축까지 채워진 가장 최근 주(라벨 계산이 끝난 주)
+            rows += [{"market": mk, "theme_id": r["theme_id"], "label": r["label"], "news": r["news_arrow"],
+                      "earn": r["earn_arrow"], "price": r["price_arrow"], "week_start": r["week_start"]} for r in turso_exec(
+                "SELECT theme_id, label, news_arrow, earn_arrow, price_arrow, week_start FROM theme_signals WHERE market = ? AND week_start = "
+                "(SELECT MAX(week_start) FROM theme_signals WHERE market = ? AND earn_arrow IS NOT NULL)", [mk, mk])]
+        names = load_theme_names()
+        themes = focus_themes(rows, names)
+        cands = turso_exec("SELECT market, symbol, name, valuation_tier, growth_tier FROM watchlist_candidates")
+        stocks, total = focus_stocks(b, cands, get_theme_members(), themes, names)
+        kr_names = kr_name_table()
+        for x in stocks:
+            if x["market"] == "KR" and (not x.get("name") or x["name"] == x["symbol"]):
+                x["name"] = kr_names.get(f"KR:{x['symbol']}", x["symbol"])
+        return {"themes": themes, "stocks": stocks, "stock_total": total,
+                "week_start": max((r.get("week_start") or "" for r in rows), default=None) or None}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("이번 주 볼 것 실패: %s", type(e).__name__)
+        return None
 
 
 def get_theme_members() -> dict[tuple[str, str], set[str]]:
@@ -1401,7 +1432,21 @@ def build_telegram_summary(b: dict) -> str:
     def group(title: str) -> None:
         lines.extend(["", f"━━ {title} ━━"])
 
-    # 맨 위: 내 관심·노트 종목에 생긴 일(2026-10-21) - 아래 칸들에서 그 종목 줄만 모은 것
+    # 맨 위: 이번 주 볼 것(2026-11-15, 사용자: 사용성 1번) - 라벨 테마와 테마 소속 후보. 코드가 정한 말만
+    wf = b.get("week_focus") or {}
+    if wf.get("themes") or wf.get("stocks"):
+        lines.append("<b>🎯 이번 주 볼 것</b>")
+        for t in wf.get("themes") or []:
+            tag = LABEL_KO_TG.get(t["label"], "") if t.get("label") else "실적 먼저"
+            lines.append(f"  {MARKET_FLAG.get(t['market'], '')} <b>{html.escape(t['name'])}</b> [{tag}] {html.escape(t['why'])}")
+        for x in wf.get("stocks") or []:
+            lines.append(f"  {disp(x)} · {html.escape(' · '.join(x['reasons']))} ({html.escape(x['theme'])})")
+        more = sum((wf.get("stock_total") or {}).values()) - len(wf.get("stocks") or [])
+        if more > 0:
+            lines.append(f"  외 후보 {more}곳 - 워치리스트 '이번 주 볼 후보'")
+        lines.append("")
+
+    # 내 관심·노트 종목에 생긴 일(2026-10-21) - 아래 칸들에서 그 종목 줄만 모은 것
     my = b.get("my_stocks_week")
     if my and my.get("count"):
         lines.append(f"<b>⭐ 관심 종목에 생긴 일</b> {my['count']}종목")
@@ -1675,7 +1720,7 @@ def print_dry_run(b: dict, points: list | None) -> None:
         return len(v) if isinstance(v, (list, dict)) else ("-" if v is None else v)
     print(f"== 브리핑 미리 보기 (week={b['week']}, 저장·발송 안 함) ==")
     for k in ("us", "kr", "macro", "kr_flows", "kr_disclosures", "insider_week", "us_8k_week", "inst_13f_week",
-              "sentiment_heating", "observation_reviews", "earnings_week", "my_stocks_week"):
+              "sentiment_heating", "observation_reviews", "earnings_week", "my_stocks_week", "week_focus"):
         v = b.get(k)
         print(f"  {k}: {type(v).__name__} {n(v)}" + (f" keys={list(v)[:8]}" if isinstance(v, dict) else ""))
     for mk, st in (b.get("regime") or {}).items():
@@ -1772,6 +1817,7 @@ def main() -> None:
         "observation_reviews": get_observation_reviews(),
     }
     briefing["my_stocks_week"] = get_my_stocks_week(briefing)
+    briefing["week_focus"] = get_week_focus(briefing)
     briefing["gpt_comment"] = gpt_comment(briefing)   # 관심 종목 칸까지 만든 뒤 - 총평이 그 내용도 쓴다(2026-11-02)
     points = briefing.pop("_comment_points", None)
 

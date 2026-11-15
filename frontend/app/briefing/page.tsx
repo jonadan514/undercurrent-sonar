@@ -61,6 +61,12 @@ interface Briefing {
                    discovery?: InsiderItem[]; discovery_count?: number } | null;
   us_8k_week?: { total: number; by_kind: Record<string, number>; items: Us8kItem[] } | null;
   my_stocks_week?: { watched: number; count: number; items: MyStock[] } | null;
+  // 이번 주 볼 것(2026-11-15, 사용자: 사용성 1번) - 라벨 테마와 테마 소속·이번 주 이유가 있는 후보. 코드가 고른 것(src/analyzers/week_focus.py)
+  week_focus?: {
+    themes: { market: "US" | "KR"; theme_id: string; name: string; label: string | null; news?: string; earn?: string; price?: string; why: string }[];
+    stocks: { market: "US" | "KR"; symbol: string; name?: string | null; reasons: string[]; theme_id: string; theme: string; in_focus: boolean }[];
+    stock_total: Record<string, number>;
+  } | null;
   // 유명 투자자 13F - 지난 7일 신고한 운용사(2026-10-25부터). 낸 곳이 없으면 null
   inst_13f_week?: { filers: number; items: InstItem[] } | null;
 }
@@ -181,6 +187,59 @@ interface RegimeWeek {
   axes: Record<string, { name: string; dir: string | null }>;
   combos: { id: string; name: string; meaning: string }[];
 }
+// ── 이번 주 볼 것 (2026-11-15) ─────────────────────────────────────────────
+// 산업 흐름(라벨 테마)과 매수 후보 찾기(테마 소속 재무 통과 후보 + 이번 주 이유)를 맨 위 한 칸에. 점수·순위 없음 - 이유를 그대로.
+const AX: Record<string, string> = { up2: "↑↑", up1: "↑", flat: "→", down: "↓", na: "–" };
+function WeekFocus({ f, past }: { f: NonNullable<Briefing["week_focus"]>; past: boolean }) {
+  const more = Object.values(f.stock_total ?? {}).reduce((a, b) => a + b, 0) - f.stocks.length;
+  return (
+    <Section className={SCROLL_M} id="focus" tone="focus" title="🎯 이번 주 볼 것"
+      sub="흐름이 보이는 테마와, 그 테마에서 재무가 받쳐 주는 후보 - 추천이 아니라 먼저 들여다볼 곳">
+      {f.themes.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="h-sub" style={{ color: "var(--text-secondary)" }}>흐름 - 테마</p>
+          {f.themes.map((t) => (
+            <a key={`${t.market}:${t.theme_id}`} href={`/radar/theme?id=${encodeURIComponent(t.theme_id)}&market=${t.market}`}
+              className="block rounded-lg px-3 py-2 hover:brightness-125" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <FlagIcon market={t.market} size={12} />
+                <span className="text-[14.5px] font-bold text-white">{t.name}</span>
+                <span className="text-[12px] px-1.5 rounded" style={{ background: "#4ade8018", color: "#4ade80" }}>{t.label ? labelWithKo(t.label) : "실적 먼저"}</span>
+                <span className="text-[12px]" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                  뉴스 {AX[t.news ?? "na"] ?? "–"} · 실적 {AX[t.earn ?? "na"] ?? "–"} · 주가 {AX[t.price ?? "na"] ?? "–"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[13px]" style={{ color: "var(--text-secondary)" }}>{t.why}</p>
+            </a>
+          ))}
+        </div>
+      )}
+      {f.stocks.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          <p className="h-sub" style={{ color: "var(--text-secondary)" }}>후보 - 테마 소속 · 재무 필터 통과 · 이번 주 생긴 이유</p>
+          {f.stocks.map((x) => (
+            <div key={`${x.market}:${x.symbol}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2"
+              style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+              <StockLabel s={x} />
+              {x.reasons.map((r) => (
+                <span key={r} className="text-[12px] px-1.5 rounded" style={{ background: "#4ade8014", color: "#86efac", border: "1px solid #4ade8033" }}>{r}</span>
+              ))}
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{x.theme}{x.in_focus ? " (위 테마)" : ""}</span>
+              <span className="ml-auto"><NoteBtn s={x} past={past} /></span>
+            </div>
+          ))}
+          {more > 0 && (
+            <a href="/watchlist" className="inline-block text-[12.5px] hover:underline" style={{ color: "#4ade80" }}>
+              외 후보 {more}곳 → 워치리스트 &apos;이번 주 볼 후보&apos;
+            </a>
+          )}
+        </div>
+      )}
+      <Note>테마는 이번 주 라벨이 붙은 것(시장마다 2개까지, 없으면 &apos;실적 ↑↑인데 주가는 아직&apos;인 테마) · 후보는 위 테마 소속을 먼저, 나머지는 이름순(시장마다 3개) - 이유 개수로 줄 세우지 않습니다 · 이름을 누르면 기업 카드</Note>
+    </Section>
+  );
+}
+
 const RG_ARROW: Record<string, string> = { up: "↑", flat: "→", down: "↓" };
 function RegimeBadges({ regime }: { regime: Partial<Record<"US" | "KR", RegimeWeek>> }) {
   const rows = (["US", "KR"] as const).filter((m) => regime[m]);
@@ -471,6 +530,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
   const has = {
     mine: (b.my_stocks_week?.count ?? 0) > 0,
+    focus: !!b.week_focus && (b.week_focus.themes.length > 0 || b.week_focus.stocks.length > 0),
     comment: !!b.gpt_comment,
     labels: !!b.theme_labels && (b.theme_labels.new_labels.length > 0 || b.theme_labels.dropped_labels.length > 0),
     earnings: (b.earnings_week?.total ?? 0) > 0,
@@ -483,6 +543,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   };
   // 목차 - 아래 칸 순서 그대로. 앵커는 개요 "이번 주 변화"·⭐ 줄이 쓰는 짧은 이름(#earnings 등)
   const toc: TocItem[] = [
+    ...(has.focus ? [{ id: "focus", label: "🎯 이번 주 볼 것", group: "" }] : []),
     ...(has.mine ? [{ id: "mine", label: "⭐ 관심 종목", count: `${b.my_stocks_week!.count}`, group: "" }] : []),
     ...(has.comment ? [{ id: "comment", label: "총평", group: "" }] : []),
     { id: "market", label: "지난주 시장", group: "시장" },
@@ -548,6 +609,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
       <div className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-5">
         <div className="space-y-2 min-w-0">
+          {has.focus && <WeekFocus f={b.week_focus!} past={past} />}
           {has.mine && (
             <Section className={SCROLL_M} id="mine" tone="mine" title="⭐ 관심 종목에 생긴 일"
               sub={`내 관심·노트 ${b.my_stocks_week!.watched}종목 중 ${b.my_stocks_week!.count}종목`}>

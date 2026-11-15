@@ -6,12 +6,13 @@ import InfoTooltip from "@/src/components/InfoTooltip";
 // 15px(테마 상세)로 제각각이고, 요약 숫자 칸도 워치리스트(둥근 카드)·레이더(이어 붙인 칸)·개요(카드 안 칸) 모양이 달랐다.
 // 모든 화면이 같은 순서로 읽히게: 머리말(PageHeader) → 요약 숫자(StatGrid) → 칸(Section)들, 비슷한 칸은 GroupTitle 아래.
 
-type Tone = "mine" | "warm";
+type Tone = "mine" | "warm" | "focus";
 const TONE_BOX: Record<Tone, CSSProperties> = {
   mine: { background: "#f59e0b0d", border: "1px solid #f59e0b44" },
   warm: { background: "#ffb02008", border: "1px solid #ffb02022" },
+  focus: { background: "#4ade800a", border: "1px solid #4ade8044" },   // 브리핑 '이번 주 볼 것'(2026-11-15)
 };
-const TONE_HEAD: Record<Tone, string> = { mine: "#f59e0b", warm: "#ffb020" };
+const TONE_HEAD: Record<Tone, string> = { mine: "#f59e0b", warm: "#ffb020", focus: "#4ade80" };
 
 // 칸 하나 = 카드 + 제목 줄(제목 · 건수 · ⓘ · 보조 설명 · 오른쪽 링크·버튼)
 export function Section({ id, title, count, info, sub, right, tone, className = "", children }: {
