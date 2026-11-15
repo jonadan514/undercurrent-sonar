@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PageHeader from "@/src/components/PageHeader";
 import PageIntro from "@/src/components/PageIntro";
+import MyWatchBtn from "@/src/components/MyWatchBtn";
 import { Section } from "@/src/components/Section";
 import EmptyState from "@/src/components/EmptyState";
 import { externalQuoteUrl } from "@/src/components/StockLink";
@@ -176,7 +177,8 @@ function CompanyView() {
       <PageHeader title={`${d.name ?? d.symbol}`} prefix={<span className="text-[12px] mr-2" style={{ color: MUTED }}>{d.market === "KR" ? "🇰🇷" : "🇺🇸"} {d.symbol}</span>}
         desc={[sectorKo(d.profile?.sector), d.profile?.industry].filter(Boolean).join(" · ") || "기업 기초조사 카드"}>
         <div className="flex flex-wrap gap-2 text-[12px] mt-1">
-          {d.mine && <span className="px-2 py-0.5 rounded" style={{ background: "#ffb02022", color: ACCENT }}>⭐ 내 워치리스트</span>}
+          {/* 관심 담기(2026-11-15) - 담겨 있으면 '⭐ 관심 중', 아니면 한 번 눌러 담기 */}
+          <MyWatchBtn market={d.market} symbol={d.symbol} name={d.name} size="md" />
           {cand && <Link href={`/watchlist?stock=${encodeURIComponent(`${d.market}:${d.symbol}`)}`} className="px-2 py-0.5 rounded underline" style={{ color: GOOD }}>이번 주 워치리스트 후보</Link>}
           {d.next_earnings && <span className="px-2 py-0.5 rounded" style={{ border: "1px solid var(--border)", color: SECONDARY }}>
             실적 발표 {md(d.next_earnings.date)}{d.next_earnings.estimate ? "(예상)" : ""}</span>}

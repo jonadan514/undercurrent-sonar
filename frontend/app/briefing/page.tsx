@@ -13,6 +13,7 @@ import EmptyState from "@/src/components/EmptyState";
 import { ObservationCard, ObservationForm, obsStatus, type ObservationT } from "@/src/components/Observation";
 import { Section } from "@/src/components/Section";
 import { krStockName } from "@/src/lib/krStockNames";
+import MyWatchBtn from "@/src/components/MyWatchBtn";
 import { BigChart, type Point, upTo, weekWindow, WeekSpark } from "@/src/components/MacroChart";
 import { STYLE_META, type InvestorStyle } from "@/src/lib/institutions";
 
@@ -255,7 +256,7 @@ function WeekFocus({ f, past }: { f: NonNullable<Briefing["week_focus"]>; past: 
                 <span key={r} className="text-[12px] px-1.5 rounded" style={{ background: "#4ade8014", color: "#86efac", border: "1px solid #4ade8033" }}>{r}</span>
               ))}
               <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{x.theme}{x.in_focus ? " (위 테마)" : ""}</span>
-              <span className="ml-auto"><NoteBtn s={x} past={past} /></span>
+              <span className="ml-auto flex items-center gap-1.5"><MyWatchBtn market={x.market} symbol={x.symbol} name={x.name} /><NoteBtn s={x} past={past} /></span>
             </div>
           ))}
           {more > 0 && (
