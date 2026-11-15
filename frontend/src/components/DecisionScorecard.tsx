@@ -92,7 +92,7 @@ export default function DecisionScorecard() {
             ))}
           </div>
           <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>
-            시작가는 기록한 다음 거래일 종가. 미국 종목은 달러로 SPY와, 한국 종목은 원화로 코스피200과 비교. 같은 종목을 다시 기록하면 따로 셉니다.
+            시작가는 기록한 다음 거래일 종가. 미국 종목은 달러로 SPY와, 한국 종목은 원화로 코스피200 추종 ETF(KODEX 200)와 비교. 같은 종목을 다시 기록하면 따로 셉니다.
             건수가 적을 때(10건 미만)의 중앙값은 우연이 크게 섞입니다.
           </p>
         </div>

@@ -155,14 +155,14 @@ export async function GET(request: Request) {
   const notes = await safe(async () => (await rows(
     "SELECT id, created_at, hypothesis FROM observations WHERE kind = 'stock' AND market = ? AND ticker = ? ORDER BY created_at DESC LIMIT 5",
     [market, symbol])).map((r) => ({ id: Number(r[0]), created_at: r[1] as string, hypothesis: r[2] as string })), []);
-  // 차트 상태(2026-11-15) - scripts/compute_price_facts.py가 매일 채우는 사실값. 그 시장 벤치마크(SPY·코스피200) 3개월 수익률을 옆에 비교용으로
+  // 차트 상태(2026-11-15) - scripts/compute_price_facts.py가 매일 채우는 사실값. 그 시장 벤치마크(SPY·KODEX 200) 3개월 수익률을 옆에 비교용으로
   const CHART_COLS = ["as_of", "close", "high_52w", "low_52w", "pos_52w", "from_high", "range_days", "ret_1m", "ret_3m", "ma200", "above_ma200", "ma200_slope"];
   const chart = await safe(async () => {
     const r = (await rows(`SELECT ${CHART_COLS.join(", ")} FROM stock_price_facts WHERE market = ? AND symbol = ?`, [market, symbol]))[0];
     if (!r) return null;
     const o: Record<string, number | string | null> = {};
     CHART_COLS.forEach((c, i) => { o[c] = r[i] == null ? null : c === "as_of" ? String(r[i]) : Number(r[i]); });
-    const t = (await rows("SELECT ret_3m FROM stock_price_facts WHERE market = ? AND symbol = ?", [market, market === "US" ? "SPY" : "^KS200"]))[0];
+    const t = (await rows("SELECT ret_3m FROM stock_price_facts WHERE market = ? AND symbol = ?", [market, market === "US" ? "SPY" : "069500"]))[0];
     o.bench_ret_3m = t && t[0] != null ? Number(t[0]) : null;
     return o;
   }, null);

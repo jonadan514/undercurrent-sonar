@@ -2,7 +2,8 @@
 
 - 시작가 = 기록한 날(한국 시간) '다음' 첫 거래일 종가. 기록할 때 본 가격은 그 전 종가라서 같은 날 종가를 쓰면 앞서 본 셈이 된다.
 - 끝가 = 시작일 + 28·84·182일 이후 첫 거래일 종가(수정주가). 오늘 막대는 쓰지 않는다(장중이면 종가가 아님).
-- 비교 기준: 그 시장 벤치마크(미국 SPY, 한국 코스피200 ^KS200). 종목과 기준이 같은 통화라 환율은 넣지 않는다.
+- 비교 기준: 그 시장 벤치마크(미국 SPY, 한국 KODEX 200 069500 = 코스피200 추종 ETF).
+  지수(^KS200)는 yfinance에서 못 받았고(11/15 실행), SPY처럼 배당이 들어간 ETF라 수정주가 종목 수익률과 맞춰 보기에도 낫다. 종목과 기준이 같은 통화라 환율은 넣지 않는다.
   (첫 판은 TIGER 반도체TOP10·원화 기준이었는데 같은 날 사용자 결정으로 시장 벤치마크로 바꿨다 - 그 사이 쌓인 결과는 없다.
    표에 남은 ret_krw_*·semi_* 열은 비어 있는 채로 둔다.)
 - 관심·보류·제외 모두 같은 방식으로 잰다('제외한 게 맞았나'도 보려고). 점수·적중률은 만들지 않는다(원칙 1) - 화면은 분포만.
@@ -27,7 +28,7 @@ from src.db.turso_http import execute, execute_many, query  # noqa: E402
 
 HORIZONS = (28, 84, 182)      # 4·12·26주(달력일)
 RETRY_DAYS = 56
-INDEX = {"US": "SPY", "KR": "^KS200"}   # 시장 벤치마크(S&P 500 ETF · 코스피200)
+INDEX = {"US": "SPY", "KR": "069500.KS"}   # 시장 벤치마크(S&P 500 ETF · KODEX 200)
 VALS = [c for h in HORIZONS for c in (f"ret_{h}d", f"mkt_{h}d")]
 DDL = f"""CREATE TABLE IF NOT EXISTS stock_decision_outcomes (
   decision_id INTEGER PRIMARY KEY,

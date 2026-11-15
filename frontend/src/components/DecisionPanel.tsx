@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // 검토 기록 칸(2026-11-15, 사용자: 3개월 가상 매수 검증) - 기업 카드에서 관심·보류·제외를 누르고, 밸류·실적·차트를 내가 어떻게 봤는지 표시.
-// 글은 선택. '관심'은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 결과를 시장 벤치마크(미국 SPY, 한국 코스피200)와 비교한다(scripts/compute_decision_outcomes.py).
+// 글은 선택. '관심'은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 결과를 시장 벤치마크(미국 SPY, 한국 코스피200 추종 KODEX 200)와 비교한다(scripts/compute_decision_outcomes.py).
 // 기록은 덮어쓰지 않는다 - 생각이 바뀌면 새로 누른다(원칙 5).
 
 export const DECISION_KO: Record<string, string> = { watch: "관심", hold: "보류", pass: "제외" };
@@ -120,7 +120,7 @@ export default function DecisionPanel({ market, symbol, name, fromTool }: { mark
       </div>
       {msg && <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>{msg}</p>}
       <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>
-        &apos;관심&apos;은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 뒤 결과를 시장 벤치마크(미국 SPY, 한국 코스피200)와 비교합니다(보류·제외도 같은 방식으로 재서
+        &apos;관심&apos;은 다음 거래일 종가에 가상으로 샀다고 치고 4·12·26주 뒤 결과를 시장 벤치마크(미국 SPY, 한국 코스피200 추종 KODEX 200)와 비교합니다(보류·제외도 같은 방식으로 재서
         &apos;제외한 게 맞았는지&apos;도 봅니다). 그때의 밸류·실적·차트 값은 자동으로 함께 저장됩니다. 생각이 바뀌면 새로 누르세요 - 예전 기록은 남습니다.
       </p>
       {rows && rows.length > 0 && (

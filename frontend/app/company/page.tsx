@@ -177,7 +177,7 @@ function ChartFacts({ f, market }: { f: Record<string, number | string | null> |
         </div>
         <div>
           수익률 1개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_1m"))}</b> · 3개월 <b style={{ color: "var(--text-primary)" }}>{pct(n("ret_3m"))}</b>
-          {f.bench_ret_3m != null && <p className="text-[11.5px]" style={{ color: FAINT }}>{market === "US" ? "SPY" : "코스피200"} 3개월 {pct(n("bench_ret_3m"))}</p>}
+          {f.bench_ret_3m != null && <p className="text-[11.5px]" style={{ color: FAINT }}>{market === "US" ? "SPY" : "코스피200(KODEX 200)"} 3개월 {pct(n("bench_ret_3m"))}</p>}
         </div>
       </div>
     </div>

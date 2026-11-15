@@ -1,7 +1,7 @@
 """차트 상태 사실을 매일 stock_price_facts에 채운다(2026-11-15, 사용자: 밸류·실적·차트 중 차트만 툴 밖에서 봐야 했다).
 
 대상: 유니버스(미국 S&P 500·400, 한국 시총 3000억+) + 내 관심 종목 + 검토 기록에 있는 종목(유니버스 밖 블로그 종목 포함)
-     + 시장 벤치마크(SPY, 코스피200).
+     + 시장 벤치마크(SPY, KODEX 200 - 코스피200 추종 ETF).
 계산은 src/analyzers/price_facts.py - 52주 위치, 200일선 위/아래·기울기, 1·3개월 수익률. 판정·점수 없음(원칙 1).
 이 표는 종목마다 '지금 값' 한 줄(캐시)이다 - 이력이 아니라 덮어쓴다. 그때 값은 검토 기록 snapshot에 따로 남는다.
 
@@ -27,7 +27,7 @@ from scripts.compute_signal_outcomes import us_universe  # noqa: E402
 from src.analyzers.price_facts import completed, price_facts  # noqa: E402
 from src.db.turso_http import execute, execute_many, query  # noqa: E402
 
-BENCH = [("US", "SPY"), ("KR", "^KS200")]   # 시장 벤치마크 - S&P 500 ETF · 코스피200
+BENCH = [("US", "SPY"), ("KR", "069500")]   # 시장 벤치마크 - S&P 500 ETF · KODEX 200(코스피200 추종)
 LOOKBACK_DAYS = 400       # 52주(252거래일) + 200일선 기울기(20거래일) 여유
 BATCH = 100
 BACKOFF = [60, 180]
@@ -108,11 +108,11 @@ def main() -> int:
     _log(f"대상 {len(by_yf)}종목(미국 {sum(1 for m, _ in by_yf.values() if m == 'US')}, 한국 {sum(1 for m, _ in by_yf.values() if m == 'KR')})")
 
     series = download(sorted(by_yf), (today - timedelta(days=LOOKBACK_DAYS)).isoformat())
-    stmts, short = [], 0
+    stmts, short = [], []
     for t, (m, s) in by_yf.items():
         f = price_facts(completed(series.get(t, []), today))
         if not f:
-            short += 1
+            short.append(t)
             continue
         stmts.append((
             f"INSERT INTO stock_price_facts (market, symbol, {', '.join(COLS)}, updated_at) "
@@ -122,7 +122,7 @@ def main() -> int:
             [m, s, *[f[c] for c in COLS]]))
     for i in range(0, len(stmts), 200):
         execute_many(stmts[i:i + 200])
-    _log(f"완료 - 저장 {len(stmts)}종목, 기록 부족·조회 실패 {short}종목(데이터 부족으로 비워 둠)")
+    _log(f"완료 - 저장 {len(stmts)}종목, 기록 부족·조회 실패 {len(short)}종목(데이터 부족으로 비워 둠): {', '.join(short[:20])}")
     for m, s in BENCH:
         r = query("SELECT as_of, close, pos_52w, above_ma200, ret_3m FROM stock_price_facts WHERE market = ? AND symbol = ?", [m, s])
         _log(f"  기준 {s}: {r[0] if r else '없음'}")
