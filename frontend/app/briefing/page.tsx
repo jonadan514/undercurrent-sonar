@@ -10,7 +10,7 @@ import { labelWithKo } from "@/src/lib/labelNames";
 import PageHeader from "@/src/components/PageHeader";
 import Note from "@/src/components/Note";
 import EmptyState from "@/src/components/EmptyState";
-import { ObservationCard, obsStatus, type ObservationT } from "@/src/components/Observation";
+import { EXPECT_LABEL, ObservationCard, obsStatus, targetName, type ObservationT } from "@/src/components/Observation";
 import { Section } from "@/src/components/Section";
 import { krStockName } from "@/src/lib/krStockNames";
 import MyWatchBtn from "@/src/components/MyWatchBtn";
@@ -203,19 +203,65 @@ function DueReviews() {
   useEffect(load, []);
   if (!items || items.length === 0) return null;
   return (
-    <Section className={SCROLL_M} id="reviews" tone="mine" title="🔁 회고 판정" count={items.length}
+    <Section className={SCROLL_M} id="reviews" title="🔁 회고 판정" count={items.length}
       sub="몇 주 전 적어 둔 예상이 맞았는지 - 그때와 지금 값을 보고 버튼 하나로">
       <p className="text-[13px] mb-2" style={{ color: "var(--text-secondary)" }}>
-        표에서 그때와 지금을 비교하고 <b>맞았다 · 틀렸다 · 애매</b> 중 하나를 누르면 끝입니다(배운 점 한 줄은 선택). 판정이 쌓이면 관찰 노트 화면 위에
-        &quot;내 예상이 얼마나 맞았나&quot;가 모입니다.
+        내 예상과 실제 결과를 보고 <b>맞았다 · 틀렸다 · 애매</b> 중 하나를 누르면 끝입니다. 그때·지금 표와 배운 점 한 줄은 &apos;자세히&apos;에서.
       </p>
-      <div className="space-y-2">
-        {items.slice(0, 3).map((o) => <ObservationCard key={o.id} o={o} currentWeek={week} onChanged={load} />)}
+      <div className="space-y-1.5">
+        {items.slice(0, 4).map((o) => <ReviewRow key={o.id} o={o} week={week} onChanged={load} />)}
       </div>
-      {items.length > 3 && (
-        <a href="/notes" className="mt-2 inline-block text-[12.5px] hover:underline" style={{ color: "#f59e0b" }}>나머지 {items.length - 3}건 → 관찰 노트</a>
+      {items.length > 4 && (
+        <a href="/notes" className="mt-2 inline-block text-[12.5px] hover:underline" style={{ color: "var(--accent)" }}>나머지 {items.length - 4}건 → 관찰 노트</a>
       )}
     </Section>
+  );
+}
+
+// 이유 칩(2026-11-15 색 줄이기) - 기본은 무채색, 나쁜 소식(해지·8-K 주의)만 빨강
+const WARN_REASON = new Set(["계약 해지", "8-K 주의"]);
+function ReasonChip({ r }: { r: string }) {
+  const warn = WARN_REASON.has(r);
+  return <span className="text-[12px] px-1.5 rounded" style={warn ? { background: "#f8717114", color: "#fca5a5", border: "1px solid #f8717144" }
+    : { background: "var(--bg-card)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>{r}</span>;
+}
+
+// 회고 한 줄(2026-11-15 가독성 - 카드 한 장이 400px라 회고 4건이 첫 화면을 다 차지했다). 표는 '자세히'에서 관찰 노트와 같은 카드로.
+function ReviewRow({ o, week, onChanged }: { o: ObservationT; week?: string; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const r = o.reviews.find((x) => !x.verdict);
+  if (!r) return null;
+  const results = Object.entries(r.expect_results ?? {});
+  const judge = async (v: string) => {
+    setSaving(true);
+    try {
+      await fetch("/api/notes", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observation_id: o.id, checkpoint: r.checkpoint, verdict: v, lesson: r.lesson ?? "" }) });
+      onChanged();
+    } finally { setSaving(false); }
+  };
+  return (
+    <div className="rounded-lg px-3 py-2" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-[14px] font-bold text-white">{targetName(o)}</span>
+        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{o.market === "KR" ? "한국" : "미국"} · {r.checkpoint}주 회고</span>
+        <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          {results.length ? results.map(([k, v], i) => (
+            <span key={k}>{i > 0 && ", "}{EXPECT_LABEL[o.kind][k] ?? k} → <b style={{ color: v == null ? "var(--text-faint)" : v ? "#4ade80" : "#f87171" }}>
+              {v == null ? "판단 불가" : v ? "일어남" : "안 일어남"}</b></span>)) : "기대 없이 적은 노트"}
+        </span>
+        <span className="ml-auto flex items-center gap-1">
+          {([["right", "맞았다"], ["wrong", "틀렸다"], ["unclear", "애매"]] as const).map(([k, label]) => (
+            <button key={k} disabled={saving} onClick={() => judge(k)} className="rounded px-2 py-0.5 text-[12px] hover:brightness-125"
+              style={{ border: "1px solid var(--border-ctrl, #453b1f)", color: "var(--text-secondary)" }}>{label}</button>
+          ))}
+          <button onClick={() => setOpen(!open)} className="px-1.5 text-[12px] hover:underline" style={{ color: "var(--text-muted)" }}>{open ? "접기" : "자세히"}</button>
+        </span>
+      </div>
+      {o.hypothesis && <p className="mt-0.5 truncate text-[12.5px]" style={{ color: "var(--text-muted)" }}>&ldquo;{o.hypothesis}&rdquo;</p>}
+      {open && <div className="mt-2"><ObservationCard o={o} currentWeek={week} onChanged={onChanged} /></div>}
+    </div>
   );
 }
 
@@ -225,7 +271,7 @@ const AX: Record<string, string> = { up2: "↑↑", up1: "↑", flat: "→", dow
 function WeekFocus({ f, past }: { f: NonNullable<Briefing["week_focus"]>; past: boolean }) {
   const more = Object.values(f.stock_total ?? {}).reduce((a, b) => a + b, 0) - f.stocks.length;
   return (
-    <Section className={SCROLL_M} id="focus" tone="focus" title="🎯 이번 주 볼 것"
+    <Section className={SCROLL_M} id="focus" title="🎯 이번 주 볼 것"
       sub="흐름이 보이는 테마와, 그 테마에서 재무가 받쳐 주는 후보 - 추천이 아니라 먼저 들여다볼 곳">
       {f.themes.length > 0 && (
         <div className="space-y-1.5">
@@ -236,7 +282,7 @@ function WeekFocus({ f, past }: { f: NonNullable<Briefing["week_focus"]>; past: 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <FlagIcon market={t.market} size={12} />
                 <span className="text-[14.5px] font-bold text-white">{t.name}</span>
-                <span className="text-[12px] px-1.5 rounded" style={{ background: "#4ade8018", color: "#4ade80" }}>{t.label ? labelWithKo(t.label) : "실적 먼저"}</span>
+                <span className="text-[12px] px-1.5 rounded" style={{ background: "var(--bg-card)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>{t.label ? labelWithKo(t.label) : "실적 먼저"}</span>
                 <span className="text-[12px]" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
                   뉴스 {AX[t.news ?? "na"] ?? "–"} · 실적 {AX[t.earn ?? "na"] ?? "–"} · 주가 {AX[t.price ?? "na"] ?? "–"}
                 </span>
@@ -253,15 +299,13 @@ function WeekFocus({ f, past }: { f: NonNullable<Briefing["week_focus"]>; past: 
             <div key={`${x.market}:${x.symbol}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2"
               style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
               <StockLabel s={x} />
-              {x.reasons.map((r) => (
-                <span key={r} className="text-[12px] px-1.5 rounded" style={{ background: "#4ade8014", color: "#86efac", border: "1px solid #4ade8033" }}>{r}</span>
-              ))}
+              {x.reasons.map((r) => <ReasonChip key={r} r={r} />)}
               <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{x.theme}{x.in_focus ? " (위 테마)" : ""}</span>
               <span className="ml-auto flex items-center gap-1.5"><MyWatchBtn market={x.market} symbol={x.symbol} name={x.name} /><NoteBtn s={x} past={past} /></span>
             </div>
           ))}
           {more > 0 && (
-            <a href="/watchlist" className="inline-block text-[12.5px] hover:underline" style={{ color: "#4ade80" }}>
+            <a href="/watchlist" className="inline-block text-[12.5px] hover:underline" style={{ color: "var(--accent)" }}>
               외 후보 {more}곳 → 워치리스트 &apos;이번 주 볼 후보&apos;
             </a>
           )}
@@ -451,24 +495,30 @@ type TocItem = { id: string; label: string; count?: string; group: string };
 
 // 브리핑 묶음 머리(2026-11-02, 사용자 요청: 종목 변화·테마를 먼저, 묶음이 구분되게) - 회색 작은 제목 대신 색 띠.
 // 색은 묶음 구분용일 뿐 좋고 나쁨이 아니다. 안에 보여 줄 칸이 없으면 머리도 숨긴다(GroupTitle과 같은 규칙).
-const GROUP_META: Record<string, { emoji: string; color: string; desc: string }> = {
-  "종목 변화": { emoji: "🔖", color: "#ffb020", desc: "워치리스트에 들어오고 나간 종목, 실적 반전, 관심도" },
-  "테마": { emoji: "📡", color: "#6fb3b8", desc: "테마 레이더 라벨이 새로 붙거나 사라진 테마" },
-  "시장": { emoji: "🌐", color: "#a78bfa", desc: "지수·수급·금리·환율 등 지난주 시장 배경" },
-  "이번 주 일정": { emoji: "📅", color: "#60a5fa", desc: "이번 주 실적을 발표하는 종목" },
-  "공시 · 내부자": { emoji: "📄", color: "#fb923c", desc: "지난 7일 공시·내부자 매수·13F - 중요한 줄만 먼저" },
+// 묶음(2026-11-15, 사용자: "항목이 많은데 색으로 나누다 보니 너무 복잡") - 묶음마다 다른 색 띠를 없애고 회색 제목 + 요약 한 줄 + 펼치기.
+// 처음엔 접힌다(공시 149건·8-K 30줄 같은 긴 표가 화면 절반을 차지했다). 목차·⭐ 줄에서 들어오면 그 묶음을 펼치고 스크롤한다.
+// 접힌 묶음도 내용은 그려 두고 숨긴다 - 앵커(#earnings 등)가 늘 있게.
+const GROUP_DESC: Record<string, string> = {
+  "시장": "지수·수급·금리·환율·원자재",
+  "종목 변화": "워치리스트·실적 반전·관심도",
+  "테마": "테마 레이더 라벨 변동",
+  "이번 주 일정": "이번 주 실적 발표",
+  "공시 · 내부자": "한국 공시·미국 8-K·내부자 매수·13F",
 };
-function BriefGroup({ title, children }: { title: string; children: ReactNode }) {
+function BriefGroup({ title, summary, open, onToggle, children }: {
+  title: string; summary?: ReactNode; open: boolean; onToggle: () => void; children: ReactNode;
+}) {
   const kids = Children.toArray(children);
   if (kids.length === 0) return null;
-  const m = GROUP_META[title];
   return (
-    <div className="space-y-2">
-      <div className="mt-3 rounded-lg px-3 py-2" style={{ background: (m?.color ?? "#888") + "10", borderLeft: `4px solid ${m?.color ?? "var(--border-ctrl)"}` }}>
-        <p className="text-[15px] font-extrabold" style={{ color: m?.color ?? "var(--text-primary)" }}>{m?.emoji} {title}</p>
-        {m?.desc && <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{m.desc}</p>}
-      </div>
-      {kids}
+    <div data-group={title}>
+      <button onClick={onToggle} aria-expanded={open}
+        className="mt-4 flex w-full items-baseline gap-2 border-b pb-1.5 text-left hover:brightness-125" style={{ borderColor: "var(--border)" }}>
+        <span className="h-group shrink-0" style={{ color: "var(--text-primary)" }}>{title}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px]" style={{ color: "var(--text-secondary)" }}>{summary ?? GROUP_DESC[title]}</span>
+        <span className="shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>{open ? "접기 ▴" : "펼치기 ▾"}</span>
+      </button>
+      <div hidden={!open} className="mt-2 space-y-2">{kids}</div>
     </div>
   );
 }
@@ -539,6 +589,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   const [active, setActive] = useState("");
   const [commentOpen, setCommentOpen] = useState(false);
   const chipsRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (g: string) => setOpenGroups((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
 
   const has = {
     mine: (b.my_stocks_week?.count ?? 0) > 0,
@@ -572,6 +625,35 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
     ...(has.inst13f ? [{ id: "inst13f", label: "13F", count: `${b.inst_13f_week!.filers}곳`, group: "공시 · 내부자" }] : []),
   ];
   const tocKey = toc.map((t) => t.id).join();
+  // 칸 id로 가기 - 접힌 묶음이면 먼저 펼치고(그려진 뒤) 스크롤
+  const goTo = (id: string) => {
+    const el = document.getElementById(id);
+    const g = el?.closest<HTMLElement>("[data-group]")?.dataset.group;
+    if (g && !openGroups.has(g)) setOpenGroups((s) => new Set(s).add(g));
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" })));
+    history.replaceState(null, "", `#${id}`);
+  };
+  // 이 화면 안의 '#칸' 링크(목차·⭐ 줄 등)를 가로채 goTo로
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='#']");
+      if (!a) return;
+      const id = decodeURIComponent(a.getAttribute("href")!.slice(1));
+      if (!id || !document.getElementById(id)) return;
+      e.preventDefault();
+      goTo(id);
+    };
+    root.addEventListener("click", onClick);
+    return () => root.removeEventListener("click", onClick);
+  });
+  // 주소에 #칸이 있으면(개요에서 들어옴) 그 묶음을 펼쳐 둔다
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (id && document.getElementById(id)) goTo(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [b.week]);
 
   // 지금 읽는 칸을 목차에 표시 - 본문은 <main> 안에서 스크롤된다
   useEffect(() => {
@@ -582,7 +664,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
       let cur = ids[0];
       for (const id of ids) {
         const el = document.getElementById(id);
-        if (el && el.getBoundingClientRect().top < 160) cur = id;
+        if (el && el.offsetParent !== null && el.getBoundingClientRect().top < 160) cur = id;   // 접힌 묶음 안은 건너뜀
       }
       setActive(cur);
     };
@@ -607,6 +689,24 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
     );
   };
   const groups = Array.from(new Set(toc.map((t) => t.group)));
+  // 묶음 머리 요약 한 줄(2026-11-15) - 접혀 있어도 핵심 숫자는 보이게. 값은 아래 칸과 같은 것
+  const sgn = (v?: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
+  const combo = (mk: "US" | "KR") => (b.regime?.[mk]?.combos ?? []).map((c) => c.name).join("·");
+  const sums: Record<string, string> = {
+    "시장": [`🇺🇸 S&P 500 ${sgn(b.us?.index_chg_1w)}${combo("US") ? ` (${combo("US")})` : ""}`,
+             `🇰🇷 KOSPI ${sgn(b.kr?.index_chg_1w)}${combo("KR") ? ` (${combo("KR")})` : ""}`].join(" · "),
+    "종목 변화": [wl.has_prev ? `워치리스트 +${wl.added_count ?? wl.added.length} −${wl.removed_count ?? wl.removed.length}` : `워치리스트 ${wl.total}`,
+                 b.turnaround?.has_prev ? `실적 반전 신규 ${b.turnaround.added_count}` : null,
+                 has.sentiment ? `관심도 상승 ${b.sentiment_heating.length}` : null].filter(Boolean).join(" · "),
+    "테마": b.theme_labels ? `새 라벨 ${b.theme_labels.new_labels.length} · 사라진 라벨 ${b.theme_labels.dropped_labels.length}` : "",
+    "이번 주 일정": b.earnings_week ? `실적 발표 ${b.earnings_week.total}곳${b.earnings_week.tagged_count ? ` (관심·노트·실적 반전 ${b.earnings_week.tagged_count})` : ""}` : "",
+    "공시 · 내부자": [has.disclosures ? `한국 공시 ${discTotal(b)}` : null,
+                    (b.kr_disclosures?.termination?.count ?? 0) > 0 ? `⚠ 계약 해지 ${b.kr_disclosures!.termination!.count}` : null,
+                    has.us8k ? `8-K ${b.us_8k_week!.total}${b.us_8k_week!.items.some((x) => x.warn) ? ` (⚠ 주의 ${b.us_8k_week!.items.filter((x) => x.warn).length})` : ""}` : null,
+                    has.insider ? `내부자 매수 ${b.insider_week!.total}` : null,
+                    has.inst13f ? `13F ${b.inst_13f_week!.filers}곳` : null].filter(Boolean).join(" · "),
+  };
+  const grp = (title: string) => ({ title, summary: sums[title] || undefined, open: openGroups.has(title), onToggle: () => toggleGroup(title) });
   const longComment = (b.gpt_comment ?? "").length > 260;
 
   return (
@@ -619,7 +719,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
         </div>
       </div>
 
-      <div className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-5">
+      <div ref={rootRef} className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-5">
         <div className="space-y-2 min-w-0">
           {has.focus && <WeekFocus f={b.week_focus!} past={past} />}
           {!past && <DueReviews />}
@@ -649,7 +749,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
           )}
 
           {has.comment && (
-            <Section className={SCROLL_M} id="comment" tone="warm" title="주간 총평">
+            <Section className={SCROLL_M} id="comment" title="주간 총평">
               <CommentBody text={b.gpt_comment} collapsed={longComment && !commentOpen} news={b.comment_news} />
               {longComment && (
                 <button onClick={() => setCommentOpen(!commentOpen)} className="mt-1 text-[12px] hover:underline" style={{ color: "#ffb020" }}>
@@ -659,7 +759,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             </Section>
           )}
 
-          <BriefGroup title="시장">
+          <BriefGroup {...grp("시장")}>
             <Section className={SCROLL_M} id="market" title="지난주 시장">
               {b.regime && <RegimeBadges regime={b.regime} />}
               <div className="grid grid-cols-2 gap-1.5">
@@ -676,7 +776,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             </Section>
           </BriefGroup>
 
-          <BriefGroup title="종목 변화">
+          <BriefGroup {...grp("종목 변화")}>
             <Section className={SCROLL_M} id="watchlist" title="워치리스트 변동" sub={`후보 ${wl.total}개`}>
               {!wl.has_prev ? (
                 <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>첫 기록 주입니다 — 다음 주부터 신규·탈락을 비교합니다.</p>
@@ -750,7 +850,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
           {/* 테마 레이더 라벨 변동 — 라벨 계산은 별도 워크플로우라 이 브리핑보다 늦게
               끝날 수 있어서, "이번 주"라 단정하지 않고 실제 기준 주를 그대로 보여준다. */}
-          <BriefGroup title="테마">
+          <BriefGroup {...grp("테마")}>
             {has.labels && (
               <Section className={SCROLL_M} id="labels" title="📡 테마 레이더 라벨 변동" sub={`${b.theme_labels!.week_start} 기준`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -781,7 +881,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             )}
           </BriefGroup>
 
-          <BriefGroup title="이번 주 일정">
+          <BriefGroup {...grp("이번 주 일정")}>
             {has.earnings && (
               <Section className={SCROLL_M} id="earnings" title="실적 발표" count={b.earnings_week!.total} sub={byMarket(b.earnings_week!.by_market)}>
                 <div className="space-y-1.5">
@@ -810,7 +910,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
             )}
           </BriefGroup>
 
-          <BriefGroup title="공시 · 내부자">
+          <BriefGroup {...grp("공시 · 내부자")}>
             {has.disclosures && (() => {
               const k = b.kr_disclosures!;
               const fix = [...(k.termination?.items ?? []), ...(k.amend?.items ?? [])];
@@ -953,7 +1053,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
           <nav className="sticky top-12 space-y-3" aria-label="브리핑 목차">
             {groups.map((g) => (
               <div key={g || "top"}>
-                {g && <p className="stat-label mb-1" style={GROUP_META[g] ? { color: GROUP_META[g].color } : undefined}>{GROUP_META[g]?.emoji} {g}</p>}
+                {g && <p className="stat-label mb-1">{g}</p>}
                 <div className="space-y-0.5">
                   {toc.filter((t) => t.group === g).map((t) => {
                     const on = t.id === active;
