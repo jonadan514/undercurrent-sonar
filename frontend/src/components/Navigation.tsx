@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import StockSearch from "@/src/components/StockSearch";
 
 // 사이드바 그룹 — 보는 주기와 흐름 순서 (2026-10-04 재구성)
 // 이번 주(월요일 갱신) → 분기(실적 주기) → 종목 → 돌아보기. 가이드는 도움말이라 맨 아래 따로.
@@ -89,6 +90,9 @@ function SidebarInner({
           </button>
         )}
       </div>
+
+      {/* 종목 찾기(2026-11-15) - 어느 화면에서든 기업 카드로 */}
+      <StockSearch onGo={onClose} />
 
       {/* Nav groups */}
       <nav className="flex-1 overflow-y-auto min-h-0 py-3 px-2">
