@@ -82,6 +82,9 @@ const SHOW = 6;
 function NameLine({ label, items, total, href, empty, extra, warn }: {
   label: string; items: (Ref & { extra?: string })[]; total?: number; href: string; empty?: string; extra?: ReactNode; warn?: boolean;
 }) {
+  // 한 종목이 여러 번 나오는 칸(8-K 여러 건 등)은 처음 것 하나만 - "STE · STE"로 보였다(2026-11-15 화면 확인)
+  const seen = new Set<string>();
+  items = items.filter((x) => { const k = `${x.market}:${x.symbol}`; if (seen.has(k)) return false; seen.add(k); return true; });
   const more = (total ?? items.length) - Math.min(items.length, SHOW);
   if (items.length === 0 && !empty) return null;
   return (
