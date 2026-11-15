@@ -142,6 +142,7 @@ summary.list-none::-webkit-details-marker { display: none; }
   html { color-scheme: light; font-size: 11px; }
   body { background: #fff !important; }
   .print-hidden { display: none !important; }
+  .print-expand[hidden] { display: block !important; }   /* 월간 보고서 기업 지도 - 화면에선 접어도 인쇄는 전부(2026-11-15) */
   .print-avoid-break { break-inside: avoid; }
   a { color: inherit !important; text-decoration: none !important; }
   @page { margin: 14mm 12mm; }

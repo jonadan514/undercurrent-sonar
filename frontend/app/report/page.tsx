@@ -63,10 +63,6 @@ function Arrow({ a }: { a: string | null | undefined }) {
   const x = ARROW[a ?? "na"] ?? ARROW.na;
   return <span style={{ color: x.c }}>{x.t}</span>;
 }
-function Chip({ children, tone }: { children: ReactNode; tone?: "accent" | "warn" }) {
-  const c = tone === "accent" ? "var(--accent)" : tone === "warn" ? "var(--orange)" : "var(--text-secondary)";
-  return <span className="inline-block rounded px-1.5 py-px text-[11.5px] whitespace-nowrap" style={{ border: `1px solid ${c}55`, color: c }}>{children}</span>;
-}
 function Sub({ children }: { children: ReactNode }) {
   return <h3 className="h-sub mb-2 mt-4 first:mt-0">{children}</h3>;
 }
@@ -94,7 +90,7 @@ function RegimeBlock({ r, weeks }: { r: Report["regime"]; weeks: string[] }) {
                   return (
                     <td key={w} className="py-1.5 pr-3 align-top">
                       {!x ? <span style={FAINT}>-</span> : x.combos.length ? (
-                        <span className="flex flex-wrap gap-1">{x.combos.map((c) => <Chip key={c} tone="accent">{c}</Chip>)}</span>
+                        <span style={{ color: "var(--text-primary)" }}>{x.combos.join(" · ")}</span>
                       ) : <span style={FAINT}>뚜렷한 조합 없음</span>}
                     </td>
                   );
@@ -132,7 +128,7 @@ function ThemeFlow({ t, weeks }: { t: Report["themes"]; weeks: string[] }) {
                       <a href={`/radar/theme?id=${encodeURIComponent(x.theme_id)}&market=${x.market}`} className="font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{x.theme}</a>
                       <span className="ml-1.5"><MkTag m={x.market} /></span>
                     </td>
-                    {weeks.map((w) => <td key={w} className="py-1.5 pr-3">{by.get(w) ? <Chip tone="accent">{by.get(w)!.label_ko || by.get(w)!.label}</Chip> : <span style={FAINT}>-</span>}</td>)}
+                    {weeks.map((w) => <td key={w} className="py-1.5 pr-3">{by.get(w) ? <span className="whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{by.get(w)!.label_ko || by.get(w)!.label}</span> : <span style={FAINT}>-</span>}</td>)}
                     <td className="py-1.5 pr-3 whitespace-nowrap"><Arrow a={x.last.news} /> · <Arrow a={x.last.earn} /> · <Arrow a={x.last.price} /></td>
                   </tr>
                 );
@@ -181,20 +177,35 @@ function NewsBlocks({ news }: { news: NewsBlock[] }) {
   );
 }
 
+// 기업 지도(2026-11-15 가독성) - 7개 테마 전부 펼치면 화면 3분의 1이라 테마마다 요약 한 줄(기업 수·이달 일 있었던 곳·빈 구간)만 두고 접는다.
+// 인쇄할 때는 전부 펼친다(globals.css .print-expand).
 function CompanyMap({ maps }: { maps: MapTheme[] }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
   if (!maps.length) return <p className="text-[13px]" style={MUTED}>이달 지도로 그릴 테마가 없습니다.</p>;
+  const toggle = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
-    <div className="space-y-4">
-      {maps.map((t) => (
-        <div key={`${t.market}:${t.theme_id}`} className="print-avoid-break">
-          <div className="mb-1.5 flex items-baseline gap-2">
-            <a href={`/radar/theme?id=${encodeURIComponent(t.theme_id)}&market=${t.market}`} className="text-[14px] font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{t.theme}</a>
+    <div>
+      {maps.map((t) => {
+        const k = `${t.market}:${t.theme_id}`;
+        const all = t.groups.flatMap((g) => g.items);
+        const ev = all.filter((it) => it.events.length);
+        const gaps = t.groups.filter((g) => g.n && !g.items.length).map((g) => g.label.split(/[(:]/)[0].trim());
+        const on = open.has(k);
+        return (
+        <div key={k} className="print-avoid-break py-2" style={{ borderTop: "1px solid var(--border-dim)" }}>
+          <button type="button" onClick={() => toggle(k)} aria-expanded={on} className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 text-left hover:brightness-125">
+            <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{t.theme}</span>
             <MkTag m={t.market} />
-          </div>
-          <div className="space-y-1.5">
+            <span className="text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+              {all.length}곳{ev.length ? ` · 이달 일 있었던 곳 ${ev.length}` : ""}{gaps.length ? ` · 빈 구간: ${gaps.join(", ")}` : ""}
+            </span>
+            <span className="print-hidden ml-auto text-[12px]" style={FAINT}>{on ? "접기 ▴" : "펼치기 ▾"}</span>
+          </button>
+          <div hidden={!on} className="print-expand mt-2 space-y-1.5">
+            <a href={`/radar/theme?id=${encodeURIComponent(t.theme_id)}&market=${t.market}`} className="print-hidden inline-block text-[12px] hover:underline" style={{ color: "var(--accent)" }}>테마 화면으로 →</a>
             {t.groups.map((g) => (
               <div key={g.n} className="flex flex-col gap-1 sm:flex-row sm:gap-3">
-                <div className="shrink-0 text-[12.5px] sm:w-44" style={g.n ? { color: "var(--text-secondary)" } : FAINT}>
+                <div className="shrink-0 text-[12.5px] sm:w-56" style={g.n ? { color: "var(--text-secondary)" } : FAINT}>
                   {g.n ? `(${g.n}) ${g.label}` : g.label}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -216,8 +227,9 @@ function CompanyMap({ maps }: { maps: MapTheme[] }) {
             ))}
           </div>
         </div>
-      ))}
-      <p className="text-[12px]" style={FAINT}>
+        );
+      })}
+      <p className="mt-2 text-[12px]" style={FAINT}>
         구간은 가치사슬 순서(앞 → 뒤). 점 색은 월말 기준 실적 판정(초록 테마 중앙값보다 좋음 · 회색 못 미침 · 흐림 데이터 부족). &apos;일부&apos;는 사업 일부만 이 테마에 해당하는 기업. 테두리가 밝은 기업은 이달 공시·내부자 매수 같은 일이 있었던 곳.
       </p>
     </div>
@@ -295,7 +307,7 @@ function CalendarBlock({ c, month }: { c: Report["calendar"]; month: string }) {
                 {xs.map((x) => (
                   <span key={`${x.market}:${x.symbol}`} className="whitespace-nowrap">
                     <StockLink market={x.market} symbol={x.symbol} style={{ color: x.tags.includes("내 관심") ? "var(--accent)" : "var(--text-secondary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
-                    <span className="ml-1 text-[11px]" style={FAINT}>{x.market === "KR" ? "한국" : "미국"}{x.estimate ? " · 날짜 미확정" : ""}</span>
+                    {x.estimate && <span className="ml-0.5 text-[11px]" style={FAINT}>(미정)</span>}
                   </span>
                 ))}
               </span>
@@ -304,10 +316,115 @@ function CalendarBlock({ c, month }: { c: Report["calendar"]; month: string }) {
         </div>
       )}
       <p className="mt-1.5 text-[12px]" style={FAINT}>
-        내 워치리스트(주황) → 후보이면서 테마 소속 → 후보 → 테마 소속 순으로 최대 40곳{c.earnings_total > c.earnings.length ? ` (전체 ${c.earnings_total}곳)` : ""}. &apos;날짜 미확정&apos;은 회사가 발표일을 아직 확정하지 않아 바뀔 수 있는 것.
+        내 워치리스트(주황) → 후보이면서 테마 소속 → 후보 → 테마 소속 순으로 최대 40곳{c.earnings_total > c.earnings.length ? ` (전체 ${c.earnings_total}곳)` : ""}. &apos;(미정)&apos;은 회사가 발표일을 아직 확정하지 않아 바뀔 수 있는 것. 한글 이름은 한국, 영문은 미국 종목.
       </p>
     </div>
   );
+}
+
+// 이달 공시 등(2026-11-15 가독성) - 예전엔 종목마다 한 줄(40줄)이라 같은 사유가 줄마다 반복됐다. 사유별 한 줄로 묶는다.
+// 순서는 경고 → 계약 → 내부자 → 잠정실적 → 실적 반전(scripts/generate_monthly_report.py EVENT_ORDER와 같은 취지), 이름 순서는 보고서 그대로.
+const EVENT_GROUPS: { key: string; label: string; match: (e: string) => boolean; warn?: boolean }[] = [
+  { key: "term", label: "⚠ 계약 해지", match: (e) => e.startsWith("계약 해지"), warn: true },
+  { key: "8k", label: "⚠ 8-K 주의", match: (e) => e.startsWith("8-K"), warn: true },
+  { key: "contract", label: "큰 공급계약", match: (e) => e.startsWith("큰 공급계약") },
+  { key: "insider", label: "내부자 매수", match: (e) => e.startsWith("내부자") },
+  { key: "prelim", label: "잠정실적 영업이익 전환", match: (e) => e.startsWith("잠정실적") },
+  { key: "turn", label: "실적 반전 신규", match: (e) => e.startsWith("실적 반전") },
+];
+function EventGroups({ evs }: { evs: NonNullable<Report["month_events"]> }) {
+  const rows = [...EVENT_GROUPS, { key: "etc", label: "기타", match: (e: string) => !EVENT_GROUPS.some((g) => g.match(e)) }]
+    .map((g) => ({ ...g, xs: evs.flatMap((x) => x.events.filter(g.match).slice(0, 1).map((e) => ({ ...x, e }))) }))
+    .filter((g) => g.xs.length);
+  return (
+    <div>
+      {rows.map((g) => (
+        <div key={g.key} className="flex flex-col gap-0.5 py-1.5 sm:flex-row sm:gap-3" style={{ borderTop: "1px solid var(--border-dim)" }}>
+          <span className="shrink-0 sm:w-40" style={{ color: "warn" in g && g.warn ? "var(--danger)" : "var(--text-muted)" }}>{g.label} {g.xs.length}</span>
+          <span className="min-w-0 flex-1 leading-relaxed">
+            {g.xs.map((x, i) => (
+              <span key={`${x.market}:${x.symbol}`}>
+                {i > 0 && <span style={FAINT}> · </span>}
+                <StockLink market={x.market} symbol={x.symbol} style={{ color: "var(--text-primary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
+                {g.key === "prelim" && <span className="text-[11.5px]" style={MUTED}> {x.e.replace("잠정실적 영업이익 ", "")}</span>}
+                {g.key === "insider" && x.e.includes("여러 명") && <span className="text-[11.5px]" style={MUTED}> 여러 명</span>}
+              </span>
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 한 달 한눈에(2026-11-15 가독성) - 아래 칸 값을 코드가 한 줄씩 옮긴 것. GPT를 거치지 않는다(원칙 2), 점수 없음(원칙 1).
+const ARROW_SHORT: Record<string, string> = { up2: "크게 오름", up1: "오름", flat: "보합", down: "내림", na: "판단 불가" };
+function runs(xs: string[]): string {
+  const out: string[] = [];
+  for (const x of xs) if (out[out.length - 1] !== x) out.push(x);
+  return out.join(" → ");
+}
+function MonthGlance({ r }: { r: Report }) {
+  const row = (label: string, href: string, body: ReactNode) => (
+    <div className="flex flex-col gap-0.5 py-1.5 text-[13.5px] sm:flex-row sm:gap-3" style={{ borderTop: "1px solid var(--border-dim)" }}>
+      <a href={href} className="shrink-0 font-semibold hover:underline sm:w-24" style={{ color: "var(--text-muted)" }}>{label}</a>
+      <div className="min-w-0 flex-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{body}</div>
+    </div>
+  );
+  const sep = <span style={FAINT}> · </span>;
+  const join = (xs: ReactNode[]) => xs.map((x, i) => <span key={i}>{i > 0 && sep}{x}</span>);
+  const mks = (["US", "KR"] as Mk[]).filter((m) => (r.regime[m] ?? []).length);
+  // 라벨 테마 - 마지막으로 붙은 라벨 기준으로 시장·라벨별로 묶는다
+  const lab = new Map<string, { m: Mk; label: string; names: string[] }>();
+  for (const t of r.themes.labeled) {
+    const last = (t.labels ?? []).slice().sort((a, b) => a.week.localeCompare(b.week)).pop();
+    if (!last) continue;
+    const k = `${t.market}:${last.label}`;
+    const cur = lab.get(k) ?? { m: t.market, label: last.label_ko || last.label, names: [] };
+    cur.names.push(t.theme); lab.set(k, cur);
+  }
+  const hits = r.reviews.flatMap((x) => x.results);
+  const ok = hits.filter((x) => x.hit === true).length, miss = hits.filter((x) => x.hit === false).length, na = hits.filter((x) => x.hit == null).length;
+  const mine = r.calendar.earnings.filter((x) => x.tags.includes("내 관심"));
+  const chg = (c: Change | null, name: string) => c && `${name} ${c.end_total}곳 (+${c.added_count} −${c.removed_count})`;
+  const wl = [chg(r.watchlist.watchlist, "재무 필터 통과"), chg(r.watchlist.turnaround, "실적 반전")].filter(Boolean) as string[];
+  return (
+    <Section title="한 달 한눈에" sub="아래 칸 값을 한 줄씩 옮긴 것 · 점수·추천 아님" className="print-avoid-break">
+      {mks.length > 0 && row("시장 환경", "#s1", join(mks.map((m) => (
+        <><FlagIcon market={m} size={12} /> {runs((r.regime[m] ?? []).map((x) => x.combos.length ? x.combos.join("·") : "뚜렷한 조합 없음"))}</>
+      ))))}
+      {row("라벨 테마", "#s2", lab.size ? join([...lab.values()].map((x) => (
+        <><FlagIcon market={x.m} size={12} /> <b style={{ color: "var(--text-primary)" }}>{x.names.join("·")}</b> <span style={MUTED}>{x.label}</span></>
+      ))) : <span style={FAINT}>없음</span>)}
+      {r.themes.earn_turns.length > 0 && row("실적 축 변화", "#s2", join(r.themes.earn_turns.map((t) => (
+        <><FlagIcon market={t.market} size={12} /> <b style={{ color: "var(--text-primary)" }}>{t.theme}</b> <span style={MUTED}>{ARROW_SHORT[t.from ?? "na"]} → </span><Arrow a={t.to} /></>
+      ))))}
+      {wl.length > 0 && row("워치리스트", "#s5", join(wl))}
+      {row("회고", "#s6", hits.length ? <>맞음 <b style={{ color: "var(--text-primary)" }}>{ok}</b>{sep}빗나감 <b style={{ color: "var(--text-primary)" }}>{miss}</b>{na ? <>{sep}판단 불가 {na}</> : null}</>
+        : <span style={FAINT}>{r.reviews.length ? "적어 둔 기대가 있는 노트 없음" : "회고 시점이 온 노트 없음"}</span>)}
+      {row("다음 달", "#s7", (r.calendar.deadlines.length || mine.length) ? join([
+        ...r.calendar.deadlines.map((d) => <>{md(d.date)} {d.what}</>),
+        ...(mine.length ? [<>내 관심 실적 발표 {mine.map((x, i) => (
+          <span key={x.symbol}>{i > 0 && ", "}<StockLink market={x.market} symbol={x.symbol} style={{ color: "var(--text-primary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink> {md(x.date)}</span>
+        ))}</>] : []),
+      ]) : <span style={FAINT}>표시할 일정 없음</span>)}
+    </Section>
+  );
+}
+
+// 이달 요약 문단 제목(2026-11-15 가독성) - GPT가 문단을 나누는 방식이 달마다 달라 순서로 붙이지 않고 문단에 나온 말로 고른다. 글은 그대로.
+function paraLabel(p: string): string {
+  const first = p.split(/(?<=다\.)\s/)[0];
+  const t: string[] = [];
+  if (/시장은|시장 환경/.test(first)) t.push("시장");
+  if (p.includes("한국에서는")) t.push("한국 테마");
+  if (p.includes("미국에서는")) t.push("미국 테마");
+  if (!t.some((x) => x.endsWith("테마")) && /테마별로는/.test(p)) t.push("테마");
+  if (p.includes("기업 지도")) t.push("기업 지도");
+  if (p.includes("워치리스트")) t.push("워치리스트");
+  if (p.includes("관찰 노트")) t.push("회고");
+  if (p.includes("다음 달")) t.push("다음 달");
+  return t.join(" · ");
 }
 
 function ReportView() {
@@ -344,20 +461,30 @@ function ReportView() {
         </div>
       </PageHeader>
 
+      <MonthGlance r={r} />
+
       <Section title="이달 요약" sub="아래 칸의 사실만으로 GPT가 쓴 글 · 숫자는 넣지 않음" tone="warm" className="print-avoid-break">
         {r.summary ? (
           <div className="space-y-3">
-            {r.summary.split(/\n\s*\n/).map((p, i) => <p key={i} className="t-lead">{p}</p>)}
+            {r.summary.split(/\n\s*\n/).map((p, i) => {
+              const lb = paraLabel(p);
+              return (
+                <div key={i}>
+                  {lb && <p className="mb-0.5 text-[12.5px] font-bold" style={{ color: "var(--accent)" }}>{lb}</p>}
+                  <p className="t-lead">{p}</p>
+                </div>
+              );
+            })}
           </div>
         )
           : <p className="text-[13px]" style={MUTED}>이번 달은 요약을 만들지 못했습니다. 아래 칸을 보세요.</p>}
       </Section>
 
-      <Section title="1. 시장 환경" sub="주별 조합 이름" className="print-avoid-break"><RegimeBlock r={r.regime} weeks={r.weeks} /></Section>
-      <Section title="2. 테마 흐름" sub="세 축(뉴스·실적·주가) 라벨과 실적 축 변화"><ThemeFlow t={r.themes} weeks={r.weeks} /></Section>
-      <Section title="3. 주시할 뉴스" sub="라벨이 붙은 테마별 · 주마다 한 건씩, 원문 제목 그대로"><NewsBlocks news={r.news} /></Section>
-      <Section title="4. 테마별 기업 지도" sub="라벨이 붙었거나 실적 축이 바뀐 테마의 소속 기업 · 가치사슬 구간별"><CompanyMap maps={r.company_map} /></Section>
-      <Section title="5. 워치리스트 한 달 변화">
+      <Section id="s1" title="1. 시장 환경" sub="주별 조합 이름" className="print-avoid-break"><RegimeBlock r={r.regime} weeks={r.weeks} /></Section>
+      <Section id="s2" title="2. 테마 흐름" sub="세 축(뉴스·실적·주가) 라벨과 실적 축 변화"><ThemeFlow t={r.themes} weeks={r.weeks} /></Section>
+      <Section id="s3" title="3. 주시할 뉴스" sub="라벨이 붙은 테마별 · 주마다 한 건씩, 원문 제목 그대로"><NewsBlocks news={r.news} /></Section>
+      <Section id="s4" title="4. 테마별 기업 지도" sub="라벨이 붙었거나 실적 축이 바뀐 테마의 소속 기업 · 가치사슬 구간별 · 테마를 누르면 펼침"><CompanyMap maps={r.company_map} /></Section>
+      <Section id="s5" title="5. 워치리스트 한 달 변화">
         <div className="mb-3 grid gap-4 md:grid-cols-2">
           <ChangeBlock title="트랩 필터 통과 목록" c={r.watchlist.watchlist} />
           <ChangeBlock title="실적 반전 목록" c={r.watchlist.turnaround} />
@@ -365,21 +492,13 @@ function ReportView() {
         {(r.month_events ?? []).length > 0 && (
           <div className="text-[13px]">
             <Sub>이달 공시·내부자 매수 등이 있었던 곳</Sub>
-            <ul className="grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
-              {(r.month_events ?? []).map((x) => (
-                <li key={`${x.market}:${x.symbol}`} className="flex flex-wrap items-baseline gap-x-1.5">
-                  <StockLink market={x.market} symbol={x.symbol} style={{ color: "var(--text-primary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
-                  <span className="text-[11px]" style={FAINT}>{x.market === "KR" ? "한" : "미"}</span>
-                  <span style={{ color: x.events.some((e) => e.startsWith("8-K") || e.startsWith("계약 해지")) ? "var(--orange)" : "var(--text-secondary)" }}>{x.events.join(" · ")}</span>
-                </li>
-              ))}
-            </ul>
+            <EventGroups evs={r.month_events ?? []} />
             <p className="mt-1 text-[12px]" style={FAINT}>이달 주간 브리핑에 나온 내부자 매수(계획 매수 제외)·큰 공급계약·계약 해지·잠정실적 영업이익 전환·8-K 주의 공시·실적 반전 신규. 테마 지도 밖 종목 포함, 최대 40곳.</p>
           </div>
         )}
       </Section>
-      <Section title="6. 관찰 노트 회고" sub="적어 둔 기대가 맞았는지" className="print-avoid-break"><Reviews rs={r.reviews} /></Section>
-      <Section title={`7. ${nextMonth} 일정`} sub="실적 발표 · 공시 마감"><CalendarBlock c={r.calendar} month={nextMonth} /></Section>
+      <Section id="s6" title="6. 관찰 노트 회고" sub="적어 둔 기대가 맞았는지" className="print-avoid-break"><Reviews rs={r.reviews} /></Section>
+      <Section id="s7" title={`7. ${nextMonth} 일정`} sub="실적 발표 · 공시 마감"><CalendarBlock c={r.calendar} month={nextMonth} /></Section>
     </div>
   );
 }
