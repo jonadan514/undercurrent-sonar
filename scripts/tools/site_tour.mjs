@@ -8,6 +8,9 @@ const DEFAULT_PAGES = ["/", "/radar", "/radar/theme?id=lng_gas&market=US", "/sec
   "/investors", "/notes", "/scorecard", "/status", "/guide", "/guide/detail", "/guide/playbook", "/company?stock=US:MU"];
 const PAGES = process.env.PAGES ? process.env.PAGES.split(",").map((x) => x.trim()).filter(Boolean) : DEFAULT_PAGES;
 const DUMP = process.env.DUMP === "1";
+// SHOTS=1(2026-11-15): 화면 전체를 JPEG로 찍어 로그에 base64로 남긴다(SHOT|경로|폭|조각번호|내용) - 작업 환경에서 사이트에 못 닿고
+// 아티팩트는 인증이 있어야 받을 수 있어서. 화면은 <main>만 스크롤되므로 찍기 전에 펼친다.
+const SHOTS = process.env.SHOTS === "1";
 const EMPTY = /데이터 없음|없습니다|불러오지|오류|실패|Error|error|준비 중|아직 없|no data/i;
 
 const b = await chromium.launch();
@@ -38,6 +41,16 @@ for (const W of [1280, 390]) {
       if (DUMP) console.log("  --- 본문 ---\n" + info.text.replace(/\n{2,}/g, "\n").slice(0, 4000));
     } else if (info.overflow || errs.length || bad.length) {
       console.log(`\n--- 모바일 ${path}${info.overflow ? "  ⚠️가로 넘침" : ""}`);
+    }
+    if (SHOTS) {
+      await p.evaluate(() => {
+        document.body.style.height = "auto"; document.body.style.overflow = "visible";
+        document.querySelectorAll("main, body > div, body > div > div").forEach((e) => { e.style.overflow = "visible"; e.style.height = "auto"; });
+      });
+      await p.waitForTimeout(300);
+      const buf = await p.screenshot({ fullPage: true, type: "jpeg", quality: 45 });
+      const b64 = buf.toString("base64");
+      for (let i = 0; i * 60000 < b64.length; i++) console.log(`SHOT|${path}|${W}|${i}|${b64.slice(i * 60000, (i + 1) * 60000)}`);
     }
     if (errs.length) console.log("  ⚠️ " + [...new Set(errs)].slice(0, 6).join("\n  ⚠️ "));
     if (bad.length) console.log("  ⚠️ API 실패: " + [...new Set(bad)].join(", "));

@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      shots:
+        description: "true면 화면 전체를 찍어 로그에 base64로 남긴다(작업 환경에서 화면을 보려고)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,3 +36,4 @@ jobs:
         env:
           PAGES: ${{ inputs.pages }}
           DUMP: ${{ inputs.dump && '1' || '' }}
+          SHOTS: ${{ inputs.shots && '1' || '' }}
