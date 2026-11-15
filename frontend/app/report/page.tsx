@@ -236,12 +236,14 @@ function CompanyMap({ maps }: { maps: MapTheme[] }) {
   );
 }
 
+// 한 달 새로 든 곳이 수십 곳이면 칸이 길어진다(10월 29곳) - 이름은 12곳까지, 나머지는 외 N곳(2026-11-15)
+const NAMES_MAX = 12;
 function ChangeBlock({ title, c }: { title: string; c: Change | null }) {
   if (!c) return <div className="text-[13px]"><Sub>{title}</Sub><p style={MUTED}>비교할 두 주가 없습니다.</p></div>;
   const names = (xs: Ref[], n: number) => (
     <span className="flex flex-wrap gap-x-2 gap-y-0.5">
-      {xs.map((x) => <StockLink key={`${x.market}:${x.symbol}`} market={x.market} symbol={x.symbol} style={{ color: "var(--text-secondary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>)}
-      {n > xs.length && <span style={FAINT}>{xs.length ? `외 ${n - xs.length}곳` : `${n}곳(이름 목록 없음)`}</span>}
+      {xs.slice(0, NAMES_MAX).map((x) => <StockLink key={`${x.market}:${x.symbol}`} market={x.market} symbol={x.symbol} style={{ color: "var(--text-secondary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>)}
+      {n > Math.min(xs.length, NAMES_MAX) && <span style={FAINT}>{xs.length ? `외 ${n - Math.min(xs.length, NAMES_MAX)}곳` : `${n}곳(이름 목록 없음)`}</span>}
       {!n && <span style={FAINT}>없음</span>}
     </span>
   );
@@ -329,7 +331,7 @@ const EVENT_GROUPS: { key: string; label: string; match: (e: string) => boolean;
   { key: "8k", label: "⚠ 8-K 주의", match: (e) => e.startsWith("8-K"), warn: true },
   { key: "contract", label: "큰 공급계약", match: (e) => e.startsWith("큰 공급계약") },
   { key: "insider", label: "내부자 매수", match: (e) => e.startsWith("내부자") },
-  { key: "prelim", label: "잠정실적 영업이익 전환", match: (e) => e.startsWith("잠정실적") },
+  { key: "prelim", label: "잠정실적 전환", match: (e) => e.startsWith("잠정실적") },
   { key: "turn", label: "실적 반전 신규", match: (e) => e.startsWith("실적 반전") },
 ];
 function EventGroups({ evs }: { evs: NonNullable<Report["month_events"]> }) {
