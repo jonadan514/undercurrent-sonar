@@ -12,7 +12,7 @@ type Turn = { up: string[]; down: string[]; date?: string };
 function turns(d: Record<string, unknown> | null, kr: boolean): Turn | null {
   if (!d) return null;
   const rows = ((kr ? d.sector_data : d.etf_data) ?? []) as Row[];
-  const name = (r: Row) => (kr ? r.sector ?? "" : sectorKo(r.name ?? r.ticker ?? ""));
+  const name = (r: Row) => sectorKo(kr ? r.sector ?? "" : r.name ?? r.ticker ?? "");   // 한국도 영문 섹터 이름이 섞여 온다
   const pick = (dir: "up" | "down") => rows
     .filter((r) => r.rs_3m != null && r.rs_1m != null && (dir === "up" ? r.rs_3m! < 0 && r.rs_1m! > 0 : r.rs_3m! > 0 && r.rs_1m! < 0))
     .sort((a, b) => (dir === "up" ? b.rs_1m! - a.rs_1m! : a.rs_1m! - b.rs_1m!))
