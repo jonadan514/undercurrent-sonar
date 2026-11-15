@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { EXPECT_LABEL, ObservationCard, ObservationT, obsStatus } from "@/src/components/Observation";
 import PageHeader from "@/src/components/PageHeader";
-import { Section, StatGrid, StatTile } from "@/src/components/Section";
+import { Section } from "@/src/components/Section";
 import EmptyState from "@/src/components/EmptyState";
 
 const MUTED = "var(--text-muted)";
@@ -83,13 +83,16 @@ export default function NotesPage() {
         </Section>
       )}
 
-      {/* 상태별 개수 = 공용 요약 칸, 누르면 그 상태만(2026-10-25 화면 통일) */}
-      <StatGrid cols={3}>
+      {/* 상태별 - 숫자 타일 대신 탭 버튼(2026-11-15 화면 정리) */}
+      <div className="flex flex-wrap items-center gap-2">
         {(["due", "open", "done"] as Tab[]).map((t) => (
-          <StatTile key={t} label={TAB_LABEL[t]} value={counts[t]} active={tab === t} onClick={() => setTab(t)}
-            emphasis={t === "due" && counts[t] > 0 ? "accent" : undefined} />
+          <button key={t} onClick={() => setTab(t)} className="rounded px-3 py-1 text-[13px]"
+            style={{ border: `1px solid ${tab === t ? "rgba(255,176,32,0.5)" : "var(--border)"}`, color: tab === t ? "#ffb020" : "var(--text-secondary)",
+                     background: tab === t ? "rgba(255,176,32,0.1)" : "transparent" }}>
+            {TAB_LABEL[t]} <b>{counts[t]}</b>
+          </button>
         ))}
-      </StatGrid>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[12px]" style={{ color: FAINT }}>종류</span>
         {(["all", "theme", "stock"] as const).map((k) => (
@@ -109,7 +112,7 @@ export default function NotesPage() {
         <EmptyState title={`${TAB_LABEL[tab]} 관찰이 없습니다`} />
       ) : (
         <div className="space-y-3">
-          {shown.map((o) => <ObservationCard key={o.id} o={o} currentWeek={currentWeek} onChanged={load} />)}
+          {shown.map((o) => <ObservationCard key={o.id} o={o} currentWeek={currentWeek} onChanged={load} foldTable />)}
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@ import PageHeader from "@/src/components/PageHeader";
 import EmptyState from "@/src/components/EmptyState";
 import Note from "@/src/components/Note";
 import StockLink from "@/src/components/StockLink";
-import { Section, StatGrid, StatTile } from "@/src/components/Section";
+import { Section } from "@/src/components/Section";
 import { INVESTOR_BY_ID, STYLE_META, STYLE_NOTE, STYLE_ORDER, investorFull, quarterLabel, usd, type InvestorStyle } from "@/src/lib/institutions";
 
 // 유명 투자자 13F(2026-10-25) - 사용자가 고른 운용사 15곳의 분기 말 보유와 직전 분기 비교(새로·늘림·줄임·다 팖).
@@ -47,8 +47,8 @@ function Finance({ s }: { s?: Screen[string] }) {
     : s.status === "fail" ? ["재무 탈락", "#f87171"] : ["데이터 부족", "var(--text-muted)"];
   return (
     <>
-      <span className="text-[11px] px-1.5 rounded whitespace-nowrap" style={{ color, border: "1px solid var(--border)" }}>{label}</span>
-      {s?.candidate && <span className="text-[11px] px-1.5 rounded whitespace-nowrap" style={{ color: "#ffb020", border: "1px solid #ffb02055" }}>워치리스트 후보</span>}
+      <span className="text-[11.5px] whitespace-nowrap" style={{ color }}>{label}</span>
+      {s?.candidate && <span className="text-[11.5px] whitespace-nowrap" style={{ color: "#ffb020" }}>· 워치리스트 후보</span>}
     </>
   );
 }
@@ -64,10 +64,10 @@ function PosList({ title, items, kind, screening, empty }: { title: string; item
     <div>
       <p className="text-[12px] font-semibold mb-1" style={{ color: kind === "sold" || kind === "reduced" ? "#fca5a5" : kind === "new" ? "#4ade80" : "var(--text-secondary)" }}>{title}</p>
       {items.length === 0 ? <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>{empty}</p> : (
-        <div className="space-y-1">
+        <div>
           {items.map((p, i) => (
-            <div key={`${p.ticker ?? p.issuer}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] rounded-lg px-2.5 py-1.5"
-              style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+            <div key={`${p.ticker ?? p.issuer}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] py-1"
+              style={{ borderTop: "1px solid var(--border)" }}>
               <Name p={p} />
               {p.ticker && <span className="truncate max-w-[12rem]" style={{ color: "var(--text-muted)" }}>{p.issuer}</span>}
               {kind === "sold"
@@ -154,12 +154,27 @@ function StyleGroup({ s, count, children }: { s: InvestorStyle; count: number; c
 function ManagerCard({ m, screening, latestPeriod }: { m: Manager; screening: Screen; latestPeriod: string }) {
   const meta = INVESTOR_BY_ID[m.id];
   const [more, setMore] = useState(false);
+  // 2026-11-15 화면 정리: 15곳이 전부 펼쳐져 화면이 8,700px였다 - 기본 접힘, 머리에 신규·전량 매도 이름 몇 개만
+  const [open, setOpen] = useState(false);
+  const peek = (xs: Pos[]) => xs.slice(0, 4).map((p) => p.ticker ?? p.issuer).join(", ") + (xs.length > 4 ? ` 외 ${xs.length - 4}` : "");
   return (
     <Section title={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">{meta?.ko ?? m.id}
         {meta?.person && <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{meta.person}</span>}
         <StyleChip s={meta?.style} /></span>}
       sub={<>{meta?.en} · 보유 {m.positions}종목 · {usd(m.value_total)}</>}
-      right={m.compared && <span style={{ color: "var(--text-muted)" }}>신규 {m.counts.new} · 추가 {m.counts.added} · 일부 매도 {m.counts.reduced} · 전량 매도 {m.counts.sold}</span>}>
+      right={<button onClick={() => setOpen(!open)} className="hover:underline" style={{ color: "var(--text-muted)" }}>{open ? "접기 ▴" : "펼치기 ▾"}</button>}>
+      {!open ? (
+        <button onClick={() => setOpen(true)} className="block w-full text-left text-[12.5px] leading-relaxed hover:brightness-125" style={{ color: "var(--text-secondary)" }}>
+          {!m.compared ? <span style={{ color: "var(--text-faint)" }}>직전 분기 신고가 없어 비교하지 않음</span> : (
+            <>
+              <span style={{ color: "#4ade80" }}>신규 {m.counts.new}</span>{m.new.length > 0 && <span style={{ color: "var(--text-muted)" }}> {peek(m.new)}</span>}
+              <span style={{ color: "var(--text-faint)" }}>  ·  </span>
+              <span style={{ color: "#fca5a5" }}>전량 매도 {m.counts.sold}</span>{m.sold.length > 0 && <span style={{ color: "var(--text-muted)" }}> {peek(m.sold)}</span>}
+              <span style={{ color: "var(--text-faint)" }}>  ·  추가 {m.counts.added} · 일부 매도 {m.counts.reduced} · {quarterLabel(m.period)}</span>
+            </>
+          )}
+        </button>
+      ) : (<>
       <div className="mb-2"><ReportDate period={m.period} filed={m.filed_on} stale={!!latestPeriod && m.period < latestPeriod} /></div>
       <HoldingsBar items={m.top_holdings} total={m.positions} />
       {!m.compared ? (
@@ -185,6 +200,7 @@ function ManagerCard({ m, screening, latestPeriod }: { m: Manager; screening: Sc
           )}
         </>
       )}
+      </>)}
     </Section>
   );
 }
@@ -192,6 +208,7 @@ function ManagerCard({ m, screening, latestPeriod }: { m: Manager; screening: Sc
 export default function InvestorsPage() {
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState(false);
+  const [sharedN, setSharedN] = useState(10);
   useEffect(() => {
     fetch("/api/investors").then((r) => r.json())
       .then((x) => (x && Array.isArray(x.managers) ? setD(x) : setErr(true))).catch(() => setErr(true));
@@ -216,36 +233,40 @@ export default function InvestorsPage() {
         <EmptyState title="아직 받은 13F가 없습니다" hint="매일 확인해 새 신고가 있으면 받습니다(GitHub → Actions → Collect 13F). 13F는 분기 끝나고 45일 안에 나옵니다." />
       ) : (
         <>
-          <StatGrid cols={4}>
-            <StatTile label="추적 운용사" value={d.managers.length} sub="투자 스타일 5가지로 묶음" href="#styles" />
-            <StatTile label="최근 보고서" value={quarterLabel(latestPeriod)}
-              sub={`${md(latestPeriod)} 보유 기준 · ${ymd(latestFiled)} 신고${staleCount ? ` · 이전 분기 ${staleCount}곳` : ""}`}
-              hint="13F는 분기 말 보유를 45일 안에 신고합니다. 운용사마다 신고일이 달라, 새 분기 신고 전인 곳은 '이전 분기'로 표시합니다." />
-            <StatTile label="2곳 이상이 함께 산 종목" value={d.shared.length} emphasis={d.shared.length ? "accent" : undefined} sub="신규·추가 매수" href="#shared" />
-            <StatTile label="확신 매수" value={(d.conviction ?? []).length} href="#conviction"
-              sub={`신규 매수 중 비중 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상`} hint={`신규 매수 전체(운용사별 합) ${newTotal}`} />
-          </StatGrid>
+          {/* 요약 한 줄(2026-11-15 화면 정리 - 예전엔 숫자 타일 4개) */}
+          <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
+            운용사 <b style={{ color: "var(--text-primary)" }}>{d.managers.length}곳</b> · {quarterLabel(latestPeriod)} 보유({md(latestPeriod)} 기준){staleCount ? ` · 아직 이전 분기 ${staleCount}곳` : ""}
+            {" · "}<a href="#shared" className="hover:underline">함께 산 종목 <b style={{ color: "var(--text-primary)" }}>{d.shared.length}</b></a>
+            {" · "}<a href="#conviction" className="hover:underline">확신 매수 <b style={{ color: "var(--text-primary)" }}>{(d.conviction ?? []).length}</b></a>
+            <span className="text-[12px]" style={{ color: "var(--text-faint)" }}> · 신규 매수 합 {newTotal}</span>
+          </p>
 
           <Section id="shared" title="여러 곳이 함께 산 종목" count={d.shared.length}
             info="각 운용사의 가장 최근 분기에 신규·추가 매수한 종목 중 2곳 이상이 함께 산 것. 함께 산 곳이 많은 순이며 점수가 아닙니다."
             sub="각자 가장 최근 분기 기준">
             {d.shared.length === 0 ? <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>함께 산 종목 없음</p> : (
-              <div className="space-y-1">
-                {d.shared.slice(0, 20).map((t) => (
-                  <div key={t.ticker} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] rounded-lg px-3 py-1.5"
-                    style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
-                    <Name p={t} />
-                    <span className="truncate max-w-[14rem]" style={{ color: "var(--text-muted)" }}>{t.issuer}</span>
-                    {t.buyers.map((b) => (
-                      <span key={b.manager_id} className="px-1.5 rounded whitespace-nowrap"
-                        style={{ background: b.status === "new" ? "#4ade8014" : "transparent", border: `1px solid ${b.status === "new" ? "#4ade8044" : "var(--border)"}`,
-                          color: b.status === "new" ? "#4ade80" : "var(--text-secondary)" }}>
-                        {INVESTOR_BY_ID[b.manager_id]?.ko ?? b.manager_id} {b.status === "new" ? "신규" : "추가"}
-                      </span>
-                    ))}
-                    <Finance s={d.screening[t.ticker]} />
+              <div>
+                {d.shared.slice(0, sharedN).map((t) => (
+                  <div key={t.ticker} className="py-1.5 text-[12.5px]" style={{ borderTop: "1px solid var(--border)" }}>
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <Name p={t} />
+                      <span className="truncate max-w-[14rem]" style={{ color: "var(--text-muted)" }}>{t.issuer}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{t.buyers.length}곳</span>
+                      <Finance s={d.screening[t.ticker]} />
+                    </div>
+                    <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                      {t.buyers.map((b, i) => (
+                        <span key={b.manager_id}>{i > 0 && " · "}{INVESTOR_BY_ID[b.manager_id]?.ko ?? b.manager_id}
+                          {b.status === "new" ? <b style={{ color: "#4ade80", fontWeight: 600 }}> 신규</b> : " 추가"}</span>
+                      ))}
+                    </p>
                   </div>
                 ))}
+                {d.shared.length > sharedN && (
+                  <button onClick={() => setSharedN(d.shared.length)} className="mt-1 text-[12px] hover:underline" style={{ color: "#ffb020" }}>
+                    나머지 {d.shared.length - sharedN}종목 더 보기
+                  </button>
+                )}
               </div>
             )}
           </Section>
@@ -255,10 +276,10 @@ export default function InvestorsPage() {
             info={`신규 매수 종목 중 그 운용사 주식 보유에서 비중이 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상인 것. 새 종목에 크게 실었다는 뜻이라 개수보다 무게가 있습니다. 기준은 임의값이고, 소수 종목에 집중하는 운용사가 자주 걸립니다. 비중 큰 순 - 점수가 아닙니다.`}
             sub={`신규 매수 중 비중 ${Math.round((d.conviction_min ?? 0.03) * 100)}% 이상 · 비중 큰 순`}>
             {(d.conviction ?? []).length === 0 ? <p className="text-[12px]" style={{ color: "var(--text-faint)" }}>해당 없음</p> : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
                 {(d.conviction ?? []).map((x, i) => (
-                  <div key={`${x.manager_id}-${x.ticker ?? x.issuer}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] rounded-lg px-3 py-1.5"
-                    style={{ background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+                  <div key={`${x.manager_id}-${x.ticker ?? x.issuer}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] py-1.5"
+                    style={{ borderTop: "1px solid var(--border)" }}>
                     <Name p={x} />
                     {x.ticker && <span className="truncate max-w-[10rem]" style={{ color: "var(--text-muted)" }}>{x.issuer}</span>}
                     <span className="font-bold" style={{ color: "#ffb020" }}>비중 {pct(x.weight)}</span>

@@ -269,8 +269,10 @@ function ReviewJudge({ o, r, onChanged }: { o: ObservationT; r: Review; onChange
   );
 }
 
-export function ObservationCard({ o, currentWeek, onChanged, showTarget = true }: {
+export function ObservationCard({ o, currentWeek, onChanged, showTarget = true, foldTable = false }: {
   o: ObservationT; currentWeek?: string; onChanged: () => void; showTarget?: boolean;
+  /** 관찰 노트 화면(2026-11-15 화면 정리): 그때·지금 표를 접어 둔다 - 노트마다 표가 펼쳐져 한 장이 400px였다 */
+  foldTable?: boolean;
 }) {
   const status = obsStatus(o);
   const cols = [{ head: `그때 ${md(o.created_at)}`, snap: o.snapshot },
@@ -310,7 +312,12 @@ export function ObservationCard({ o, currentWeek, onChanged, showTarget = true }
       {o.expects.length > 0 && (
         <p className="mb-2 text-[12px]" style={{ color: MUTED }}>기대: {o.expects.map((e) => EXPECT_LABEL[o.kind][e] ?? e).join(" · ")}</p>
       )}
-      {o.kind === "theme" ? <ThemeRows cols={cols} /> : <StockRows cols={cols} />}
+      {foldTable ? (
+        <details className="text-[12px]" style={{ color: MUTED }}>
+          <summary className="cursor-pointer select-none">그때와 지금 값 표</summary>
+          <div className="mt-1">{o.kind === "theme" ? <ThemeRows cols={cols} /> : <StockRows cols={cols} />}</div>
+        </details>
+      ) : o.kind === "theme" ? <ThemeRows cols={cols} /> : <StockRows cols={cols} />}
       {o.reviews.map((r) => <ReviewJudge key={r.checkpoint} o={o} r={r} onChanged={onChanged} />)}
     </div>
   );
