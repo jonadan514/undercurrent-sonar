@@ -215,6 +215,7 @@ def main() -> None:
             backfilled = week_start != current_week
 
             fetched = []
+            gap_null: set[str] = set()   # 빈틈 때문에 데이터부족인 테마(수집 실패가 아니다 - 2026-11-16)
             member_results = (collect_member_news(members_by_theme, week_start, week_end)
                               if member_mode else {})
             for theme in collectible:
@@ -241,6 +242,8 @@ def main() -> None:
                     _log(f"{theme_id}({market}) {week_start.isoformat()}: 쌓인 기사 "
                          f"{'-' if count is None else count}건"
                          f"{' - 빈틈 키워드 ' + str(gaps) + ' 때문에 데이터부족' if gaps else ''}")
+                    if gaps:
+                        gap_null.add(theme_id)
                     fetched.append((theme, count))
                     continue
                 articles, stats = collect_theme_news(
@@ -251,7 +254,12 @@ def main() -> None:
                      f"(키워드별 {stats['per_keyword']})")
                 fetched.append((theme, len(articles)))
 
-            collection_failed = is_collection_failure([c or 0 for _, c in fetched])
+            # 빈틈으로 데이터부족인 테마는 '0건'으로 세지 않는다 - 11/16 한국 11/9 주(하루 세 번 수집 첫 주, 처음 보는 키워드
+            # 빈틈)가 전부 데이터부족이었는데 0으로 세어 '수집 실패' 텔레그램 경고가 잘못 나갔다. 저장 값(NULL)은 그대로.
+            counted = [c or 0 for t, c in fetched if t["id"] not in gap_null]
+            collection_failed = is_collection_failure(counted)
+            if gap_null and not counted:
+                _log(f"  {market} {week_start.isoformat()}: 테마 {len(gap_null)}개 모두 빈틈으로 데이터부족 - 수집 실패 아님(경고 안 보냄)")
             if collection_failed:
                 msg = (f"{market} {week_start.isoformat()}: 테마 {len(fetched)}개가 전부 0건 - "
                        f"수집 실패로 보고 건수를 NULL로 저장한다(0으로 저장하면 기준선이 오염된다)")
