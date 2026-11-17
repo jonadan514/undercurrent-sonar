@@ -19,6 +19,9 @@ fundamentals_cache는 원래 연간 재무제표만 캐시한다(Phase 0). 실�
 미국 후보 173종목이 비어 있었다. 매주 자동으로 돌기 때문에(토요일) 이미 최신 분기가 있는 종목은
 건너뛴다 - 마지막 분기 말일이 FRESH_DAYS 안이면 다음 분기는 아직 끝나지도 않았다.
 
+2026-11-17: 정기 실행(.github/workflows/backfill-quarterly-financials.yml, 토요일)은 --market KR만. 미국 분기는 공시 원본 표
+(SEC 우선)가 주 출처가 됐고 이 캐시는 대체로만 쓴다 - 수동 실행으로는 미국도 그대로 돌릴 수 있다. 캐시는 지우지 않는다.
+
 Usage:
   python scripts/backfill_quarterly_financials.py              # US+KR 둘 다, 테마+워치리스트
   python scripts/backfill_quarterly_financials.py --market KR   # 한쪽만

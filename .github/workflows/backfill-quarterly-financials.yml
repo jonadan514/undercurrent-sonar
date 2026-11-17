@@ -4,6 +4,9 @@ name: Backfill Quarterly Financials
 # 2026-10-09부터 매주 토요일 자동 실행 - 일요일 밤 실적 축(compute-theme-earnings)과
 # 워치리스트 밸류·분기 이익률 계산이 새 분기 실적을 쓰게 하려고. 최신 분기가 이미 있는 종목은
 # 스크립트가 건너뛰어 실적 시즌이 아니면 금방 끝난다.
+# 2026-11-17 수집 경로 정리 4단계: 정기 실행은 한국만. 미국 분기는 11/5부터 공시 원본 표(SEC 우선, 토요일 Collect US SEC
+# Quarterly·Collect US Quarterly Financials)에서 읽고, 이 캐시는 원본에 없는 미국 종목의 대체로만 남는다(11/16 실적 축:
+# 원본 896 · 캐시 9 · 없음 0). 2주 관찰(11/8·11/15) 이상 없음. 수동 실행은 market을 비우면 예전처럼 둘 다. 캐시 데이터는 지우지 않는다.
 on:
   schedule:
     - cron: "0 21 * * 6"   # 매주 토요일 21:00 UTC (일요일 06:00 KST)
@@ -17,6 +20,10 @@ on:
         description: "true면 최신 분기가 있어도 다시 조회"
         required: false
         default: "false"
+      market:
+        description: "US / KR / 비우면 둘 다(수동 실행 기본). 정기 실행은 KR만"
+        required: false
+        default: ""
 
 jobs:
   backfill:
@@ -42,6 +49,9 @@ jobs:
         run: |
           args="--scope ${{ inputs.scope || 'all' }}"
           if [ "${{ inputs.force }}" = "true" ]; then args="$args --force"; fi
+          # 정기 실행은 한국만(2026-11-17), 수동 실행은 고른 시장(비우면 둘 다)
+          if [ "${{ github.event_name }}" = "schedule" ]; then args="$args --market KR";
+          elif [ -n "${{ inputs.market }}" ]; then args="$args --market ${{ inputs.market }}"; fi
           python scripts/backfill_quarterly_financials.py $args
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
