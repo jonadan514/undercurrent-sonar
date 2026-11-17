@@ -53,6 +53,9 @@ def main() -> int:
                 if len(recent) >= 4:
                     last = recent[-1]
                     print(f"  {ns}:{name}  분기 {len(recent)}개, 최근 {last} = {ser[last][0] / 1e6:,.0f}M")
+                    # 매출·영업이익·순이익은 최근 6분기 값도(2026-11-17 - 코카콜라 2·3분기 매출이 같은 $13.38B로 보여 원본 확인)
+                    if name in ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "OperatingIncomeLoss", "NetIncomeLoss"):
+                        print("      " + " · ".join(f"{e}={ser[e][0] / 1e6:,.0f}M{'' if ser[e][1] == 'reported' else '(연간-9개월)'}" for e in recent[-6:]))
     return 0
 
 
