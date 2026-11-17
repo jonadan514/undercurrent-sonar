@@ -122,7 +122,9 @@ export async function GET(request: Request) {
     }));
 
     // 계산한 날(2026-11-08 화면 점검) - '기준 분기 2026Q3'만 보면 언제 값인지 몰랐다(9/23 계산)
-    const computedAt = themesRes.rows.map((r) => String(r[9] ?? "")).filter(Boolean).sort().pop() ?? null;
+    // 분류가 있는 행의 계산 시각(2026-11-17) - 분류 없이 남은 행(그 뒤 새로 생긴 테마 등)의 시각이 머리에 나오면 '11/17 계산'으로 잘못 읽힌다
+    const atOf = (rows: typeof themesRes.rows) => rows.map((r) => String(r[9] ?? "")).filter(Boolean).sort().pop() ?? null;
+    const computedAt = atOf(themesRes.rows.filter((r) => r[1] != null)) ?? atOf(themesRes.rows);
     const latestAt = Object.values(latestFin).map((x) => x.at).sort().pop() ?? null;
     const rerun = latestAt && computedAt && latestAt > computedAt ? Object.values(latestFin).filter((x) => x.at === latestAt) : [];
     return NextResponse.json({
