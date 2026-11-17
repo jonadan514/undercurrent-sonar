@@ -7,13 +7,14 @@
 
     python scripts/compute_price_facts.py            # 전부
     python scripts/compute_price_facts.py --only-extra   # 관심·검토 기록·기준만(빠른 확인)
+    python scripts/compute_price_facts.py --if-stale     # 마지막 미국 장 마감 뒤 값이 이미 있으면 건너뜀(이어 도는 수집에서 매 차례 부른다)
 """
 from __future__ import annotations
 
 import argparse
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +41,33 @@ DDL = f"""CREATE TABLE IF NOT EXISTS stock_price_facts (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (market, symbol)
 )"""
+
+
+US_CLOSE_UTC = (21, 30)   # 미국 장 마감(21:00 UTC, 서머타임이면 20:00) + 여유 - 이 시각이 지나야 그날 종가가 있다고 본다
+RETRY_HOURS = 6           # 기대한 날짜 종가가 없어도(휴장일 등) 이 시간 안에 이미 돌았으면 다시 받지 않는다
+
+
+def last_us_close(now: datetime) -> date:
+    """now(UTC) 기준 가장 최근에 마감한 미국 평일. 휴장일은 모른다 - RETRY_HOURS가 막는다."""
+    d = now.date()
+    if (now.hour, now.minute) < US_CLOSE_UTC:
+        d -= timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def is_fresh(now: datetime, spy_as_of: str | None, updated_at: str | None) -> bool:
+    """SPY 값이 마지막 미국 장 마감일 것이면 최신. 아니어도 RETRY_HOURS 안에 돌았으면 최신으로 친다(휴장일에 계속 다시 받지 않게)."""
+    if spy_as_of and spy_as_of >= last_us_close(now).isoformat():
+        return True
+    if updated_at:
+        try:
+            ran = datetime.fromisoformat(str(updated_at).replace(" ", "T")).replace(tzinfo=timezone.utc)
+        except ValueError:
+            return False
+        return now - ran < timedelta(hours=RETRY_HOURS)
+    return False
 
 
 def _log(msg: str) -> None:
@@ -96,9 +124,15 @@ def download(tickers: list[str], start: str) -> dict[str, list[tuple[str, float]
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only-extra", action="store_true")
+    ap.add_argument("--if-stale", action="store_true")
     args = ap.parse_args()
     today = date.today()
     execute(DDL)
+    if args.if_stale:
+        r = query("SELECT as_of, updated_at FROM stock_price_facts WHERE market = 'US' AND symbol = 'SPY'")
+        if is_fresh(datetime.now(timezone.utc), r[0]["as_of"] if r else None, r[0]["updated_at"] if r else None):
+            _log(f"차트 상태 최신(SPY {r[0]['as_of'] if r else '-'}) - 건너뜀")
+            return 0
 
     kr_universe = _load_kr_universe()
     targets = extra_targets()

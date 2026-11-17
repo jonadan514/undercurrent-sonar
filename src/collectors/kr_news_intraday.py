@@ -205,7 +205,9 @@ def run_intraday(conn, themes: list[dict], headers: dict, now: datetime | None =
         last = max([x for x in (newest, prev) if x is not None], default=now)
         conn.execute(
             "INSERT INTO news_fetch_state (market, keyword, last_seen, updated_at) VALUES ('KR', ?, ?, ?) "
-            "ON CONFLICT(market, keyword) DO UPDATE SET last_seen = excluded.last_seen, updated_at = excluded.updated_at",
+            # 뒤로 가지 않게(2026-11-17) - 이어 도는 수집과 월요일 주간 계산이 겹쳐 돌 수 있어 늦게 끝난 쪽이 더 이른 값을 쓰면 안 된다
+            "ON CONFLICT(market, keyword) DO UPDATE SET last_seen = MAX(news_fetch_state.last_seen, excluded.last_seen), "
+            "updated_at = excluded.updated_at",
             (kw, last.isoformat(), now.isoformat()),
         )
         conn.commit()

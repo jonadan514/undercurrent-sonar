@@ -39,3 +39,20 @@ def test_flat_range_has_no_position():
 def test_completed_drops_today_and_bad_values():
     s = [("2026-11-13", 1.0), ("2026-11-14", None), ("2026-11-15", 2.0)]
     assert completed(s, date(2026, 11, 15)) == [("2026-11-13", 1.0)]
+
+
+def test_last_us_close_and_fresh():
+    from datetime import datetime, timezone
+    from scripts.compute_price_facts import is_fresh, last_us_close
+    mon_night = datetime(2026, 11, 16, 23, 0, tzinfo=timezone.utc)      # 월 23:00 UTC - 월 종가 있음
+    tue_morning = datetime(2026, 11, 17, 1, 0, tzinfo=timezone.utc)
+    sat = datetime(2026, 11, 21, 12, 0, tzinfo=timezone.utc)
+    mon_early = datetime(2026, 11, 16, 10, 0, tzinfo=timezone.utc)      # 월 장 전 - 금요일
+    assert str(last_us_close(mon_night)) == "2026-11-16"
+    assert str(last_us_close(tue_morning)) == "2026-11-16"
+    assert str(last_us_close(sat)) == "2026-11-20"
+    assert str(last_us_close(mon_early)) == "2026-11-13"
+    assert is_fresh(tue_morning, "2026-11-16", None)
+    assert not is_fresh(tue_morning, "2026-11-13", "2026-11-16 12:00:00")       # 오래 전에 돎 - 다시
+    assert is_fresh(tue_morning, "2026-11-13", "2026-11-16 22:30:00")           # 방금 돌았는데 종가 없음(휴장 등) - 기다림
+    assert not is_fresh(tue_morning, None, None)

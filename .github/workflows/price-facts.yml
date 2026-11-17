@@ -33,7 +33,8 @@ jobs:
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
           TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
           PYTHONUNBUFFERED: "1"
-        run: python scripts/compute_price_facts.py ${{ inputs.only_extra && '--only-extra' || '' }}
+        # 예약 실행은 이미 최신이면 건너뜀(2026-11-17 - 한국 뉴스 이어 돌기가 매 차례 --if-stale로 먼저 채운다. 이 예약은 그 보조)
+        run: python scripts/compute_price_facts.py ${{ inputs.only_extra && '--only-extra' || '' }} ${{ github.event_name == 'schedule' && '--if-stale' || '' }}
       - name: Decision outcomes
         env:
           TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
