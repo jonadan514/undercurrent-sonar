@@ -86,6 +86,26 @@ export async function GET(request: Request) {
       prevByTheme[r[0] as string] = (r[1] as string | null) ?? null;
     });
 
+    // 최신 재계산(2026-11-17) - 화면용 표는 분류가 있는 행을 데이터부족으로 덮지 않아서, 그 뒤 다시 계산한 재무 숫자는
+    // 이력 표(quarterly_theme_classification_history)에만 있다. 테마마다 가장 최근 줄을 따로 보낸다(표가 없으면 빈 값).
+    const latestFin: Record<string, { on: boolean | null; changed: number | null; judged: number | null; news_ratio: number | null; at: string }> = {};
+    try {
+      const h = await client.execute({
+        sql: `
+          SELECT h.theme_id, h.financial_on, h.financial_changed, h.financial_judged, h.news_ratio, h.computed_at
+          FROM quarterly_theme_classification_history h
+          JOIN (SELECT theme_id, MAX(computed_at) AS at FROM quarterly_theme_classification_history
+                WHERE market = ? AND fiscal_year = ? AND fiscal_quarter = ? GROUP BY theme_id) m
+            ON m.theme_id = h.theme_id AND m.at = h.computed_at
+          WHERE h.market = ? AND h.fiscal_year = ? AND h.fiscal_quarter = ?
+        `,
+        args: [market, fiscalYear, fiscalQuarter, market, fiscalYear, fiscalQuarter],
+      });
+      h.rows.forEach((r) => {
+        latestFin[r[0] as string] = { on: toBool(r[1]), changed: toNum(r[2]), judged: toNum(r[3]), news_ratio: toNum(r[4]), at: String(r[5]) };
+      });
+    } catch { /* 이력 표가 아직 없음 */ }
+
     const themes = themesRes.rows.map((r) => ({
       theme_id: r[0] as string,
       classification: r[1] as string | null,
@@ -97,14 +117,21 @@ export async function GET(request: Request) {
       news_ratio: toNum(r[7]),
       news_this_quarter: toNum(r[8]),
       previous_classification: prevByTheme[r[0] as string] ?? null,
+      // 화면 행보다 나중에 다시 계산한 값이 있을 때만
+      latest_financial: latestFin[r[0] as string] && latestFin[r[0] as string].at > String(r[9] ?? "") ? latestFin[r[0] as string] : null,
     }));
 
     // 계산한 날(2026-11-08 화면 점검) - '기준 분기 2026Q3'만 보면 언제 값인지 몰랐다(9/23 계산)
     const computedAt = themesRes.rows.map((r) => String(r[9] ?? "")).filter(Boolean).sort().pop() ?? null;
+    const latestAt = Object.values(latestFin).map((x) => x.at).sort().pop() ?? null;
+    const rerun = latestAt && computedAt && latestAt > computedAt ? Object.values(latestFin).filter((x) => x.at === latestAt) : [];
     return NextResponse.json({
       fiscal_year: fiscalYear,
       fiscal_quarter: fiscalQuarter,
       computed_at: computedAt,
+      // 나중에 다시 계산했는데 뉴스 비율이 전부 비었으면(수집원 변경) 화면이 그 이유를 적는다
+      rerun_at: rerun.length ? latestAt : null,
+      rerun_news_unavailable: rerun.length > 0 && rerun.every((x) => x.news_ratio == null),
       market_reference: marketReference,
       themes,
     });

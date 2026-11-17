@@ -6,6 +6,11 @@
 갱신해야 다음 조회가 틀린 채로 남지 않는다. 다른 분기 행은 건드리지 않으므로 "지난
 분기 대비 바뀐 테마"를 그대로 비교할 수 있다(7-3 마지막 줄).
 
+2026-11-17 보완: 같은 분기를 다시 계산했는데 뉴스 비율을 계산할 수 없어(수집원 변경) 결과가 전부 데이터부족이 되자,
+9/23에 계산해 둔 2026Q3 분류가 NULL로 덮였다. 그래서 (1) 계산할 때마다 `quarterly_theme_classification_history`에
+한 줄씩 쌓고(덮어쓰지 않음), (2) 화면이 읽는 이 표는 새 결과에 분류가 있을 때만(또는 원래 분류가 없을 때만) 갱신한다 -
+분류가 있는 행을 데이터부족으로 덮지 않는다. 최신 재무 숫자는 이력 표에서 따로 읽는다(/api/quarterly).
+
 재무·뉴스 판정은 True/False/데이터부족(None) 3값이지만 sqlite에는 bool 타입이 없다.
 1/0/NULL로 저장하고 읽을 때 bool로 되돌린다(`_coerce`) - INTEGER 0과 "판정 안 됨"을
 구분하려면 NULL이 꼭 필요하다.
@@ -47,8 +52,30 @@ CREATE TABLE IF NOT EXISTS quarterly_market_reference (
 # 매 화면 요청마다 유니버스 수백 종목을 다시 계산하지 않도록 분기 실행 때 한 번 저장해둔다.
 
 
+# 계산할 때마다 한 줄(2026-11-17) - 같은 분기를 다시 계산해도 예전 줄은 그대로(원칙 5)
+QUARTERLY_THEME_CLASSIFICATION_HISTORY_DDL = """
+CREATE TABLE IF NOT EXISTS quarterly_theme_classification_history (
+  theme_id           TEXT NOT NULL,
+  market             TEXT NOT NULL,
+  fiscal_year        INTEGER NOT NULL,
+  fiscal_quarter     INTEGER NOT NULL,
+  financial_on       INTEGER,
+  financial_changed  INTEGER,
+  financial_judged   INTEGER,
+  financial_ratio    REAL,
+  news_high          INTEGER,
+  news_ratio         REAL,
+  news_this_quarter  INTEGER,
+  classification     TEXT,
+  computed_at        TEXT NOT NULL,
+  PRIMARY KEY (theme_id, market, fiscal_year, fiscal_quarter, computed_at)
+)
+"""
+
+
 def ensure_schema(conn) -> None:
     conn.execute(QUARTERLY_THEME_CLASSIFICATION_DDL)
+    conn.execute(QUARTERLY_THEME_CLASSIFICATION_HISTORY_DDL)
     conn.execute(QUARTERLY_MARKET_REFERENCE_DDL)
     conn.commit()
 
@@ -93,12 +120,26 @@ def _bit(value: bool | None) -> int | None:
 def upsert_classification(conn, theme_id: str, market: str, year: int, quarter: int, *,
                           financial: dict, news: dict, classification: str | None,
                           computed_at: str) -> None:
-    """이 분기 이 테마의 분류를 기록한다. 같은 분기를 다시 계산하면 이 행만 갱신된다.
+    """이 분기 이 테마의 분류를 기록한다. 이력 표에는 늘 한 줄 더하고, 화면용 표는 같은 분기 행을 갱신하되
+    분류가 있던 행을 데이터부족(분류 NULL)으로 덮지는 않는다(2026-11-17, 모듈 설명 참고).
 
     financial은 `theme_quarterly_classification.financial_signal()`의 반환값,
     news는 {"high": bool|None, "ratio": float|None, "this_quarter": int|None} 형태
     (news_ratio()의 반환값에 quarterly_thresholds.is_news_high() 결과를 합친 것)다.
     """
+    values = (theme_id, market, year, quarter,
+              _bit(financial.get("on")), financial.get("changed"), financial.get("judged"),
+              financial.get("ratio"),
+              _bit(news.get("high")), news.get("ratio"), news.get("this_quarter"),
+              classification, computed_at)
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO quarterly_theme_classification_history
+          (theme_id, market, fiscal_year, fiscal_quarter,
+           financial_on, financial_changed, financial_judged, financial_ratio,
+           news_high, news_ratio, news_this_quarter, classification, computed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, values)
     conn.execute(
         """
         INSERT INTO quarterly_theme_classification
@@ -116,13 +157,8 @@ def upsert_classification(conn, theme_id: str, market: str, year: int, quarter: 
           news_this_quarter = excluded.news_this_quarter,
           classification = excluded.classification,
           computed_at = excluded.computed_at
-        """,
-        (theme_id, market, year, quarter,
-         _bit(financial.get("on")), financial.get("changed"), financial.get("judged"),
-         financial.get("ratio"),
-         _bit(news.get("high")), news.get("ratio"), news.get("this_quarter"),
-         classification, computed_at),
-    )
+        WHERE excluded.classification IS NOT NULL OR quarterly_theme_classification.classification IS NULL
+        """, values)
     conn.commit()
 
 

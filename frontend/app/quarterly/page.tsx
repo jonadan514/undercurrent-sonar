@@ -68,6 +68,8 @@ interface ThemeQuarterly {
   news_ratio: number | null;
   news_this_quarter: number | null;
   previous_classification: string | null;
+  // 화면 행보다 나중에 다시 계산한 재무 숫자(2026-11-17, 이력 표) - 없으면 null
+  latest_financial?: { on: boolean | null; changed: number | null; judged: number | null; at: string } | null;
 }
 
 interface MarketReference {
@@ -90,6 +92,15 @@ interface CompanySignal {
 }
 
 // ── 표시 도우미 ──────────────────────────────────────────────
+
+const mdShort = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+// 다시 계산한 재무(2026-11-17) - 분기 공시가 다 나온 뒤 값. 분류는 뉴스 축이 없어 바뀌지 않았다.
+function latestFinDisplay(t: ThemeQuarterly): string | null {
+  const f = t.latest_financial;
+  if (!f) return null;
+  if (f.on === null) return `${mdShort(f.at)} 재계산: 판정 가능 기업 부족`;
+  return `${mdShort(f.at)} 재계산: ${f.changed ?? "-"}/${f.judged ?? "-"}${f.on ? " · 재무 켜짐" : " · 재무 꺼짐"}`;
+}
 
 function changedDisplay(t: ThemeQuarterly): string {
   if (t.financial_on === null) {
@@ -420,6 +431,12 @@ function ThemeRow({ theme, market, isNa }: { theme: ThemeQuarterly; market: stri
 
         <span className="text-[12px]" style={{ color: MUTED }}>
           개선 기업 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{changedDisplay(theme)}</b>
+          {latestFinDisplay(theme) && (
+            <span className="ml-1.5" style={{ color: theme.latest_financial?.on ? "#4ade80" : MUTED }}
+              title="분기 공시가 다 나온 뒤 다시 계산한 재무 신호. 뉴스 비율을 계산할 수 없어 분류는 앞의 계산 그대로입니다.">
+              ({latestFinDisplay(theme)})
+            </span>
+          )}
         </span>
         <span className="text-[12px]" style={{ color: MUTED }}>
           뉴스 <b style={{ fontFamily: MONO, color: "var(--text-primary)" }}>{newsDisplay(theme)}</b>
@@ -457,6 +474,8 @@ export default function QuarterlyPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Classification | null>(null);
   const [showNa, setShowNa] = useState(false);
+  const [rerunAt, setRerunAt] = useState<string | null>(null);
+  const [rerunNoNews, setRerunNoNews] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -466,6 +485,8 @@ export default function QuarterlyPage() {
         setFiscalYear(d.fiscal_year ?? null);
         setFiscalQuarter(d.fiscal_quarter ?? null);
         setComputedAt(d.computed_at ?? null);
+        setRerunAt(d.rerun_at ?? null);
+        setRerunNoNews(!!d.rerun_news_unavailable);
         setMarketReference(d.market_reference ?? null);
         setThemes(d.themes ?? []);
       })
@@ -506,13 +527,24 @@ export default function QuarterlyPage() {
         <p className="mt-3 text-[12px]" style={{ color: FAINT }}>
           기준 분기 {fiscalYear}Q{fiscalQuarter}
           {computedAt && <> · <span style={{ color: "var(--text-secondary)" }}>{Number(computedAt.slice(5, 7))}/{Number(computedAt.slice(8, 10))} 계산</span>
-            <span title="분기 실적 공시가 다 나온 뒤(분기 끝 + 약 6주) 다시 계산합니다. 3분기 실적은 11/14 마감 뒤 갱신 예정."> (다음 계산: 공시 마감 뒤)</span></>}
+            <span title="분기 실적 공시가 다 나온 뒤(분기 끝 + 약 6주) 다시 계산합니다. 4분기 실적은 내년 2월 중순(미국)·3월 말(한국 사업보고서) 마감 뒤."> (다음 계산: 공시 마감 뒤)</span></>}
           {" "}· {market === "KR" ? "한국" : "미국"} 시장 · 유니버스
           매출 증가율 중앙값{" "}
           <span title="참고값입니다 - 테마 분류 판정에는 쓰지 않습니다." style={{ borderBottom: "1px dotted var(--border-ctrl)" }}>
             {marketReference ? pctGrowth(marketReference.median_revenue_growth) : "계산불가"}
             {marketReference && ` (표본 ${marketReference.sample_size}개)`}
           </span>
+        </p>
+      )}
+
+      {/* 다시 계산했지만 뉴스 축이 비어 분류는 앞 계산 그대로(2026-11-17) */}
+      {!loading && rerunAt && (
+        <p className="mt-2 rounded-lg px-3 py-2 text-[12.5px] leading-relaxed" style={{ background: "var(--bg-inset)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+          {mdShort(rerunAt)}에 분기 공시가 다 나온 뒤 다시 계산했습니다. 재무 신호는 줄마다 괄호 안에 함께 적었고
+          {rerunNoNews
+            ? <>, <b>뉴스 비율은 계산할 수 없어</b> 4칸 분류는 {computedAt ? mdShort(computedAt) : "앞의"} 계산 그대로입니다. 뉴스 출처를 바꾼 뒤(미국 9/28, 한국 11/16)
+              같은 출처로 두 분기가 쌓여야 비교할 수 있어 2027년 1분기부터 다시 분류합니다.</>
+            : <> 4칸 분류는 분류가 나온 계산을 그대로 둡니다.</>}
         </p>
       )}
 

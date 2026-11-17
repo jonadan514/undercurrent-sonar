@@ -183,3 +183,23 @@ def test_운영DB에서도_참고값_타입이_맞다(turso_like_db):
     upsert_market_reference(turso_like_db, "KR", 2026, 3, 0.083, 412, "2026-10-01T00:00:00")
     got = get_market_reference(turso_like_db, "KR", 2026, 3)
     assert isinstance(got["median_revenue_growth"], float) and isinstance(got["sample_size"], int)
+
+
+def test_분류가_있던_행을_데이터부족으로_덮지_않는다(memory_db):
+    """2026-11-17: 다시 계산했더니 뉴스 비율이 전부 None이라 9/23 분류가 NULL로 덮였다 - 화면용 표는 지키고 이력에만 쌓는다."""
+    ensure_schema(memory_db)
+    _put(memory_db, classification="조용한 변화", at="2026-09-23T12:29:44")
+    _put(memory_db, financial=FIN_ON, news=NEWS_NA, classification=None, at="2026-11-17T05:26:46")
+    got = get_classification(memory_db, "battery", "KR", 2026, 3)
+    assert got["classification"] == "조용한 변화"
+    rows = memory_db.execute("SELECT computed_at, classification FROM quarterly_theme_classification_history "
+                             "ORDER BY computed_at").fetchall()
+    assert [tuple(r) for r in rows] == [("2026-09-23T12:29:44", "조용한 변화"), ("2026-11-17T05:26:46", None)]
+
+
+def test_원래_분류가_없으면_새_값으로_갱신한다(memory_db):
+    ensure_schema(memory_db)
+    _put(memory_db, financial=FIN_NA, news=NEWS_NA, classification=None, at="2026-09-23T00:00:00")
+    _put(memory_db, financial=FIN_ON, news=NEWS_NA, classification=None, at="2026-11-17T00:00:00")
+    got = get_classification(memory_db, "battery", "KR", 2026, 3)
+    assert got["financial_on"] is True     # 둘 다 분류가 없으면 최신 숫자로

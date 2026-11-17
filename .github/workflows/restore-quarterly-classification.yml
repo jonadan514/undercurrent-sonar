@@ -1,0 +1,33 @@
+name: Restore Quarterly Classification
+
+# 한 번 쓰는 복구(2026-11-17, 사용자 결정) - 11/17 재계산이 덮은 2026Q3 분기 분류를 9/23 값으로 되돌리고 두 실행을 이력 표에 남긴다.
+# scripts/restore_quarterly_classification.py. apply를 켜지 않으면 미리보기만.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "true면 실제로 쓴다(끄면 미리보기)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Restore
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/restore_quarterly_classification.py ${{ inputs.apply && '--apply' || '' }}
