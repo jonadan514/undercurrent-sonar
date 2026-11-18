@@ -14,6 +14,7 @@
 깨져 보일 수 있어 화면 출력만으로 검증하지 않는다.
 """
 import argparse
+import html
 import re
 import sys
 import time
@@ -70,7 +71,7 @@ def fetch_kospi200() -> list[tuple[str, str, str]]:
         if code in seen:
             continue
         seen.add(code)
-        out.append((code, name.strip(), sector_ko.strip()))
+        out.append((code, html.unescape(name).strip(), sector_ko.strip()))   # 'F&amp;F'로 저장됐었다(2026-11-18)
     return out
 
 

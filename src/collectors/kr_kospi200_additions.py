@@ -1,5 +1,6 @@
 # 위키백과 코스피200 편입 종목 중 기존 정적 리스트에 없던 종목.
 # scripts/gen_kospi200_universe.py 로 생성 - 지수 정기변경 때 재생성한다.
+# 2026-11-18 손으로 고침: 111770은 영원무역(에이피알은 278470), 383220 F&amp;F -> F&F(생성기에 html.unescape 추가).
 KOSPI200_ADDITIONS = [
     ("000150", "두산", "Industrials"),
     ("000210", "DL", "Basic Materials"),
@@ -76,7 +77,7 @@ KOSPI200_ADDITIONS = [
     ("086280", "현대글로비스", "Industrials"),
     ("093370", "후성", "Basic Materials"),
     ("103140", "풍산", "Industrials"),
-    ("111770", "에이피알", "Consumer Cyclical"),
+    ("111770", "영원무역", "Consumer Cyclical"),
     ("112610", "씨에스윈드", "Industrials"),
     ("120110", "코오롱인더", "Basic Materials"),
     ("128940", "한미약품", "Healthcare"),
@@ -108,7 +109,7 @@ KOSPI200_ADDITIONS = [
     ("361610", "SK아이이테크놀로지", "Technology"),
     ("375500", "DL이앤씨", "Industrials"),
     ("377300", "카카오페이", "Technology"),
-    ("383220", "F&amp;F", "Consumer Cyclical"),
+    ("383220", "F&F", "Consumer Cyclical"),
     ("443060", "HD현대마린솔루션", "Industrials"),
     ("450080", "에코프로머티", "Industrials"),
     ("454910", "두산로보틱스", "Industrials"),
