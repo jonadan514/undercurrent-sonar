@@ -63,6 +63,16 @@ def main() -> int:
     for side in ("added", "removed"):
         xs = wl.get(side) or []
         print(f"  watchlist.{side}: " + ", ".join(f"{x.get('market')}:{x.get('symbol')}" for x in xs[:10] if isinstance(x, dict)))
+    # 이번 주 볼 것·텔레그램 짧은 본문(2026-11-18) - 실제로 보낸 글을 저장된 칸으로 다시 만들어 본다(보내지 않음)
+    wf = b.get("week_focus") or {}
+    print("\n  week_focus.themes: " + ", ".join(f"{t.get('market')}:{t.get('theme_id')}({t.get('label') or '실적 먼저'})" for t in wf.get("themes") or []))
+    print("  week_focus.stocks: " + ", ".join(f"{x.get('market')}:{x.get('name') or x.get('symbol')}[{'·'.join(x.get('reasons') or [])}]" for x in wf.get("stocks") or []))
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from generate_weekly_briefing import build_telegram_short
+        print("\n--- 텔레그램 짧은 본문(다시 만든 것) ---\n" + build_telegram_short(b))
+    except Exception as e:  # noqa: BLE001
+        print(f"\n텔레그램 본문 다시 만들기 실패: {type(e).__name__}: {e}")
     conn.close()
     return 0
 
