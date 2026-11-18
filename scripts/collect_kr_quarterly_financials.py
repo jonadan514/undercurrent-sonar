@@ -121,6 +121,10 @@ def fmt_eok(v) -> str:
     return "-" if v is None else f"{v / 1e8:,.0f}"
 
 
+DART_DOWN_PAUSES = 2        # 처음 몇 종목이 전부 실패하면 이만큼 쉬었다 처음부터 다시(그래도 안 되면 중단)
+DART_DOWN_PAUSE_SEC = 600
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", nargs="*", default=None, help="종목코드 몇 개만 (확인용)")
@@ -162,46 +166,58 @@ def main() -> int:
     if moved:
         _log(f"예전 테이블에서 {moved}행을 원본 테이블로 옮겼다")
     now = datetime.utcnow().isoformat()
-    stats = {"ok": 0, "no_corp": 0, "no_data": 0, "lt5": 0, "error": 0, "ofs": 0}
-    first_error = ""
+    for round_ in range(DART_DOWN_PAUSES + 1):
+        restart = False
+        stats = {"ok": 0, "no_corp": 0, "no_data": 0, "lt5": 0, "error": 0, "ofs": 0}
+        first_error = ""
 
-    for n, t in enumerate(tickers, 1):
-        cc = corp.get(t)
-        if not cc:
-            stats["no_corp"] += 1
-            _log(f"  {t} {universe.get(t, {}).get('name', '')}: DART 기업코드 없음")
-            continue
-        try:
-            if plan.get(t) == "one_year":
-                values = collect_one(cc, today, 1, start_year=target_quarter(today)[0], fallback=False)
-            else:
-                values = collect_one(cc, today, args.years)
-        except dart.DartKeyError:
-            raise
-        except Exception as e:  # noqa: BLE001 - 한 종목 실패로 전체를 멈추지 않는다
-            stats["error"] += 1
-            first_error = first_error or f"{type(e).__name__}: {str(e)[:300]}"
-            _log(f"  {t}: 실패 {type(e).__name__}: {str(e)[:120]}")
-            # 처음 5종목이 전부 실패하면 DART 쪽 문제(점검 등) - 나머지를 돌려도 같은 결과라 멈춘다
-            if stats["ok"] == 0 and stats["error"] >= 5 and n == stats["error"] + stats["no_corp"]:
-                _log(f"처음 {n}종목이 전부 실패 - DART 응답 문제로 보고 중단. 첫 오류: {first_error}")
-                conn.close()
-                return 1
-            continue
-        if not values:
-            stats["no_data"] += 1
-            continue
-        for (y, q), v in values.items():
-            insert_quarter(conn, t, "KR", y, q, v, "DART", "KRW", now)
-        conn.commit()
-        stats["ok"] += 1
-        recent = latest_quarters(values)
-        if len(recent) < 5 and plan.get(t) != "one_year":   # 그 연도만 받은 종목은 앞 분기가 이미 표에 있다 - 세지 않는다
-            stats["lt5"] += 1
-        if recent and recent[0][1].get("fs_div") == "OFS":
-            stats["ofs"] += 1
-        if n % 50 == 0:
-            _log(f"  진행 {n}/{len(tickers)} {stats}")
+        for n, t in enumerate(tickers, 1):
+            cc = corp.get(t)
+            if not cc:
+                stats["no_corp"] += 1
+                _log(f"  {t} {universe.get(t, {}).get('name', '')}: DART 기업코드 없음")
+                continue
+            try:
+                if plan.get(t) == "one_year":
+                    values = collect_one(cc, today, 1, start_year=target_quarter(today)[0], fallback=False)
+                else:
+                    values = collect_one(cc, today, args.years)
+            except dart.DartKeyError:
+                raise
+            except Exception as e:  # noqa: BLE001 - 한 종목 실패로 전체를 멈추지 않는다
+                stats["error"] += 1
+                first_error = first_error or f"{type(e).__name__}: {str(e)[:300]}"
+                _log(f"  {t}: 실패 {type(e).__name__}: {str(e)[:120]}")
+                # 처음 5종목이 전부 실패하면 DART 쪽 문제(점검 등) - 나머지를 돌려도 같은 결과라 멈춘다
+                if stats["ok"] == 0 and stats["error"] >= 5 and n == stats["error"] + stats["no_corp"]:
+                    if round_ < DART_DOWN_PAUSES:
+                        # 2026-11-18: 11/17 수동 실행이 처음 5종목 ConnectTimeout으로 멈췄는데 2분 뒤 다시 돌리니 275종목 오류 0 -
+                        # 잠깐 막힌 것이면 쉬었다 처음부터 다시 한다
+                        _log(f"처음 {n}종목이 전부 실패 - DART 응답 문제로 보고 {DART_DOWN_PAUSE_SEC // 60}분 쉬었다 처음부터 다시"
+                             f"({round_ + 1}/{DART_DOWN_PAUSES}). 첫 오류: {first_error}")
+                        time.sleep(DART_DOWN_PAUSE_SEC)
+                        restart = True
+                        break
+                    _log(f"처음 {n}종목이 전부 실패 - DART 응답 문제로 보고 중단. 첫 오류: {first_error}")
+                    conn.close()
+                    return 1
+                continue
+            if not values:
+                stats["no_data"] += 1
+                continue
+            for (y, q), v in values.items():
+                insert_quarter(conn, t, "KR", y, q, v, "DART", "KRW", now)
+            conn.commit()
+            stats["ok"] += 1
+            recent = latest_quarters(values)
+            if len(recent) < 5 and plan.get(t) != "one_year":   # 그 연도만 받은 종목은 앞 분기가 이미 표에 있다 - 세지 않는다
+                stats["lt5"] += 1
+            if recent and recent[0][1].get("fs_div") == "OFS":
+                stats["ofs"] += 1
+            if n % 50 == 0:
+                _log(f"  진행 {n}/{len(tickers)} {stats}")
+        if not restart:
+            break
 
     _log(f"완료 {stats} (lt5=최근 5분기 미만, ofs=최신 분기가 별도재무)")
     if stats["ok"] == 0 and stats["error"] > 0:
