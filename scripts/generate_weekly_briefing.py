@@ -1398,7 +1398,9 @@ def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str]) -
         add(f"{x['market']}:{x['symbol']}", "실적 반전", f"새로 들어옴 ({x['basis']}{yoy})", "turnaround")
     for rv in b.get("observation_reviews") or []:
         if rv.get("kind") == "stock" and rv.get("ticker"):
-            add(f"{rv.get('market')}:{rv['ticker']}", "노트 회고", f"{rv.get('checkpoint') or ''} 회고 도착".strip(), "notes")
+            # "노트 회고 4 회고 도착"으로 읽혔다(11/18 텔레그램 점검) - 주를 붙이고 '회고'를 한 번만
+            add(f"{rv.get('market')}:{rv['ticker']}", "노트 회고",
+                f"{rv['checkpoint']}주 결과 도착" if rv.get("checkpoint") else "결과 도착", "notes")
     items = []
     for key, events in ev.items():
         market, symbol = key.split(":", 1)
