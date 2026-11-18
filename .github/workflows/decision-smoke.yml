@@ -1,0 +1,27 @@
+name: Decision Record Smoke Test
+
+# 검토 기록 실제 동작 점검(2026-11-18) - 기업 카드에서 눌러 기록하고 바로 지운다(scripts/tools/decision_smoke.mjs).
+on:
+  workflow_dispatch:
+    inputs:
+      stock:
+        description: "점검할 종목(기본 US:ADBE)"
+        required: false
+        default: "US:ADBE"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: npm i --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - run: node scripts/tools/decision_smoke.mjs
+        env:
+          STOCK: ${{ inputs.stock || 'US:ADBE' }}
