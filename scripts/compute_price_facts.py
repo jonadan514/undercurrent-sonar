@@ -44,7 +44,7 @@ DDL = f"""CREATE TABLE IF NOT EXISTS stock_price_facts (
 
 
 US_CLOSE_UTC = (21, 30)   # 미국 장 마감(21:00 UTC, 서머타임이면 20:00) + 여유 - 이 시각이 지나야 그날 종가가 있다고 본다
-RETRY_HOURS = 6           # 기대한 날짜 종가가 없어도(휴장일 등) 이 시간 안에 이미 돌았으면 다시 받지 않는다
+RETRY_HOURS = 2           # 장 마감 뒤에 돌았는데도 그날 종가가 없으면(휴장일·늦은 반영) 이 시간 뒤에 다시
 
 
 def last_us_close(now: datetime) -> date:
@@ -58,16 +58,22 @@ def last_us_close(now: datetime) -> date:
 
 
 def is_fresh(now: datetime, spy_as_of: str | None, updated_at: str | None) -> bool:
-    """SPY 값이 마지막 미국 장 마감일 것이면 최신. 아니어도 RETRY_HOURS 안에 돌았으면 최신으로 친다(휴장일에 계속 다시 받지 않게)."""
-    if spy_as_of and spy_as_of >= last_us_close(now).isoformat():
+    """SPY 값이 마지막 미국 장 마감일 것이면 최신. 아니면: 마지막으로 돈 게 그 장 마감 전이면 바로 다시(11/17 21:27 UTC에 돌아
+    11/16 종가를 받은 뒤 '6시간 안에 돌았다'고 11/17 종가를 6시간 늦게 받았다 - 11/18 점검), 마감 뒤에 돌았는데도 없으면
+    (휴장일·늦은 반영) RETRY_HOURS 뒤에 다시."""
+    expected = last_us_close(now)
+    if spy_as_of and spy_as_of >= expected.isoformat():
         return True
-    if updated_at:
-        try:
-            ran = datetime.fromisoformat(str(updated_at).replace(" ", "T")).replace(tzinfo=timezone.utc)
-        except ValueError:
-            return False
-        return now - ran < timedelta(hours=RETRY_HOURS)
-    return False
+    if not updated_at:
+        return False
+    try:
+        ran = datetime.fromisoformat(str(updated_at).replace(" ", "T")).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    close_at = datetime(expected.year, expected.month, expected.day, *US_CLOSE_UTC, tzinfo=timezone.utc)
+    if ran < close_at:
+        return False
+    return now - ran < timedelta(hours=RETRY_HOURS)
 
 
 def _log(msg: str) -> None:

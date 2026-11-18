@@ -53,6 +53,9 @@ def test_last_us_close_and_fresh():
     assert str(last_us_close(sat)) == "2026-11-20"
     assert str(last_us_close(mon_early)) == "2026-11-13"
     assert is_fresh(tue_morning, "2026-11-16", None)
-    assert not is_fresh(tue_morning, "2026-11-13", "2026-11-16 12:00:00")       # 오래 전에 돎 - 다시
-    assert is_fresh(tue_morning, "2026-11-13", "2026-11-16 22:30:00")           # 방금 돌았는데 종가 없음(휴장 등) - 기다림
+    assert not is_fresh(tue_morning, "2026-11-13", "2026-11-16 12:00:00")       # 장 마감 전에 돎 - 다시
+    assert is_fresh(tue_morning, "2026-11-13", "2026-11-17 00:30:00")           # 마감 뒤 방금 돌았는데 종가 없음(휴장 등) - 기다림
+    assert not is_fresh(tue_morning, "2026-11-13", "2026-11-16 22:30:00")       # 마감 뒤였지만 2시간 넘음 - 다시
     assert not is_fresh(tue_morning, None, None)
+    # 11/18 점검 사례: 11/17 21:27에 돌아 11/16 종가 - 21:30 마감 뒤 첫 차례(22:07)엔 바로 다시
+    assert not is_fresh(datetime(2026, 11, 17, 22, 7, tzinfo=timezone.utc), "2026-11-16", "2026-11-17 21:27:40")
