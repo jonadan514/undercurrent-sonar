@@ -166,3 +166,12 @@ def test_amount_changed_needs_visible_difference():
     assert not amount_changed({"amount_changed": True, "amount_before": 2645.2e8, "amount_after": 2645.4e8})
     assert amount_changed({"amount_changed": True, "amount_before": 3724e8, "amount_after": 3766e8})
     assert not amount_changed({"amount_changed": False, "amount_before": 3724e8, "amount_after": 3766e8})
+
+
+def test_계약_정정은_텔레그램에_안_보낸다():
+    """2026-11-21 사용자: 공시 바뀌는 것(정정)은 텔레그램에 안 오게 - 금액이 바뀐 정정도."""
+    from scripts.collect_kr_disclosures import alert_text
+    tags = {"005930": ["my"]}
+    amend = {"rcept_no": "1", "rcept_dt": "2026-11-20", "stock_code": "005930", "corp_name": "삼성전자", "kind": "amend",
+             "payload": {"amount_before": 1e11, "amount_after": 2e11, "reason": "금액 변경"}}
+    assert alert_text([amend], tags) is None

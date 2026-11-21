@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from collectors import dart_client as dart
-from src.collectors.kr_disclosures import DART_VIEW, PARSERS, amount_changed, classify, summary
+from src.collectors.kr_disclosures import DART_VIEW, PARSERS, classify, summary
 from src.db.data_store import get_db
 
 KST = timezone(timedelta(hours=9))
@@ -130,9 +130,9 @@ def send_telegram(text: str) -> None:
 
 
 def alert_text(new: list[dict], tags: dict[str, list[str]]) -> str | None:
-    # 계약 정정은 금액이 바뀐 것만 알린다 - 대부분 날짜·문구 정정이라 다 보내면 소음이다
-    hits = [d for d in new if tags.get(d["stock_code"])
-            and not (d["kind"] == "amend" and not amount_changed(d["payload"]))]
+    # 계약 정정(amend)은 텔레그램으로 보내지 않는다(2026-11-21 사용자: 공시 바뀌는 것 텔레그램에 안 오게).
+    # 예전엔 금액이 바뀐 정정만 보냈다. 저장·브리핑·기업 카드에는 그대로 남는다.
+    hits = [d for d in new if tags.get(d["stock_code"]) and d["kind"] != "amend"]
     if not hits:
         return None
     lines = [f"<b>🔔 한국 공시</b> · 관심 종목 {len(hits)}건"]
