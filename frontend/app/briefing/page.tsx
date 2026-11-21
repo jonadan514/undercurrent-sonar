@@ -682,8 +682,8 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   };
   // 목차 - 아래 칸 순서 그대로. 앵커는 개요 "이번 주 변화"·⭐ 줄이 쓰는 짧은 이름(#earnings 등)
   const toc: TocItem[] = [
-    ...(has.focus ? [{ id: "focus", label: "🎯 이번 주 볼 것", group: "" }] : []),
     ...(has.mine ? [{ id: "mine", label: "⭐ 내 관심 종목", count: b.my_stocks_week?.count ? `${b.my_stocks_week.count}` : undefined, group: "" }] : []),
+    ...(has.focus ? [{ id: "focus", label: "🎯 이번 주 볼 것", group: "" }] : []),
     ...(has.comment ? [{ id: "comment", label: "총평", group: "" }] : []),
     { id: "market", label: "지난주 시장", group: "시장" },
     { id: "watchlist", label: "워치리스트",
@@ -1210,7 +1210,7 @@ export default function BriefingPage() {
     <div className="max-w-5xl">
       <PageHeader title="주간 브리핑" intro="briefing"
         asOf={!loading && <AsOf date={briefings[0]?.week} cadence="매주 월요일 아침" staleDays={8} />}
-        desc="지난주를 돌아보고 이번 주를 준비하는 문서. 한 주씩 봅니다 - 맨 위 ⭐ 관심 종목에 생긴 일부터, 목차를 누르면 해당 항목으로 갑니다." />
+        desc="지난주를 돌아보고 이번 주를 준비하는 문서. 한 주씩 봅니다 - 맨 위 ⭐ 내 관심 종목부터, 목차를 누르면 해당 항목으로 갑니다." />
 
       {loading ? (
         <div className="h-24 rounded-xl animate-pulse" style={{ background: "#111009" }} />
