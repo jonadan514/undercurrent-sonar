@@ -82,6 +82,19 @@ jobs:
         run: |
           pip install --quiet requests
           python scripts/save_kr_investor_flows.py --in data/kr_investor_flows.json
+      # 환율·금리·VIX 급변 알림(2026-11-21, 사용자 요청) - 국고채까지 저장된 뒤. 정기 실행만 보내고 수동 실행은 출력만.
+      - name: Alert macro moves
+        if: always()
+        continue-on-error: true
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          pip install --quiet requests
+          python scripts/alert_macro_moves.py ${{ github.event_name == 'schedule' && '--notify' || '--dry-run' }}
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'

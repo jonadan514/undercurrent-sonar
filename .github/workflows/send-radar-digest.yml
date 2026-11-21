@@ -29,6 +29,16 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python scripts/send_radar_digest.py
+      # 반도체 테마(AI 반도체·반도체 장비, 미국·한국) 신호가 전주와 달라졌을 때만 알림(2026-11-21, 사용자 요청).
+      - name: Alert semiconductor themes
+        continue-on-error: true
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/alert_semi_themes.py ${{ github.event_name == 'schedule' && '--notify' || '--dry-run' }}
       # 정기 실행이 실패하면 텔레그램으로 알린다(2026-10-17) - 수동 실행은 보는 사람이 있어 알리지 않는다.
       - name: Notify on failure
         if: failure() && github.event_name == 'schedule'

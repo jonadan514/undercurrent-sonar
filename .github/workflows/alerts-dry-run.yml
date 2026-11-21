@@ -1,0 +1,33 @@
+name: Alerts Dry Run
+
+# 환율·금리·VIX 급변 알림과 반도체 테마 변화 알림을 보내지 않고 출력만(2026-11-21) - 기준·문구 점검용.
+on:
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "반도체 테마 - 비교할 주 월요일(비우면 방금 계산한 주)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  dry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+          WEEK: ${{ inputs.week }}
+        run: |
+          python scripts/alert_macro_moves.py --dry-run
+          if [ -n "$WEEK" ]; then python scripts/alert_semi_themes.py --dry-run --week "$WEEK"; else python scripts/alert_semi_themes.py --dry-run; fi
