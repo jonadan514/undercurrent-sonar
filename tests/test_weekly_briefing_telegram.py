@@ -410,3 +410,14 @@ def test_short_telegram_keeps_only_core_blocks():
     assert "🎯 이번 주 볼 것" in t and "[숨은 강세]" in t and "F&amp;F" in t and "외 후보 2곳" in t
     assert "회고 판정 대기</b> 2건" in t and "S&amp;P 500 +1.2% (위험 회피)" in t and "S&P" not in t
     assert "AMAT 11/12" in t and "XYZ" not in t and "워치리스트</b>" not in t and "전체 브리핑 열기" in t
+
+
+def test_my_stocks_week_keeps_quiet_stocks_and_facts():
+    """2026-11-21: 일 없는 관심 종목도 quiet로, 차트 상태(facts)를 종목마다."""
+    b = {"earnings_week": {"items": [{"market": "US", "symbol": "AMAT", "date": "2026-11-12", "estimate": False}]}}
+    mine = {"US:AMAT": ["my"], "KR:005930": ["note"], "US:MU": ["my"]}
+    facts = {"US:AMAT": {"ret_1m": 0.05, "pos_52w": 0.8, "above_ma200": True, "as_of": "2026-11-20"}}
+    my = g.my_stocks_week(b, mine, {"KR:005930": "삼성전자"}, facts)
+    assert my["count"] == 1 and my["items"][0]["facts"]["ret_1m"] == 0.05
+    assert [q["symbol"] for q in my["quiet"]] == ["MU", "005930"]      # 내 관심 먼저
+    assert my["quiet"][1]["name"] == "삼성전자" and my["quiet"][0]["facts"] is None

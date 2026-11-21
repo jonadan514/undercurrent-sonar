@@ -62,7 +62,9 @@ jobs:
           REPARSE: ${{ inputs.reparse == 'true' && '--reparse' || '' }}
           DAYS: ${{ inputs.days || '3' }}
           # 정기 실행만 알림 - 수동 채우기에서 지난 공시가 한꺼번에 알림으로 가지 않게
-          NOTIFY: ${{ github.event_name == 'schedule' && '--notify' || '' }}
+          # 2026-11-21 사용자: 공시 알림 전체를 텔레그램으로 받지 않음 - 관심 종목 공시는 월요일 브리핑 맨 위 ⭐ 칸에서 본다.
+          # 다시 켜려면 아래를 ${{ github.event_name == 'schedule' && '--notify' || '' }}로 되돌린다.
+          NOTIFY: ""
         run: |
           if [ -n "$PROBE" ]; then
             python scripts/collect_kr_disclosures.py --probe $PROBE ${NAMES:+--names $NAMES} ${GREP:+--grep "$GREP"} --ptype "$PTYPE"

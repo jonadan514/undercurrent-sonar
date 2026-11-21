@@ -1367,10 +1367,13 @@ MY_TG_MAX = 8
 MY_TAGS = ("my", "note")
 
 
-def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str]) -> dict:
+def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str],
+                   facts: dict[str, dict] | None = None) -> dict:
     """브리핑 맨 위 "관심 종목에 생긴 일"(2026-10-21, 사용자 결정 B) - 내 관심·관찰 노트 종목에 이번 주 생긴 일을 한 칸에.
     새로 계산하지 않고 이미 만든 칸(실적 발표·한국 공시·8-K·내부자 매수·실적 반전·노트 회고)에서 그 종목 줄만 모은다.
-    mine: '시장:종목' -> ['my'|'note']. 순서: 내 관심 먼저 → 생긴 일 수 → 종목. 점수 없음(원칙 1)."""
+    mine: '시장:종목' -> ['my'|'note']. 순서: 내 관심 먼저 → 생긴 일 수 → 종목. 점수 없음(원칙 1).
+    2026-11-21(사용자: 공시 텔레그램을 끄고 브리핑에서 관심 기업을 더 돋보이게): 일이 없던 종목도 quiet로 남기고,
+    facts(차트 상태 - stock_price_facts의 1개월 수익률·200일선·52주 위치)를 종목마다 붙인다. 판정 아님."""
     ev: dict[str, list[dict]] = {}
 
     def add(key: str, kind: str, text: str, anchor: str, date: str | None = None, warn: bool = False) -> None:
@@ -1401,18 +1404,37 @@ def my_stocks_week(b: dict, mine: dict[str, list[str]], names: dict[str, str]) -
             # "노트 회고 4 회고 도착"으로 읽혔다(11/18 텔레그램 점검) - 주를 붙이고 '회고'를 한 번만
             add(f"{rv.get('market')}:{rv['ticker']}", "노트 회고",
                 f"{rv['checkpoint']}주 결과 도착" if rv.get("checkpoint") else "결과 도착", "notes")
+    facts = facts or {}
     items = []
     for key, events in ev.items():
         market, symbol = key.split(":", 1)
-        items.append({"market": market, "symbol": symbol, "name": names.get(key), "tags": mine[key], "events": events})
+        items.append({"market": market, "symbol": symbol, "name": names.get(key), "tags": mine[key], "events": events,
+                      "facts": facts.get(key)})
     items.sort(key=lambda x: ("my" not in x["tags"], -len(x["events"]), x["symbol"]))
-    return {"watched": len(mine), "count": len(items), "items": items}
+    quiet = [{"market": k.split(":", 1)[0], "symbol": k.split(":", 1)[1], "name": names.get(k), "tags": t, "facts": facts.get(k)}
+             for k, t in mine.items() if k not in ev]
+    quiet.sort(key=lambda x: ("my" not in x["tags"], x["symbol"]))
+    return {"watched": len(mine), "count": len(items), "items": items, "quiet": quiet}
+
+
+def my_stock_facts(keys: list[str]) -> dict[str, dict]:
+    """관심·노트 종목의 차트 상태(stock_price_facts, 평일 밤 계산) - 표가 없거나 값이 없으면 빈 칸."""
+    out: dict[str, dict] = {}
+    if not keys:
+        return out
+    num = lambda v: None if v is None else float(v)   # noqa: E731 - Turso가 숫자를 글자로 줄 때가 있다
+    for r in turso_exec("SELECT market, symbol, as_of, ret_1m, pos_52w, above_ma200 FROM stock_price_facts"):
+        k = f"{r['market']}:{r['symbol']}"
+        if k in keys:
+            out[k] = {"as_of": r.get("as_of"), "ret_1m": num(r.get("ret_1m")), "pos_52w": num(r.get("pos_52w")),
+                      "above_ma200": None if r.get("above_ma200") is None else bool(int(r["above_ma200"]))}
+    return out
 
 
 def get_my_stocks_week(b: dict) -> dict | None:
     tags, names = interest_tags_names()
     mine = {k: [t for t in v if t in MY_TAGS] for k, v in tags.items() if any(t in MY_TAGS for t in v)}
-    return my_stocks_week(b, mine, names) if mine else None
+    return my_stocks_week(b, mine, names, my_stock_facts(list(mine))) if mine else None
 
 
 def _quarter(period: str) -> str:

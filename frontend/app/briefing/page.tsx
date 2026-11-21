@@ -62,7 +62,7 @@ interface Briefing {
   insider_week?: { total: number; by_market: Record<string, number>; items: InsiderItem[]; tagged_count?: number;
                    discovery?: InsiderItem[]; discovery_count?: number } | null;
   us_8k_week?: { total: number; by_kind: Record<string, number>; items: Us8kItem[] } | null;
-  my_stocks_week?: { watched: number; count: number; items: MyStock[] } | null;
+  my_stocks_week?: { watched: number; count: number; items: MyStock[]; quiet?: Omit<MyStock, "events">[] } | null;
   // 이번 주 볼 것(2026-11-15, 사용자: 사용성 1번) - 라벨 테마와 테마 소속·이번 주 이유가 있는 후보. 코드가 고른 것(src/analyzers/week_focus.py)
   week_focus?: {
     themes: { market: "US" | "KR"; theme_id: string; name: string; label: string | null; news?: string; earn?: string; price?: string; why: string }[];
@@ -81,7 +81,7 @@ const qLabel = (p: string) => `${p.slice(0, 4)} Q${Math.floor((Number(p.slice(5,
 function InstChip({ x, sold }: { x: InstPos; sold?: boolean }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1 text-[12px] px-2 py-1 rounded-lg"
-      style={x.tags.length > 0 ? { background: "#f59e0b14", border: "1px solid #f59e0b55" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+      style={isMine(x.tags) ? { background: "#f59e0b1f", border: "1px solid #f59e0b88" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
       {x.ticker ? <StockLabel s={{ market: "US", symbol: x.ticker }} /> : <span className="font-bold" style={{ color: "var(--text-secondary)" }}>{x.issuer}</span>}
       <span style={{ color: "var(--text-secondary)" }}>{sold ? `직전 ${usdM(x.prev_value)}` : usdM(x.value)}</span>
       {!sold && x.weight != null && <span style={{ color: "var(--text-muted)" }}>{(x.weight * 100).toFixed(1)}%</span>}
@@ -91,8 +91,9 @@ function InstChip({ x, sold }: { x: InstPos; sold?: boolean }) {
   );
 }
 // 관심 종목에 생긴 일(2026-10-21) - 내 관심·노트 종목 줄만 아래 칸들에서 모은 것. 눌러서 그 칸으로.
+type ChartFact = { as_of?: string | null; ret_1m: number | null; pos_52w: number | null; above_ma200: boolean | null };
 interface MyStock { market: string; symbol: string; name?: string | null; tags: string[];
-  events: { kind: string; text: string; anchor: string; date?: string | null; warn: boolean }[] }
+  events: { kind: string; text: string; anchor: string; date?: string | null; warn: boolean }[]; facts?: ChartFact | null }
 // 미국 8-K 지난 7일(2026-10-21부터, SEC). 항목 번호로 나눈 종류 + 원문 첫머리(영어 그대로). warn은 해지·손상 등 종류 분류일 뿐 점수 아님.
 interface Us8kItem { market: string; symbol: string; name?: string | null; date: string; url?: string | null; tags: string[]; warn: boolean;
   items: { item: string; label: string; warn: boolean; excerpt?: string | null }[] }
@@ -108,7 +109,7 @@ function FinanceTag({ f }: { f?: InsiderItem["finance"] }) {
 }
 function InsiderRow({ x, showFinance = false, note }: { x: InsiderItem; showFinance?: boolean; note?: ReactNode }) {
   return (
-    <div className={ROW} style={rowMark(x.tags.length > 0)}>
+    <div className={ROW} style={rowMark(isMine(x.tags))}>
       <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(x.last_date)}</span>
       <StockLabel s={x} />
       <span className="text-white">{insiderMoney(x.value, x.market)}</span>
@@ -262,6 +263,74 @@ function ReviewRow({ o, week, onChanged }: { o: ObservationT; week?: string; onC
       {o.hypothesis && <p className="mt-0.5 truncate text-[12.5px]" style={{ color: "var(--text-muted)" }}>&ldquo;{o.hypothesis}&rdquo;</p>}
       {open && <div className="mt-2"><ObservationCard o={o} currentWeek={week} onChanged={onChanged} /></div>}
     </div>
+  );
+}
+
+// ── ⭐ 내 관심 종목(2026-11-21, 사용자: 공시 텔레그램을 끄고 브리핑에서 관심 기업을 더 돋보이게) ──────────────
+// 브리핑 맨 위. 내 관심·노트 종목을 전부 카드로 - 이번 주 생긴 일(아래 칸에서 모은 것)과 차트 상태(1개월·200일선·52주 위치, 판정 아님).
+// 지금 주는 목록·차트 값을 그 자리에서 읽고(/api/mine - 방금 담은 종목도 보이게), 지난 주는 그 주 브리핑에 담긴 그대로.
+type MineCard = { market: string; symbol: string; name?: string | null; tags: string[]; facts?: ChartFact | null; events: MyStock["events"] };
+function FactLine({ f }: { f?: ChartFact | null }) {
+  if (!f) return <span style={{ color: "var(--text-faint)" }}>차트 값 없음</span>;
+  const p = (v: number | null) => (v == null ? "-" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`);
+  return (
+    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+      1개월 <b style={{ color: f.ret_1m == null ? "var(--text-faint)" : f.ret_1m >= 0 ? "#4ade80" : "#f87171" }}>{p(f.ret_1m)}</b>
+      <span style={{ color: "var(--text-faint)" }}> · </span>200일선 {f.above_ma200 == null ? "-" : f.above_ma200 ? "위" : "아래"}
+      <span style={{ color: "var(--text-faint)" }}> · </span>52주 범위 {f.pos_52w == null ? "-" : `${Math.round(f.pos_52w * 100)}%`}
+    </span>
+  );
+}
+function MineSection({ my, past }: { my: NonNullable<Briefing["my_stocks_week"]> | null; past: boolean }) {
+  const [live, setLive] = useState<Omit<MineCard, "events">[] | null>(null);
+  useEffect(() => {
+    if (past) return;
+    fetch("/api/mine").then((r) => r.json()).then((d) => setLive(Array.isArray(d.items) ? d.items : [])).catch(() => setLive(null));
+  }, [past]);
+  const ev = new Map((my?.items ?? []).map((x) => [`${x.market}:${x.symbol}`, x]));
+  const base: Omit<MineCard, "events">[] = !past && live ? live : [...(my?.items ?? []), ...(my?.quiet ?? [])];
+  const cards: MineCard[] = base.map((x) => {
+    const e = ev.get(`${x.market}:${x.symbol}`);
+    return { ...x, name: x.name ?? e?.name, facts: x.facts ?? e?.facts ?? null, events: e?.events ?? [] };
+  });
+  // 브리핑에는 있는데 지금 목록에서 빠진 종목(관심 해제 등)도 그 주 일은 보여 준다
+  for (const [k, e] of ev) if (!cards.some((c) => `${c.market}:${c.symbol}` === k)) cards.push({ ...e, facts: e.facts ?? null });
+  cards.sort((a, b) => Number(b.events.length > 0) - Number(a.events.length > 0) || Number(!a.tags.includes("my")) - Number(!b.tags.includes("my")));
+  const withEv = cards.filter((c) => c.events.length).length;
+  return (
+    <Section className={SCROLL_M} id="mine" tone="mine" title="⭐ 내 관심 종목"
+      sub={cards.length ? `${cards.length}종목 · 이번 주 일이 생긴 곳 ${withEv}` : "아직 담은 종목이 없습니다"}>
+      {cards.length === 0 ? (
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          기업 카드에서 ☆ 관심 담기를 누르면 여기 맨 위에 모여, 매주 공시·실적 발표·내부자 매수와 차트 상태를 한눈에 봅니다.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {cards.map((x) => (
+            <div key={`${x.market}:${x.symbol}`} className="rounded-lg px-3 py-2.5"
+              style={x.events.length ? { background: "#f59e0b14", border: "1px solid #f59e0b77" } : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
+              <div className="flex flex-wrap items-center gap-1.5 text-[14px]">
+                <StockLabel s={x} /><DiscTags tags={x.tags} />
+                <span className="ml-auto"><NoteBtn s={x} past={past} /></span>
+              </div>
+              <p className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)" }}><FactLine f={x.facts} /></p>
+              {x.events.length ? (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {x.events.map((e, i) => (
+                    <a key={i} href={e.anchor === "notes" ? "/notes" : `#${e.anchor}`} className="text-[12.5px] px-2 py-0.5 rounded hover:brightness-125"
+                      style={e.warn ? { background: "#f8717114", border: "1px solid #f8717144", color: "#fca5a5" }
+                        : { background: "var(--bg-card)", border: "1px solid #f59e0b55", color: "var(--text-primary)" }}>
+                      <span style={{ color: e.warn ? "#f87171" : "#f59e0b" }}>{e.kind}</span> {e.text}
+                    </a>
+                  ))}
+                </div>
+              ) : <p className="mt-1 text-[12px]" style={{ color: "var(--text-faint)" }}>이번 주 공시·실적 발표·내부자 매수 없음</p>}
+            </div>
+          ))}
+        </div>
+      )}
+      <Note>이번 주 일은 아래 칸(실적 발표·한국 공시·미국 8-K·내부자 매수·13F·실적 반전)과 노트 회고에서 내 관심·노트 종목만 모은 것 · 누르면 그 칸으로 · 차트는 평일 밤 계산 값(판정 아님) · 공시 텔레그램은 11/21부터 보내지 않습니다</Note>
+    </Section>
   );
 }
 
@@ -438,7 +507,9 @@ function Rows<T>({ items, isKey, render, minShow = 3, restLabel = "나머지" }:
   items: T[]; isKey: (x: T) => boolean; render: (x: T) => ReactNode; minShow?: number; restLabel?: string;
 }) {
   const [all, setAll] = useState(false);
-  const keys = items.filter(isKey);
+  // 내 관심·노트 종목을 맨 앞으로(2026-11-21) - 순서는 그 밖엔 그대로
+  const mineFirst = (xs: T[]) => [...xs].sort((a, b) => Number(isMine((b as { tags?: string[] }).tags)) - Number(isMine((a as { tags?: string[] }).tags)));
+  const keys = mineFirst(items.filter(isKey));
   const base = keys.length > 0 ? keys : items.slice(0, minShow);
   const ordered = keys.length > 0 ? [...keys, ...items.filter((x) => !isKey(x))] : items;
   const list = all ? ordered : base;
@@ -464,7 +535,7 @@ function Us8kRow({ x }: { x: Us8kItem }) {
   const [open, setOpen] = useState(false);
   const ex = x.items.find((i) => i.excerpt)?.excerpt;
   return (
-    <div style={rowMark(false, x.warn)}>
+    <div style={rowMark(isMine(x.tags), x.warn)}>
       <div className={ROW}>
         <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(x.date)}</span>
         <StockLink market="US" symbol={x.symbol} className="font-bold text-white">{x.symbol}</StockLink>
@@ -483,8 +554,10 @@ function Us8kRow({ x }: { x: Us8kItem }) {
 }
 
 // 줄 강조: 관심 종목은 왼쪽 노란 띠, 주의(해지·구조조정 등)는 붉은 띠 - 상자 테두리 대신
+// 줄 강조는 내 관심·노트 종목만(2026-11-21 사용자: 관심 기업을 더 돋보이게) - 예전엔 워치리스트 후보(cand)·테마 소속도 같은 노란 띠라 묻혔다
+const isMine = (tags?: string[]) => !!tags && (tags.includes("my") || tags.includes("note"));
 const rowMark = (tagged: boolean, warn = false): CSSProperties =>
-  tagged ? { background: "#f59e0b0d", boxShadow: "inset 3px 0 0 #f59e0b" } : warn ? { background: "#f871710a", boxShadow: "inset 3px 0 0 #f87171" } : {};
+  tagged ? { background: "#f59e0b1a", boxShadow: "inset 4px 0 0 #f59e0b" } : warn ? { background: "#f871710a", boxShadow: "inset 3px 0 0 #f87171" } : {};
 const ROW = "flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[12px] px-3 py-1.5";
 const dayLabel = (d?: string | null) => (d ? d.slice(5).replace("-", "/") : "-");
 
@@ -594,7 +667,8 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   const toggleGroup = (g: string) => setOpenGroups((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
 
   const has = {
-    mine: (b.my_stocks_week?.count ?? 0) > 0,
+    // 지금 주는 늘(관심 종목 목록을 그 자리에서 읽는다), 지난 주는 그 주에 담긴 것이 있을 때만
+    mine: !past || (b.my_stocks_week?.count ?? 0) > 0 || (b.my_stocks_week?.quiet?.length ?? 0) > 0,
     focus: !!b.week_focus && (b.week_focus.themes.length > 0 || b.week_focus.stocks.length > 0),
     comment: !!b.gpt_comment,
     labels: !!b.theme_labels && (b.theme_labels.new_labels.length > 0 || b.theme_labels.dropped_labels.length > 0),
@@ -609,7 +683,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   // 목차 - 아래 칸 순서 그대로. 앵커는 개요 "이번 주 변화"·⭐ 줄이 쓰는 짧은 이름(#earnings 등)
   const toc: TocItem[] = [
     ...(has.focus ? [{ id: "focus", label: "🎯 이번 주 볼 것", group: "" }] : []),
-    ...(has.mine ? [{ id: "mine", label: "⭐ 관심 종목", count: `${b.my_stocks_week!.count}`, group: "" }] : []),
+    ...(has.mine ? [{ id: "mine", label: "⭐ 내 관심 종목", count: b.my_stocks_week?.count ? `${b.my_stocks_week.count}` : undefined, group: "" }] : []),
     ...(has.comment ? [{ id: "comment", label: "총평", group: "" }] : []),
     { id: "market", label: "지난주 시장", group: "시장" },
     { id: "watchlist", label: "워치리스트",
@@ -692,6 +766,12 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
   // 묶음 머리 요약 한 줄(2026-11-15) - 접혀 있어도 핵심 숫자는 보이게. 값은 아래 칸과 같은 것
   const sgn = (v?: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
   const combo = (mk: "US" | "KR") => (b.regime?.[mk]?.combos ?? []).map((c) => c.name).join("·");
+  // 묶음 요약에 내 관심 건수(2026-11-21) - 접혀 있어도 내 종목 일이 있는지 보이게
+  const mineN = (xs?: { tags: string[] }[]) => (xs ?? []).filter((x) => isMine(x.tags)).length;
+  const kd0 = b.kr_disclosures;
+  const mineDisc = kd0 ? mineN([...kd0.contract.items, ...kd0.prelim.items, ...(kd0.termination?.items ?? []), ...(kd0.amend?.items ?? [])]) : 0;
+  const mineOther = mineN(b.us_8k_week?.items) + mineN(b.insider_week?.items);
+  const mineEarn = mineN(b.earnings_week?.items);
   const sums: Record<string, string> = {
     "시장": [`🇺🇸 S&P 500 ${sgn(b.us?.index_chg_1w)}${combo("US") ? ` (${combo("US")})` : ""}`,
              `🇰🇷 KOSPI ${sgn(b.kr?.index_chg_1w)}${combo("KR") ? ` (${combo("KR")})` : ""}`].join(" · "),
@@ -699,8 +779,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                  b.turnaround?.has_prev ? `실적 반전 신규 ${b.turnaround.added_count}` : null,
                  has.sentiment ? `관심도 상승 ${b.sentiment_heating.length}` : null].filter(Boolean).join(" · "),
     "테마": b.theme_labels ? `새 라벨 ${b.theme_labels.new_labels.length} · 사라진 라벨 ${b.theme_labels.dropped_labels.length}` : "",
-    "이번 주 일정": b.earnings_week ? `실적 발표 ${b.earnings_week.total}곳${b.earnings_week.tagged_count ? ` (관심·노트·실적 반전 ${b.earnings_week.tagged_count})` : ""}` : "",
-    "공시 · 내부자": [has.disclosures ? `한국 공시 ${discTotal(b)}` : null,
+    "이번 주 일정": b.earnings_week ? `${mineEarn ? `⭐ 내 관심 ${mineEarn} · ` : ""}실적 발표 ${b.earnings_week.total}곳${b.earnings_week.tagged_count ? ` (관심·노트·실적 반전 ${b.earnings_week.tagged_count})` : ""}` : "",
+    "공시 · 내부자": [mineDisc + mineOther ? `⭐ 내 관심 ${mineDisc + mineOther}` : null,
+                    has.disclosures ? `한국 공시 ${discTotal(b)}` : null,
                     (b.kr_disclosures?.termination?.count ?? 0) > 0 ? `⚠ 계약 해지 ${b.kr_disclosures!.termination!.count}` : null,
                     has.us8k ? `8-K ${b.us_8k_week!.total}${b.us_8k_week!.items.some((x) => x.warn) ? ` (⚠ 주의 ${b.us_8k_week!.items.filter((x) => x.warn).length})` : ""}` : null,
                     has.insider ? `내부자 매수 ${b.insider_week!.total}` : null,
@@ -721,33 +802,9 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
 
       <div ref={rootRef} className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-5">
         <div className="space-y-2 min-w-0">
+          {has.mine && <MineSection my={b.my_stocks_week ?? null} past={past} />}
           {has.focus && <WeekFocus f={b.week_focus!} past={past} />}
           {!past && <DueReviews />}
-          {has.mine && (
-            <Section className={SCROLL_M} id="mine" tone="mine" title="⭐ 관심 종목에 생긴 일"
-              sub={`내 관심·노트 ${b.my_stocks_week!.watched}종목 중 ${b.my_stocks_week!.count}종목`}>
-              <div className="divide-y" style={{ borderColor: "#f59e0b22" }}>
-                {b.my_stocks_week!.items.map((x) => (
-                  <div key={`${x.market}:${x.symbol}`} className="py-1.5 first:pt-0 last:pb-0" style={{ borderColor: "#f59e0b22" }}>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
-                      <StockLabel s={x} /><DiscTags tags={x.tags} /><NoteBtn s={x} past={past} />
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {x.events.map((e, i) => (
-                        <a key={i} href={e.anchor === "notes" ? "/notes" : `#${e.anchor}`} className="text-[12px] px-2 py-0.5 rounded hover:brightness-125"
-                          style={e.warn ? { background: "#f8717114", border: "1px solid #f8717144", color: "#fca5a5" }
-                            : { background: "var(--bg-inset)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-                          <span style={{ color: e.warn ? "#f87171" : "var(--text-muted)" }}>{e.kind}</span> {e.text}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Note>아래 항목(실적 발표·한국 공시·미국 8-K·내부자 매수·실적 반전)과 노트 회고에서 내 관심·노트 종목만 모았습니다 · 누르면 해당 항목으로</Note>
-            </Section>
-          )}
-
           {has.comment && (
             <Section className={SCROLL_M} id="comment" title="주간 총평">
               <CommentBody text={b.gpt_comment} collapsed={longComment && !commentOpen} news={b.comment_news} />
@@ -890,11 +947,11 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                       <span className="text-[12px] font-bold text-white w-16 shrink-0 pt-1 whitespace-nowrap">{mdw(d)}</span>
                       <div className="flex flex-wrap gap-1.5">
                         {b.earnings_week!.items.filter((x) => x.date === d)
-                          .sort((x, y) => Number(y.tags.length > 0) - Number(x.tags.length > 0))
+                          .sort((x, y) => Number(isMine(y.tags)) - Number(isMine(x.tags)) || Number(y.tags.length > 0) - Number(x.tags.length > 0))
                           .map((x) => (
                             <span key={`${x.market}:${x.symbol}`} className="text-[12px] px-2 py-1 rounded-lg"
-                              style={x.tags.length > 0
-                                ? { background: "#f59e0b14", border: "1px solid #f59e0b55" }
+                              style={isMine(x.tags)
+                                ? { background: "#f59e0b1f", border: "1px solid #f59e0b88" }
                                 : { background: "var(--bg-inset)", border: "1px solid var(--border)" }}>
                               <StockLabel s={x} />
                               {x.tags.length > 0 && <> <TagBadges tags={x.tags} /></>}
@@ -926,7 +983,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     <>
                       <Sub>⚠️ 계약 해지 · 금액 정정</Sub>
                       <Rows items={fix} isKey={() => true} render={(d) => (
-                        <div className={ROW} style={rowMark(d.tags.length > 0, true)}>
+                        <div className={ROW} style={rowMark(isMine(d.tags), true)}>
                           <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(d.date)}</span>
                           <DiscName d={d} />
                           <span style={{ color: "#fca5a5" }}>{d.summary}</span>
@@ -939,7 +996,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     <>
                       <Sub>공급계약 <span className="font-normal" style={{ color: "var(--text-muted)" }}>관심 종목 · 매출 대비 10% 이상 먼저</span></Sub>
                       <Rows items={k.contract.items} isKey={keyContract} render={(d) => (
-                        <div className={ROW} style={rowMark(d.tags.length > 0)}>
+                        <div className={ROW} style={rowMark(isMine(d.tags))}>
                           <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(d.date)}</span>
                           <DiscName d={d} />
                           <span className="font-semibold text-white">{d.withheld ? "금액 비공개" : eok(d.amount)}</span>
@@ -954,7 +1011,7 @@ function BriefingView({ b, picker, past, macroHist }: { b: Briefing; picker: Rea
                     <>
                       <Sub>잠정실적 <span className="font-normal" style={{ color: "var(--text-muted)" }}>관심 종목 · 흑자·적자 전환 먼저 · 전년 같은 분기 대비</span></Sub>
                       <Rows items={k.prelim.items} isKey={keyPrelim} render={(d) => (
-                        <div className={ROW} style={rowMark(d.tags.length > 0)}>
+                        <div className={ROW} style={rowMark(isMine(d.tags))}>
                           <span className="w-11 shrink-0 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{dayLabel(d.date)}</span>
                           <DiscName d={d} />
                           {d.quarter && <span style={{ color: "var(--text-faint)" }}>{d.quarter}</span>}
