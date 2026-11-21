@@ -25,6 +25,13 @@ interface MapTheme { theme_id: string; theme: string; market: Mk; groups: { n: n
 interface Ref { market: Mk; symbol: string; name: string }
 interface Change { from: string; to: string; start_total: number; end_total: number; added: Ref[]; added_count: number; removed: Ref[]; removed_count: number }
 interface Review { kind: string; market: Mk; target: string; checkpoint: string; created_at: string; results: { key?: string; expect: string; hit: boolean | null }[] }
+// 내 검토 기록(2026-11-21, 사용자 요청) - scripts/generate_monthly_report.py decisions_section. 11월 보고서부터
+interface DecRec { date: string; market: Mk; symbol: string; name: string; decision: string; checks: string; source: string; memo: string }
+interface DecArrived { market: Mk; symbol: string; name: string; decision: string; decided_on: string; h: number; due: string;
+                       ret: number; mkt: number | null; ex: number | null }
+interface DecStat { h: number; decision: string; n: number; med: number | null; med_ex: number | null; beat: number; n_ex: number }
+interface Decisions { total: number; recorded: DecRec[]; recorded_count: number; by_decision: Record<string, number>;
+                      arrived: DecArrived[]; stats: DecStat[]; next: { date: string; h: number; n: number } | null }
 interface CalItem { date: string; market: Mk; symbol: string; name: string; estimate: boolean; tags: string[] }
 interface Report {
   month: string; generated_at: string; weeks: string[]; briefing_weeks: string[];
@@ -36,6 +43,7 @@ interface Report {
   watchlist: { watchlist: Change | null; turnaround: Change | null };
   month_events?: { market: Mk; symbol: string; name: string; events: string[] }[];   // 2026-11-07 둘째 판부터
   reviews: Review[];
+  decisions?: Decisions | null;
   calendar: { earnings: CalItem[]; earnings_total: number; deadlines: { date: string; what: string }[] };
 }
 
@@ -290,6 +298,67 @@ function Reviews({ rs }: { rs: Review[] }) {
   );
 }
 
+const DEC_KO: Record<string, string> = { watch: "관심", hold: "보류", pass: "제외" };
+const DEC_COLOR: Record<string, string> = { watch: "var(--accent)", hold: "var(--text-secondary)", pass: "var(--text-muted)" };
+const H_KO: Record<number, string> = { 28: "4주", 84: "12주", 182: "26주" };
+const pct = (v: number | null) => (v == null ? "-" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`);
+const pp = (v: number | null) => (v == null ? "-" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%p`);
+const tone = (v: number | null) => (v == null ? "var(--text-faint)" : v >= 0 ? "var(--good)" : "var(--danger)");
+
+function DecisionBlock({ d }: { d: Decisions | null | undefined }) {
+  if (!d) return <p className="text-[13px]" style={MUTED}>아직 남긴 검토 기록이 없습니다. 기업 카드의 &lsquo;검토 기록&rsquo; 칸에서 관심·보류·제외를 남기면 4·12·26주 뒤 결과가 여기 모입니다.</p>;
+  return (
+    <div className="space-y-4 text-[13px]">
+      <div>
+        <Sub>이달 남긴 기록 {d.recorded_count}건{d.recorded_count ? ` (${["watch", "hold", "pass"].filter((k) => d.by_decision[k]).map((k) => `${DEC_KO[k]} ${d.by_decision[k]}`).join(" · ")})` : ""}</Sub>
+        {d.recorded.length ? (
+          <ul className="space-y-1">
+            {d.recorded.map((x, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                <span style={FAINT}>{md(x.date)}</span>
+                <b style={{ color: DEC_COLOR[x.decision] }}>{DEC_KO[x.decision] ?? x.decision}</b>
+                <StockLink market={x.market} symbol={x.symbol} style={{ color: "var(--text-primary)", fontWeight: 700 }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
+                <MkTag m={x.market} />
+                {x.checks && <span style={MUTED}>{x.checks}</span>}
+                <span style={FAINT}>· {x.source}</span>
+                {x.memo && <span style={{ color: "var(--text-secondary)" }}>&ldquo;{x.memo}&rdquo;</span>}
+              </li>
+            ))}
+          </ul>
+        ) : <p style={FAINT}>이달 새로 남긴 기록 없음</p>}
+      </div>
+      <div>
+        <Sub>이달 도착한 결과 {d.arrived.length}건</Sub>
+        {d.stats.length ? (
+          <>
+            <ul className="mb-2 space-y-0.5">
+              {d.stats.map((s) => (
+                <li key={`${s.h}${s.decision}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                  <span style={MUTED}>{H_KO[s.h]} 뒤</span> <b style={{ color: DEC_COLOR[s.decision] }}>{DEC_KO[s.decision]}</b> {s.n}건 · 중앙값 <b style={{ color: tone(s.med) }}>{pct(s.med)}</b>
+                  {s.n_ex > 0 && <span style={MUTED}> · 시장 대비 <b style={{ color: tone(s.med_ex) }}>{pp(s.med_ex)}</b> · {s.n_ex}건 중 {s.beat}건 앞섬</span>}
+                </li>
+              ))}
+            </ul>
+            <ul className="space-y-0.5 text-[12.5px]">
+              {d.arrived.map((x, i) => (
+                <li key={i} className="flex flex-wrap items-baseline gap-x-2" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  <span style={FAINT}>{md(x.decided_on)} {DEC_KO[x.decision]} → {H_KO[x.h]} 뒤</span>
+                  <StockLink market={x.market} symbol={x.symbol} style={{ color: "var(--text-primary)" }}>{nameOf(x.market, x.symbol, x.name)}</StockLink>
+                  <span style={{ color: tone(x.ret) }}>{pct(x.ret)}</span>
+                  <span style={MUTED}>시장 {pct(x.mkt)} · 차이 <span style={{ color: tone(x.ex) }}>{pp(x.ex)}</span></span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : <p style={FAINT}>이달 끝 날짜가 온 결과 없음{d.next ? ` · 다음 결과 ${md(d.next.date)} (${H_KO[d.next.h]} ${d.next.n}건)` : ""}</p>}
+      </div>
+      <p className="text-[12px]" style={FAINT}>
+        시작가는 기록한 다음 거래일 종가, 시장은 미국 SPY·한국 KODEX 200. 관심·보류·제외 모두 같은 방식으로 잽니다(제외한 게 맞았는지도 보려고). 분포만 - 점수·적중률 아님 · 전체는 성적표 화면.
+      </p>
+    </div>
+  );
+}
+
 function CalendarBlock({ c, month }: { c: Report["calendar"]; month: string }) {
   const by = new Map<string, CalItem[]>();
   for (const x of c.earnings) by.set(x.date, [...(by.get(x.date) ?? []), x]);
@@ -404,6 +473,7 @@ function MonthGlance({ r }: { r: Report }) {
       {wl.length > 0 && row("워치리스트", "#s5", join(wl))}
       {row("회고", "#s6", hits.length ? <>맞음 <b style={{ color: "var(--text-primary)" }}>{ok}</b>{sep}빗나감 <b style={{ color: "var(--text-primary)" }}>{miss}</b>{na ? <>{sep}판단 불가 {na}</> : null}</>
         : <span style={FAINT}>{r.reviews.length ? "적어 둔 기대가 있는 노트 없음" : "회고 시점이 온 노트 없음"}</span>)}
+      {r.decisions && row("검토 기록", "#s8", <>이달 {r.decisions.recorded_count}건{sep}결과 도착 {r.decisions.arrived.length}건{r.decisions.stats.filter((s) => s.n_ex > 0).length ? <>{sep}{r.decisions.stats.filter((s) => s.n_ex > 0).map((s) => `${H_KO[s.h]} ${DEC_KO[s.decision]} 시장 대비 ${pp(s.med_ex)}`).join(", ")}</> : null}</>)}
       {row("다음 달", "#s7", (r.calendar.deadlines.length || mine.length) ? join([
         ...r.calendar.deadlines.map((d) => <>{md(d.date)} {d.what}</>),
         ...(mine.length ? [<>내 관심 실적 발표 {mine.map((x, i) => (
@@ -500,7 +570,8 @@ function ReportView() {
         )}
       </Section>
       <Section id="s6" title="6. 관찰 노트 회고" sub="적어 둔 기대가 맞았는지" className="print-avoid-break"><Reviews rs={r.reviews} /></Section>
-      <Section id="s7" title={`7. ${nextMonth} 일정`} sub="실적 발표 · 공시 마감"><CalendarBlock c={r.calendar} month={nextMonth} /></Section>
+      <Section id="s8" title="7. 내 검토 기록" sub="이달 남긴 관심·보류·제외와 이달 도착한 4·12·26주 결과" className="print-avoid-break"><DecisionBlock d={r.decisions} /></Section>
+      <Section id="s7" title={`8. ${nextMonth} 일정`} sub="실적 발표 · 공시 마감"><CalendarBlock c={r.calendar} month={nextMonth} /></Section>
     </div>
   );
 }

@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import generate_weekly_briefing as wb  # noqa: E402 - 같은 읽기·뒷손질을 쓴다
 from src.analyzers.value_chain import parse_segments  # noqa: E402
+from src.analyzers import decision_digest as dd  # noqa: E402
 
 SITE = "https://u-sonar.vercel.app"
 PROFILES = ROOT / "frontend" / "src" / "data" / "companyProfiles.json"
@@ -308,6 +309,32 @@ def reviews_section(bs: list[dict], tnames: dict[str, str], nm: dict[str, str]) 
                         "created_at": str(r.get("created_at") or "")[:10],
                         "results": [{"key": e, "expect": wb.EXPECT_KO.get(r.get("kind") or "theme", {}).get(e, e), "hit": v} for e, v in res.items()]})
     return out
+
+
+def decisions_section(start: date, end: date, nm: dict[str, str], today: date | None = None) -> dict | None:
+    """이달 검토 기록(2026-11-21, 사용자 요청) - 이달 남긴 관심·보류·제외와, 이달 끝 날짜가 온 4·12·26주 결과.
+    결과 값은 stock_decision_outcomes 그대로, 결정별 분포만(점수 없음, 원칙 1). 기록이 하나도 없으면 None."""
+    rows = wb.load_decision_rows()
+    if not rows:
+        return None
+    nm_of = lambda r: nm.get(f"{r['market']}:{r['symbol']}") or r.get("name") or r["symbol"]  # noqa: E731
+    rec = []
+    for r in rows:
+        d = str(r.get("decided_on") or "")[:10]
+        if not (start.isoformat() <= d < end.isoformat()):
+            continue
+        try:
+            checks = json.loads(r.get("checks") or "{}")
+        except (TypeError, ValueError):
+            checks = {}
+        rec.append({"date": d, "market": r["market"], "symbol": r["symbol"], "name": nm_of(r), "decision": r["decision"],
+                    "checks": " · ".join(f"{dd.CHECK_KO[k]} {dd.CHECK_VAL_KO.get(v, v)}" for k, v in checks.items() if k in dd.CHECK_KO),
+                    "source": dd.SRC_KO.get(r.get("source") or "", r.get("source") or ""), "memo": (r.get("memo") or "")[:120]})
+    dg = dd.digest(rows, start, end, today or date.today())
+    arrived = [{**x, "name": nm.get(f"{x['market']}:{x['symbol']}") or x.get("name") or x["symbol"]} for x in dg["arrived"]]
+    by = {k: sum(1 for x in rec if x["decision"] == k) for k in dd.DEC_ORDER}
+    return {"total": dg["total"], "recorded": rec[:60], "recorded_count": len(rec), "by_decision": by,
+            "arrived": arrived[:60], "stats": dg["stats"], "next": dg["next"]}
 
 
 def calendar_section(next_start: date, next_end: date, nm: dict[str, str]) -> dict:
@@ -788,6 +815,7 @@ def build(month: str, use_gpt: bool = True) -> dict:
         "watchlist": watchlist_section(start, end, nm),
         "month_events": event_list(ev, nm),
         "reviews": reviews_section(bs, tnames, nm),
+        "decisions": decisions_section(start, end, nm),
         "calendar": calendar_section(nstart, nend, nm),
     }
     r["summary_facts"] = summary_facts(r)
@@ -855,6 +883,7 @@ def main() -> int:
         ev = [(m['theme'], it['name'], it['events']) for m in r['company_map'] for g in m['groups'] for it in g['items'] if it['events']]
         print("기업 지도 이달 생긴 일: " + json.dumps(ev[:12], ensure_ascii=False))
         print("회고: " + json.dumps(r["reviews"], ensure_ascii=False)[:1500])
+        print("검토 기록: " + json.dumps(r["decisions"], ensure_ascii=False)[:1500])
         print("일정(앞): " + json.dumps(r["calendar"]["earnings"][:10], ensure_ascii=False))
         w = r["watchlist"]
         print("워치리스트: " + json.dumps({k: (v and {x: v[x] for x in v if x not in ("added", "removed")}) for k, v in w.items()}, ensure_ascii=False))

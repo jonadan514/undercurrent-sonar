@@ -37,6 +37,7 @@ sys.path.insert(0, str(ROOT))
 from src.db.turso_http import as_bool, get_credentials, query as _turso_query
 from src.analyzers.signal_check import sentiment_window
 from src.analyzers.theme_labels import label_display
+from src.analyzers import decision_digest as dd
 from src.collectors.kr_disclosures import amount_changed, prelim_has_values, quarter_label, summary as disclosure_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -1437,6 +1438,37 @@ def get_my_stocks_week(b: dict) -> dict | None:
     return my_stocks_week(b, mine, names, my_stock_facts(list(mine))) if mine else None
 
 
+def load_decision_rows() -> list[dict]:
+    """검토 기록 + 결과 값(stock_decision_outcomes) - 월간 보고서도 쓴다. 표가 없으면 빈 목록."""
+    cols = ", ".join(f"o.{c}" for h in dd.HORIZONS for c in (f"ret_{h}d", f"mkt_{h}d"))
+    try:
+        return turso_exec("SELECT d.id, d.decided_on, d.market, d.symbol, d.name, d.decision, d.checks, d.source, d.memo, "
+                          f"o.entry_date, {cols} FROM stock_decisions d "
+                          "LEFT JOIN stock_decision_outcomes o ON o.decision_id = d.id ORDER BY d.decided_on, d.id")
+    except Exception as e:  # noqa: BLE001 - 표가 아직 없을 때
+        logger.info("검토 기록 읽기 건너뜀: %s", str(e)[:120])
+        return []
+
+
+def get_decision_results(week: str) -> dict | None:
+    """지난 한 주(브리핑 주 월요일 전 7일)에 4·12·26주 결과가 도착한 검토 기록(2026-11-21, 사용자 요청). 기록이 없으면 None."""
+    end = datetime.strptime(week, "%Y-%m-%d").date()
+    return dd.digest(load_decision_rows(), end - timedelta(days=7), end, datetime.now(timezone.utc).date())
+
+
+def decision_tg_lines(d: dict | None) -> list[str]:
+    """텔레그램 '📒 내 검토 기록' - 도착한 결과는 기간·결정별 분포, 없으면 다음 도착 날짜만. 숫자는 결과 표 값 그대로."""
+    if not d:
+        return []
+    head = f"<b>📒 내 검토 기록</b> {d['total']}건"
+    if d["stats"]:
+        out = [head + f" · 이번 주 결과 도착 {len(d['arrived'])}건"]
+        out += [f"  {dd.H_KO[s['h']]} 뒤: {dd.stat_text(s)}" for s in d["stats"]]
+        return out
+    nx = d.get("next")
+    return [head + (f" · 다음 결과 {_md(nx['date'])}({dd.H_KO[nx['h']]} {nx['n']}건)" if nx else " · 결과 대기 없음")]
+
+
 def _quarter(period: str) -> str:
     return f"{period[:4]} Q{(int(period[5:7]) - 1) // 3 + 1}" if period and len(period) >= 7 else period
 
@@ -1480,6 +1512,10 @@ def build_telegram_summary(b: dict) -> str:
         if my["count"] > MY_TG_MAX:
             lines.append(f"  외 {my['count'] - MY_TG_MAX}종목")
         lines.append("")
+
+    dec = decision_tg_lines(b.get("decision_results"))
+    if dec:
+        lines += [*dec, ""]
 
     # 총평 '이번 주 짚을 점' 제목(2026-11-05) - 코드가 만든 제목만(GPT 문장은 웹에만, 원칙 2). 본문·기사는 웹 링크로
     pts = b.get("comment_points") or []
@@ -1723,6 +1759,9 @@ def build_telegram_short(b: dict) -> str:
     reviews = b.get("observation_reviews") or []
     if reviews:
         lines += ["", f"<b>🔁 회고 판정 대기</b> {len(reviews)}건 - 브리핑에서 바로 판정"]
+    dec = decision_tg_lines(b.get("decision_results"))
+    if dec:
+        lines += ["", *dec]
     # 시장 한 줄 - 지수 주간 등락 + 시장 환경 조합 이름(없으면 '뚜렷한 조합 없음')
     mk = []
     for key, flag, nm in (("us", "🇺🇸", "S&amp;P 500"), ("kr", "🇰🇷", "KOSPI")):   # parse_mode=HTML - & 그대로면 메시지가 안 간다
@@ -1888,6 +1927,7 @@ def main() -> None:
         "sentiment_heating": get_sentiment_week(week),
         "theme_labels": get_theme_label_changes(),
         "observation_reviews": get_observation_reviews(),
+        "decision_results": get_decision_results(week),
     }
     briefing["my_stocks_week"] = get_my_stocks_week(briefing)
     briefing["week_focus"] = get_week_focus(briefing)
