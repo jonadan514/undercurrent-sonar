@@ -110,6 +110,15 @@ def main() -> int:
     names = {t["id"]: t["name_ko"] for t in yaml.safe_load(open(ROOT / "config" / "themes.yaml", encoding="utf-8"))["themes"]}
     conn = get_db()
     cur, prev = _rows(conn, week), _rows(conn, prev_week)
+    if not cur and args.dry_run and not args.week:
+        # 점검용: 이번 주가 아직 계산 전이면(일요일 정기 실행 전) 마지막으로 계산된 주로 문구를 본다. 정기 발송은 이렇게 하지 않는다
+        # (계산이 실패한 주에 지난 주 변화를 다시 보내지 않게).
+        last = conn.execute(f"SELECT MAX(week_start) FROM theme_signals WHERE price_arrow IS NOT NULL "
+                            f"AND theme_id IN ({','.join('?' * len(THEMES))})", tuple(THEMES)).fetchone()[0]
+        if last:
+            _log(f"{week} 주 값 없음 - 점검용으로 마지막 계산 주 {last}")
+            week, prev_week = str(last), (date.fromisoformat(str(last)) - timedelta(days=7)).isoformat()
+            cur, prev = _rows(conn, week), _rows(conn, prev_week)
     if not cur:
         _log(f"{week} 주 반도체 테마 값 없음 - 보내지 않음")
         return 0
