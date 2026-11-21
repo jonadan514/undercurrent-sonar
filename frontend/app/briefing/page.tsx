@@ -293,8 +293,9 @@ function MineSection({ my, past }: { my: NonNullable<Briefing["my_stocks_week"]>
     const e = ev.get(`${x.market}:${x.symbol}`);
     return { ...x, name: x.name ?? e?.name, facts: x.facts ?? e?.facts ?? null, events: e?.events ?? [] };
   });
-  // 브리핑에는 있는데 지금 목록에서 빠진 종목(관심 해제 등)도 그 주 일은 보여 준다
-  for (const [k, e] of ev) if (!cards.some((c) => `${c.market}:${c.symbol}` === k)) cards.push({ ...e, facts: e.facts ?? null });
+  // 지금 주는 지금 목록만(관심 해제·노트 삭제한 종목은 뺀다 - 2026-11-21 노트·관심 전부 삭제 뒤 CNX가 남아 보였다).
+  // 지금 목록을 못 읽었을 때만 브리핑에 담긴 종목을 그대로 보여 준다.
+  if (past || !live) for (const [k, e] of ev) if (!cards.some((c) => `${c.market}:${c.symbol}` === k)) cards.push({ ...e, facts: e.facts ?? null });
   cards.sort((a, b) => Number(b.events.length > 0) - Number(a.events.length > 0) || Number(!a.tags.includes("my")) - Number(!b.tags.includes("my")));
   const withEv = cards.filter((c) => c.events.length).length;
   return (
