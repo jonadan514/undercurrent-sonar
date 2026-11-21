@@ -62,13 +62,13 @@ def line(name: str, flag: str, cur: dict | None, prev: dict | None, changed: lis
     for col, ax in AXES:
         now = ARROW.get(_a(cur.get(col)) or "", "–")
         if ax in changed:
-            cells.append(f"<b>{ax} {ARROW.get(_a(prev.get(col)) or '', '–')}→{now}</b>")
+            cells.append(f"<b>{ax} {ARROW.get(_a(prev.get(col)) or '', '–')}에서 {now}로</b>")
         else:
             cells.append(f"{ax} {now}")
     lab = cur.get("label")
     if "라벨" in changed:
         before = label_display(prev.get("label")) if prev and prev.get("label") else "없음"
-        cells.append(f"<b>라벨 {before} → {label_display(lab) if lab else '없음'}</b>")
+        cells.append(f"<b>라벨 {before}에서 {label_display(lab) if lab else '없음'}으로</b>")
     elif lab:
         cells.append(f"라벨 {label_display(lab)}")
     mark = "🔸 " if changed else ""
@@ -136,7 +136,7 @@ def main() -> int:
         return 0
     d = date.fromisoformat(week)
     text = "\n".join([f"🔬 <b>반도체 테마 신호 변화</b> · {d.month}/{d.day} 주",
-                      "전주와 달라진 칸만 굵게 (🔸 바뀐 줄)", "", *lines, "",
+                      "전주와 달라진 칸만 굵게 (🔸 바뀐 줄)", "↑↑ 크게 좋아짐 · ↑ 좋아짐 · → 비슷 · ↓ 나빠짐 · – 값 없음", "", *lines, "",
                       f'<a href="{SITE}">테마 레이더에서 보기</a>'])
     _log(text)
     if args.dry_run or not args.notify:

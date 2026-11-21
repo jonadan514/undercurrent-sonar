@@ -52,4 +52,4 @@ def test_semi_line_bolds_changed_cells():
     prev = {"news_arrow": None, "earn_arrow": "up1", "price_arrow": "down", "label": None}
     cur = {"news_arrow": None, "earn_arrow": "up2", "price_arrow": "down", "label": None}
     s = st.line("AI 반도체", "🇰🇷", cur, prev, st.diff(cur, prev))
-    assert s.startswith("🔸 🇰🇷 AI 반도체") and "<b>실적 ↑→↑↑</b>" in s and "주가 ↓" in s and "뉴스 –" in s
+    assert s.startswith("🔸 🇰🇷 AI 반도체") and "<b>실적 ↑에서 ↑↑로</b>" in s and "주가 ↓" in s and "뉴스 –" in s
