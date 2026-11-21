@@ -1,0 +1,33 @@
+name: Clear My Notes And Watchlist
+
+# 내 관찰 노트·회고·관심 종목 전부 지우기(2026-11-21 사용자 요청, scripts/clear_user_notes.py).
+# 기본값 dry_run=true - 지울 행을 로그(BACKUP|...)로 먼저 본다. 검토 기록(stock_decisions)은 건드리지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true면 지우지 않고 대상만 출력"
+        required: false
+        default: "true"
+
+permissions:
+  contents: read
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Clear
+        env:
+          TURSO_DATA_URL: ${{ secrets.TURSO_DATA_URL }}
+          TURSO_DATA_TOKEN: ${{ secrets.TURSO_DATA_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then python scripts/clear_user_notes.py --dry-run; else python scripts/clear_user_notes.py; fi
